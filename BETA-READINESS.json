@@ -1,0 +1,40 @@
+{
+  "channel": "beta",
+  "label": "Beta 1",
+  "tag": "v0.18.0-beta.1",
+  "apkVersion": "0.18.0-rc1",
+  "versionCode": 22,
+  "apkSha256": "18cf67ad57a63d0c3ea9006a83c8a39d64399991a8bc0ec78fed4a2bf95471b0",
+  "sourceArchiveSha256": "4344fb763a95de0a41401220d40fee9ce23267374bb65f5e4639bad98b3cfee0",
+  "signerCertificateSha256": "24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c",
+  "authorization": "Owner requested Beta distribution and GitHub Release, then creation of repository 8bercue.",
+  "status": "READY_FOR_BETA_DISTRIBUTION",
+  "productionReady": false,
+  "published": false,
+  "requiredBetaChecks": {
+    "approvedProductionSigner": "PASS",
+    "approvedPrivacyPolicy": "PASS",
+    "approvedLicenseAndCorrespondingSource": "PASS",
+    "buildLintOfflineRegression": "PASS",
+    "sourceReproduction": "PASS",
+    "signedMotoManagementAndRestoration": "PASS",
+    "experimentalFeaturesDisclosed": "PASS",
+    "installMigrationAndFeedbackInstructions": "PASS"
+  },
+  "fullProductionGateCounts": {
+    "PASS": 19,
+    "BLOCKED": 8,
+    "FAIL": 0
+  },
+  "deferredProductionChecks": [
+    "architecture-review",
+    "lifecycle-real-card",
+    "download-delete-real-card",
+    "notification-real-card",
+    "approved-device-matrix",
+    "arm64-16kb-runtime",
+    "new-card-identity",
+    "signed-rc-regression"
+  ],
+  "keyCustody": "Protected local production key and tested encrypted local backup; off-device backup remains outstanding."
+}

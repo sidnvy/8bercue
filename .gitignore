@@ -1,0 +1,8 @@
+.gradle/
+.native-build/
+**/build/
+local.properties
+__pycache__/
+*.keystore
+*.jks
+*.p12

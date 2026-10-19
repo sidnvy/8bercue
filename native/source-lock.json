@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "sources": [
+    {
+      "component": "lpac",
+      "revision": "82ada9e53251c7f0cb08bfd9060b17019a30242c",
+      "archive": "native/sources/lpac-82ada9e53251c7f0cb08bfd9060b17019a30242c.tar.gz",
+      "sha256": "99f9eaff6bd34900236018ca4ff544fce7c6f01cc1ea9e143555e9412d47ee09"
+    },
+    {
+      "component": "cjson",
+      "revision": "4818f043bda624b5738384eae3a0189b2bd1f5e1",
+      "archive": "native/sources/cjson-4818f043bda624b5738384eae3a0189b2bd1f5e1.tar.gz",
+      "sha256": "c720f7f3a52eab403a9145ccca99f0ccabe6c01c0677b28829f380f17075ea5a"
+    }
+  ],
+  "patches": [
+    {
+      "file": "android-app/patches/lpac-android-bionic.patch",
+      "sha256": "fa3efc76bf93acbfb6083e177a538af2d19c3b460e32d09e8c876a80411366c3"
+    }
+  ]
+}

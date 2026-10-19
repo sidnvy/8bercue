@@ -1,0 +1,35 @@
+{
+  "abi": "arm64-v8a",
+  "androidApi": 28,
+  "files": {
+    "driver/driver_apdu_stdio.so": {
+      "sha256": "11e6e99e8392cc96e5dc094446898207fc2713cc5a78607ec05796477c06fb1d",
+      "size": 37176
+    },
+    "driver/driver_http_stdio.so": {
+      "sha256": "8ad4cd7e8eabd4ee7a6c9e4c5f51f39fabf8f6ef4f81d607c3ba25b35085577b",
+      "size": 34056
+    },
+    "libeuicc-driver-loader.so": {
+      "sha256": "c329e39a56636bdef051c6480cf5b5367fab5c70a00517978b8ff768679cbbdb",
+      "size": 182608
+    },
+    "libeuicc-drivers.so": {
+      "sha256": "9daeb42a36f9b5f989ca5c07b386d5f10ab5f503c91ce823d1ee57724ce98166",
+      "size": 5160
+    },
+    "liblpac-utils.so": {
+      "sha256": "44a1c158e27de3cc2b2f50b1fa061c92eab28c6b671e963d2ccbea1742669e97",
+      "size": 177600
+    },
+    "lpac": {
+      "sha256": "7bea0afaeeb33964f2fa3fe8d5457b122b24e6973a57097b73f2e79c4e1db2a2",
+      "size": 399312
+    }
+  },
+  "format": 1,
+  "lpacRevision": "82ada9e53251c7f0cb08bfd9060b17019a30242c",
+  "ndkVersion": "27.3.13750724",
+  "pageAlignment": 16384,
+  "sourceLockSha256": "61bcba5d0c9ce27deffad503925737f9bb207957f3ef33240f881f95b364232f"
+}

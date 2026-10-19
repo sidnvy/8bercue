@@ -1,0 +1,7 @@
+{
+  "declaredBy": "dev.rikka.shizuku:*:13.1.5 POM",
+  "licenseSource": "https://raw.githubusercontent.com/RikkaApps/Shizuku-API/a27f6e4151ba7b39965ca47edb2bf0aeed7102e5/LICENSE",
+  "revision": "a27f6e4151ba7b39965ca47edb2bf0aeed7102e5",
+  "sha256": "64870037f294b6f2b75c8ebe77cc0702acb3b64f86b4b0e58bf8558525303686",
+  "scope": "MIT notice retrieved from immutable upstream revision; binary provenance separately verified"
+}

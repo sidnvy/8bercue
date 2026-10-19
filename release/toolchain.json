@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "java": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+  "gradle": "8.13",
+  "androidGradlePlugin": "8.11.1",
+  "compileSdk": 36,
+  "targetSdk": 36,
+  "minSdk": 28,
+  "ndk": "27.3.13750724",
+  "nativeApi": 28,
+  "cmake": "cmake version 4.4.1",
+  "ninja": "1.13.2",
+  "inputs": {
+    "ndkClang": {
+      "name": "clang",
+      "sha256": "96de308b9cf83b53a7cc44283e716828d901dbfc16b2d83d0993ab125da0f89a"
+    },
+    "ndkLld": {
+      "name": "ld.lld",
+      "sha256": "443ff9b9f61fe62cca8d0b9815a381f19deb30ceaada33a6eec3d3e918570cc6"
+    },
+    "ndkNotice": {
+      "name": "NOTICE",
+      "sha256": "4d5224d1c0b54ffa88b0dc0088191638fdbb7227835095dfb98f7f66b416a323"
+    },
+    "ndkToolchainNotice": {
+      "name": "NOTICE.toolchain",
+      "sha256": "cbe3237be53c0a819f8df6aac5358fdee848eee3b6571b4e2ca20767ebd7465e"
+    },
+    "gradleWrapper": {
+      "name": "gradle-wrapper.jar",
+      "sha256": "81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f"
+    }
+  },
+  "compilerRuntimeReview": "Linked-runtime notice/source applicability remains under review; this SBOM does not assert complete toolchain license clearance."
+}

@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "linkage": [
+    {
+      "file": "driver/driver_apdu_stdio.so",
+      "sha256": "11e6e99e8392cc96e5dc094446898207fc2713cc5a78607ec05796477c06fb1d",
+      "needed": [
+        "libeuicc-drivers.so",
+        "liblpac-utils.so",
+        "libm.so",
+        "libdl.so",
+        "libc.so"
+      ]
+    },
+    {
+      "file": "driver/driver_http_stdio.so",
+      "sha256": "8ad4cd7e8eabd4ee7a6c9e4c5f51f39fabf8f6ef4f81d607c3ba25b35085577b",
+      "needed": [
+        "libeuicc-drivers.so",
+        "liblpac-utils.so",
+        "libm.so",
+        "libdl.so",
+        "libc.so"
+      ]
+    },
+    {
+      "file": "libeuicc-driver-loader.so",
+      "sha256": "c329e39a56636bdef051c6480cf5b5367fab5c70a00517978b8ff768679cbbdb",
+      "needed": [
+        "libeuicc-drivers.so",
+        "libdl.so",
+        "liblpac-utils.so",
+        "libm.so",
+        "libc.so"
+      ]
+    },
+    {
+      "file": "libeuicc-drivers.so",
+      "sha256": "9daeb42a36f9b5f989ca5c07b386d5f10ab5f503c91ce823d1ee57724ce98166",
+      "needed": [
+        "libm.so",
+        "libdl.so",
+        "libc.so"
+      ]
+    },
+    {
+      "file": "liblpac-utils.so",
+      "sha256": "44a1c158e27de3cc2b2f50b1fa061c92eab28c6b671e963d2ccbea1742669e97",
+      "needed": [
+        "libm.so",
+        "libdl.so",
+        "libc.so"
+      ]
+    },
+    {
+      "file": "lpac",
+      "sha256": "7bea0afaeeb33964f2fa3fe8d5457b122b24e6973a57097b73f2e79c4e1db2a2",
+      "needed": [
+        "libeuicc-driver-loader.so",
+        "liblpac-utils.so",
+        "libm.so",
+        "libdl.so",
+        "libc.so"
+      ]
+    }
+  ],
+  "systemLibraries": [
+    "libc.so",
+    "libm.so",
+    "libdl.so"
+  ],
+  "notices": {
+    "NOTICE": "4d5224d1c0b54ffa88b0dc0088191638fdbb7227835095dfb98f7f66b416a323",
+    "NOTICE.toolchain": "cbe3237be53c0a819f8df6aac5358fdee848eee3b6571b4e2ca20767ebd7465e"
+  },
+  "scope": "Actual DT_NEEDED dependencies. Static libeuicc/cJSON and compiler startup/runtime objects require source/link recipe review; not inferred absent from DT_NEEDED."
+}

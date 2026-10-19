@@ -1,0 +1,48 @@
+8bercue privacy information — 19 October 2026
+
+Publisher: sid (individual)
+Privacy and support: support@sidnvy.com
+
+8bercue is independent of 5ber. It does not require a 5ber account and does not
+send your activation details to a 5ber service.
+
+The app reads your eUICC and installed profiles to show their status and verify
+changes. EID and profile identifiers are masked on screen. Activation and
+confirmation codes are used for the installation you confirm; they are not
+included in diagnostics or transaction logs. Leaving the app clears the entered
+activation draft. Avoid sharing activation codes or screenshots containing them.
+
+When you confirm installation, the on-phone service communicates over HTTPS
+with the operator address in your activation code. The operator receives the
+activation credentials, protocol messages and card identity/certificates required
+by the eSIM provisioning protocol, plus your network address. An installation
+notification is sent to the recipient verified in that transaction. Operator
+privacy policies apply to their processing. Local nickname and profile state
+operations do not require an 8bercue account or an 8bercue server.
+
+Camera access is optional and used to scan an activation QR code. Selected QR
+images are decoded on your phone. There is no advertising or analytics SDK.
+The optional Shizuku connection uses a separate app's privileged local service;
+the computer connection starts a privileged local service on your phone.
+
+Transaction records contain hashes of card/profile identity, operation state,
+timestamps and verification metadata. Notification records also contain the
+operator host and delivery sequence. These records stay on your phone to prevent
+unsafe retries. Privileged service records may remain after app uninstallation.
+Unresolved records must not be removed as a way to retry an uncertain operation.
+There is no automatic expiry for these safety records. They are retained locally
+until deliberately removed after all pending operations have been resolved.
+Uninstalling the app alone does not remove Shell-owned records. Contact support
+for a reviewed removal procedure; do not send activation codes, full EIDs, or
+private protocol payloads in a support request. The publisher cannot remotely
+read or erase these local records.
+
+Diagnostics are exported only when you choose to share them. They exclude raw
+identifiers, profile names, activation codes and protocol logs. Review the export
+before choosing a recipient. App backup is disabled.
+
+No card inventory or activation data is automatically sent to sid. If you email
+support, your email address and anything you choose to include are received by
+the publisher and the email service provider to handle your request. Ask the
+privacy contact about access or deletion of support correspondence. Operator
+account, provisioning and network records are controlled by the relevant operator.
