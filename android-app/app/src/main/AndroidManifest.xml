@@ -5,12 +5,19 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application
+        android:name=".SafeApp"
         android:allowBackup="false"
         android:label="8bercue"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
+        <!-- GlitchTip / Sentry-compatible SDK. Opt-in, no automatic initialization. -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+        <meta-data android:name="io.sentry.dsn" android:value="${glitchtipDsn}" />
+        <meta-data android:name="io.sentry.traces.sample-rate" android:value="0.0" />
+        <meta-data android:name="io.sentry.auto-session-tracking.enable" android:value="false" />
+        <meta-data android:name="io.sentry.send-default-pii" android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

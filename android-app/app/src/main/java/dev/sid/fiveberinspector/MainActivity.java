@@ -26,8 +26,9 @@ public final class MainActivity extends Activity {
   private String connectionFeedback = "";
   private boolean restoreDetailAfterRead;
   private final java.util.ArrayList<String> recentResults = new java.util.ArrayList<>();
-  private static final int QR = 40, IMAGE = 41;
+  private static final int QR = 40, IMAGE = 41, DIAGNOSTIC_EXPORT = 42;
   private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
+  private static final ExecutorService DIAGNOSTIC_WORK = Executors.newSingleThreadExecutor();
   private static final UiOperationState OPERATIONS = new UiOperationState();
   private IProfileService backend;
   private boolean directManagement;
@@ -89,12 +90,22 @@ public final class MainActivity extends Activity {
         long remaining=connectionDeadline-android.os.SystemClock.elapsedRealtime();
         if(connectionCountdown!=null)connectionCountdown.setText(ConnectionFeedback.countdown(remaining));
         if(!connectionExpired && remaining<=0){
-          connectionExpired=true;statusPreservingOutcome("Connection window expired","Tap Start connection again, then rerun the same command.");render();
+          connectionExpired=true;
+          compatibilityFailure(CompatibilityDiagnostics.Stage.BOOTSTRAP,
+              CompatibilityDiagnostics.Failure.BOOTSTRAP_TIMEOUT);
+          statusPreservingOutcome("Connection window expired","Tap Start connection again, then rerun the same command.");
+          render();
         } else if(!connectionExpired){
           String feedback=CompanionBinderProvider.bootstrapFeedback();
           if(!feedback.isEmpty()&&!feedback.equals(connectionFeedback)){
             connectionFeedback=feedback;
+            if (!"STARTING".equals(feedback)) compatibilityFailure(
+                CompatibilityDiagnostics.Stage.BOOTSTRAP,
+                ("APP_CHANGED".equals(feedback) || "WINDOW_CHANGED".equals(feedback))
+                    ? CompatibilityDiagnostics.Failure.BINDER_HANDSHAKE_FAILED
+                    : CompatibilityDiagnostics.Failure.BOOTSTRAP_INCOMPLETE);
             statusPreservingOutcome("STARTING".equals(feedback)?"Starting local service":"Connection not completed",ConnectionFeedback.message(feedback));
+            if (!"STARTING".equals(feedback)) render();
           }
         }
       }
@@ -112,6 +123,7 @@ public final class MainActivity extends Activity {
     getWindow().setNavigationBarColor(BG);
     if (saved != null)
       screen = saved.getInt("screen", 0) == 2 ? 2 : 0;
+    SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.APP_STARTED);
     if (getPreferences(0).getBoolean("pending", false))
       notice = "Card and operation state need verification. Open Settings → Verify card and recovery. "
           + "Do not submit its activation code again.";
@@ -154,16 +166,28 @@ public final class MainActivity extends Activity {
       service.asBinder().linkToDeath(()->runOnUiThread(()->{
         if(backend!=service)return;
         backend=null;compatibility=new JSONObject();navigationSession++;clearDetailSelection();
+        compatibilityFailure(CompatibilityDiagnostics.Stage.BINDER,
+            CompatibilityDiagnostics.Failure.SERVICE_DISCONNECTED);
         statusPreservingOutcome("Connection lost", "Start the computer connection again. Pending operations will not be repeated.");render();
       }),0);
       backend=service;directManagement=true;companionManagement=true;fallback=false;
+      CompatibilityDiagnostics.ready(CompatibilityDiagnostics.Transport.ADB_COMPANION);
       if(bootstrapSheet!=null){bootstrapSheet.dismiss();bootstrapSheet=null;}
       if(screen==6)screen=0;
       status("Connected", "Checking card and recovery state…");render();checkRecovery();
-    }catch(Exception unavailable){backend=null;compatibility=new JSONObject();}
+    }catch(Exception unavailable){
+      backend=null;compatibility=new JSONObject();
+      compatibilityFailure(CompatibilityDiagnostics.Stage.BINDER,
+          CompatibilityDiagnostics.Failure.BINDER_HANDSHAKE_FAILED);
+    }
   }
   private void beginDirectBootstrap() {
-    if (!managementUnavailable().isEmpty()) { status("Device not supported by this build", managementUnavailable());return; }
+    if (!managementUnavailable().isEmpty()) {
+      compatibilityFailure(CompatibilityDiagnostics.Stage.BOOTSTRAP,
+          CompatibilityDiagnostics.Failure.DEVICE_UNSUPPORTED);
+      status("Device not supported by this build", managementUnavailable());render();
+      return;
+    }
     if(OPERATIONS.running()){status("Operation in progress", "Wait for verification before changing connection.");return;}
     try {CompanionBinderProvider.beginManagementBootstrap();}
     catch(SecurityException active){backend=null;compatibility=new JSONObject();connectDirect();return;}
@@ -172,6 +196,7 @@ public final class MainActivity extends Activity {
 
     try { connectionCommand=ConnectionCommand.forApk(getApplicationInfo().sourceDir); }
     catch(IllegalArgumentException invalid){status("Command unavailable","Reinstall the verified APK before connecting.");render();return;}
+    CompatibilityDiagnostics.started(CompatibilityDiagnostics.Transport.ADB_COMPANION);
     connectionDeadline=android.os.SystemClock.elapsedRealtime()+120000;connectionExpired=false;connectionFeedback="";statusPreservingOutcome("Waiting for computer","Copy the command below and run it within two minutes.");screen=6;render();
   }
 
@@ -211,14 +236,16 @@ public final class MainActivity extends Activity {
             : label.equals("Reading QR image") ? "Decoding the image on this phone. No card changes." : "Reading and checking your card. No changes are being made.");
     WORK.execute(() -> {
       JSONObject value = null;
-      boolean failed = false;
+      boolean failed = false, permissionDenied = false;
       try {
         value = job.run();
       } catch (Throwable e) {
         failed = true;
+        permissionDenied = e instanceof SecurityException; // never read the exception message
       }
       final JSONObject result = value;
       final boolean error = failed;
+      final boolean denied = permissionDenied;
       handler.post(() -> {
         boolean handleResult = !destroyed && resumed;
         OPERATIONS.finish(ticket, handleResult);
@@ -235,6 +262,10 @@ public final class MainActivity extends Activity {
               : "Could not complete the check. Reconnect and try a read-only refresh.";
           if (mutation)
             notice = message;
+          if (!mutation && label.equals("Reading your eSIMs"))
+            compatibilityFailure(CompatibilityDiagnostics.Stage.INVENTORY,
+                denied ? CompatibilityDiagnostics.Failure.INVENTORY_ACCESS_DENIED
+                       : CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED);
           status(mutation ? "Needs verification" : "Check unavailable", message);
           render();
           return;
@@ -299,10 +330,13 @@ public final class MainActivity extends Activity {
         r -> {
           if (r.optBoolean("transportUnavailable", false)) {
             // A missing legacy socket must not change connection modes or replay an operation.
+            compatibilityFailure(CompatibilityDiagnostics.Stage.SERVICE,
+                CompatibilityDiagnostics.Failure.COMPANION_UNAVAILABLE);
             status("Companion unavailable",
                 "Use Connect using computer and copy and run the ADB command shown in the app.");
             return;
           }
+          CompatibilityDiagnostics.ready(CompatibilityDiagnostics.Transport.ADB_COMPANION);
           fallback = true;
           companionManagement = r.optBoolean("generic", false);
           backend = companionManagement ? new CompanionProfileBackend() : null;
@@ -334,6 +368,8 @@ public final class MainActivity extends Activity {
         () -> s != null ? new JSONObject(s.listProfiles()) : ShellCompanionClient.list(), r -> {
           compatibility=r.optJSONObject("compatibility")==null?new JSONObject():r.optJSONObject("compatibility");
           if (!r.optBoolean("ok", true)) {
+            compatibilityFailure(CompatibilityDiagnostics.Stage.INVENTORY,
+                CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED);
             inventory=new JSONObject();notificationCleanupAvailable=false;clearDetailSelection();
             String limitation=SecureElementFailure.message(r.optString("capabilityError", ""));
             status("Card unavailable", (limitation.isEmpty()
@@ -364,6 +400,8 @@ public final class MainActivity extends Activity {
           inventory=new JSONObject();notificationCleanupAvailable=false;clearDetailSelection();
           statusPreservingOutcome("Choose a card","More than one eUICC is readable. Select the card you want to manage.");render();return;
         }
+        compatibilityFailure(CompatibilityDiagnostics.Stage.INVENTORY,
+            CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED);
         getPreferences(0).edit().putBoolean("pending", true).commit();
         inventory = new JSONObject();notificationCleanupAvailable = false;clearDetailSelection();
         String limitation=SecureElementFailure.message(r.optString("capabilityError", ""));
@@ -747,6 +785,14 @@ public final class MainActivity extends Activity {
       statusPreservingOutcome("Command copied","Run it while the timer is active. Your computer will confirm the connection or explain why it failed.");
     });availability(copy,!connectionExpired);add(copy,18);
     add(action("Start connection again",connectionExpired,this::beginDirectBootstrap),8);
+    add(action(connectionExpired || CompatibilityDiagnostics.lastFailure()!=null
+        ? "Report this connection failure" : "Trouble connecting? Report issue",
+        false, () -> {
+          if (CompatibilityDiagnostics.lastFailure()==null)
+            compatibilityFailure(CompatibilityDiagnostics.Stage.BOOTSTRAP,
+                CompatibilityDiagnostics.Failure.BOOTSTRAP_INCOMPLETE);
+          offerCompatibilityReport();
+        }),12);
     add(text("The command stays the same after app updates. With several phones attached, replace adb shell with adb -s SERIAL shell for this phone.",12,MUTED,false),16);
     add(text("3. Wait for connection confirmation",18,TEXT,true),24);
     add(text("Your computer must say “8bercue connected” or “already connected”. This page then closes automatically and card access is checked. A running process alone does not confirm a connection."),10);
@@ -919,6 +965,8 @@ public final class MainActivity extends Activity {
     if (LabSupport.socketEligible())
       add(action("Use legacy local companion", useCompanion(), this::selectLegacyCompanion), 12);
     add(action("Connect using computer", backend==null, this::beginDirectBootstrap), 12);
+    if (CompatibilityDiagnostics.lastFailure()!=null)
+      add(action("Report previous connection failure",false,this::offerCompatibilityReport),12);
     if (BuildConfig.DEBUG) add(action("Check direct Binder Companion (read-only)", false, () -> {
       run("Checking local Binder", false, () -> {
         ICompanionProbe probe = CompanionBinderProvider.service();
@@ -1025,6 +1073,13 @@ public final class MainActivity extends Activity {
       advanced.copy("Diagnostics exclude activation codes, profile names, identifiers and raw protocol logs.");
       advanced.button("Done", false, advanced.dialog::dismiss);advanced.show();
     }), 24);
+    add(action("Report a problem  ›",false,this::reportProblem),16);
+    add(action("Save diagnostic ZIP  ›",false,this::saveDiagnosticZip),12);
+    add(action("Anonymous crash reports: " + (SafeTelemetry.allowed(this) ? "On" : "Off") + "  ›",
+        false, this::chooseCrashReporting), 12);
+    if (BuildConfig.DEBUG) add(action("Test crash-report connection",false,
+        () -> status(SafeTelemetry.smoke(this) ? "Test event queued" : "Crash reporting disabled",
+            "Check the GlitchTip project for receipt.")), 12);
     add(action("Privacy information", false, () -> showBundledText("Privacy information", "legal/privacy.txt")), 20);
     add(action("Third-party notices", false, () -> showBundledText("Third-party notices", "legal/third-party-notices.txt")), 12);
     add(text("Independent project. Not an official 5ber product.", 12, MUTED, false), 20);
@@ -1106,6 +1161,115 @@ public final class MainActivity extends Activity {
         "freeNonvolatileMemoryBytes", cardInfo.optLong("freeNonvolatileBytes", -1));
     return bytes >= 0 ? (bytes / 1024) + " KB available" : "Not reported";
   }
+  private void compatibilityFailure(CompatibilityDiagnostics.Stage stage,
+      CompatibilityDiagnostics.Failure reason) {
+    CompatibilityDiagnostics.failed(CompatibilityDiagnostics.Transport.ADB_COMPANION,stage,reason);
+    SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.CONNECTION_UNAVAILABLE);
+  }
+
+  private void chooseCrashReporting() {
+    boolean enabled = SafeTelemetry.allowed(this);
+    new AlertDialog.Builder(this)
+        .setTitle("Anonymous crash reports")
+        .setMessage("If enabled, 8bercue sends only the error class and application code location to GlitchTip. Raw exception messages, logs, eUICC details, and personal identifiers are not uploaded. This setting is off by default.")
+        .setNegativeButton("Cancel", null)
+        .setPositiveButton(enabled ? "Turn off" : "Enable", (dialog, which) -> {
+          SafeTelemetry.setAllowed(this, !enabled);
+          render();
+        }).show();
+  }
+
+  private void reportProblem() { reportProblem(null); }
+
+  private void reportProblem(CompatibilityDiagnostics.Snapshot context) {
+    SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.REPORT_OPENED);
+    final EditText message = new EditText(this);
+    message.setHint("What happened? What did you expect?");
+    message.setMinLines(3);
+    message.setMaxLines(7);
+    message.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+    new AlertDialog.Builder(this).setTitle("Report a problem")
+        .setMessage("Describe the issue. A short, allowlisted device summary will be included. Do not paste activation codes, EID or personal identifiers.")
+        .setView(message).setNegativeButton("Cancel", null)
+        .setPositiveButton("Share report", (dialog, ignored) -> {
+          String body = message.getText().toString().trim();
+          if (body.length() == 0) {
+            status("Nothing sent", "Add a description to report the problem.");return;
+          }
+          if (body.length() > 4000) body = body.substring(0, 4000);
+          Intent share = new Intent(Intent.ACTION_SEND);
+          share.setType("text/plain");
+          share.putExtra(Intent.EXTRA_SUBJECT, "8bercue bug report");
+          share.putExtra(Intent.EXTRA_TEXT, "Issue description (user-supplied; review before sending):\n" + body
+             + "\n\n" + SafeDiagnosticBundle.summary(BuildConfig.VERSION_NAME,
+                 BuildConfig.VERSION_CODE, Build.VERSION.SDK_INT, Build.MODEL,
+                 backend != null, getPreferences(0).getBoolean("pending", false))
+             + (context == null ? "" : "\nCompatibility diagnosis (reviewed by user):\n" + context.summary()));
+          Intent email = new Intent(Intent.ACTION_SENDTO);
+          email.setData(android.net.Uri.parse("mailto:support@sidnvy.com"));
+          email.putExtra(Intent.EXTRA_SUBJECT, "8bercue bug report");
+          email.putExtra(Intent.EXTRA_TEXT, share.getStringExtra(Intent.EXTRA_TEXT));
+          try {
+            startActivity(email);
+          } catch (android.content.ActivityNotFoundException noEmailApp) {
+            startActivity(Intent.createChooser(share, "Share bug report with support"));
+          }
+        }).show();
+  }
+  private void offerCompatibilityReport() {
+    final CompatibilityDiagnostics.Snapshot result=CompatibilityDiagnostics.lastFailure();
+    if (result == null) {
+      reportProblem();
+      return;
+    }
+    new AlertDialog.Builder(this).setTitle("Report connection issue")
+        .setMessage("This report contains only the following device and failure details. It does not include EID, activation codes, profiles, APDU, logs or a device ID.\n\n"
+            + result.summary()
+            + "\nSending to GlitchTip also exposes network connection metadata to that provider.")
+        .setNeutralButton("Email support", (d,w) -> reportProblem(result))
+        .setNegativeButton("Not now", null)
+        .setPositiveButton("Send diagnostic report", (d,w) -> {
+          if (!SafeTelemetry.configured(this)) {
+            status("Remote reporting unavailable", "You can email support or save a diagnostic ZIP.");
+            return;
+          }
+          DIAGNOSTIC_WORK.execute(() -> {
+            boolean queued=SafeTelemetry.submitCompatibility(getApplicationContext(),result);
+            runOnUiThread(() -> {
+              if (destroyed) return;
+              status(queued ? "Diagnostic report submitted" : "Unable to submit report",
+                  queued ? "The report was handed to GlitchTip for delivery. This does not confirm it was indexed in the dashboard."
+                      : "Try the support email option or export a diagnostic ZIP.");
+            });
+          });
+        }).show();
+  }
+
+  private void saveDiagnosticZip() {
+    SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.ZIP_REQUESTED);
+    new AlertDialog.Builder(this).setTitle("Export safe diagnostic ZIP")
+        .setMessage("The ZIP includes only allowlisted app and device information. It excludes card IDs, profiles, activation codes, APDU, logcat and private files. Review it before sharing.")
+        .setNegativeButton("Cancel", null)
+        .setPositiveButton("Save ZIP", (dialog, which) -> {
+          Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+          create.addCategory(Intent.CATEGORY_OPENABLE);
+          create.setType("application/zip");
+          create.putExtra(Intent.EXTRA_TITLE, "8bercue-diagnostics.zip");
+          startActivityForResult(create, DIAGNOSTIC_EXPORT);
+        }).show();
+  }
+  private void writeDiagnosticZip(android.net.Uri uri) {
+    try (java.io.OutputStream stream = getContentResolver().openOutputStream(uri)) {
+      if (stream == null) throw new java.io.IOException("No document output");
+      SafeDiagnosticBundle.write(stream, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE,
+          Build.VERSION.SDK_INT, Build.MODEL, backend != null,
+          getPreferences(0).getBoolean("pending", false));
+      SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.ZIP_SAVED);
+      status("Diagnostic ZIP saved", "Inspect the ZIP before sharing it with support.");
+    } catch (java.io.IOException error) {
+      status("Export failed", "Could not write the selected document.");
+    }
+  }
   private void exportDiagnostics() {
     String report = "8bercue " + BuildConfig.VERSION_NAME + "\nAndroid API "
         + Build.VERSION.SDK_INT + "\nManagement connection: " + (backend == null ? "none" : directManagement ? "independent Binder" : companionManagement ? "Shell socket" : "local Binder")
@@ -1127,7 +1291,9 @@ public final class MainActivity extends Activity {
     super.onActivityResult(request, result, data);
     if (result != RESULT_OK || data == null)
       return;
-    if (request == QR) {
+    if (request == DIAGNOSTIC_EXPORT && data.getData()!=null) {
+      writeDiagnosticZip(data.getData());
+    } else if (request == QR) {
       setCode(data.getStringExtra("activation"));
     } else if (request == IMAGE && data.getData() != null) {
       pendingImport = data.getData();

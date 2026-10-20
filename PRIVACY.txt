@@ -21,7 +21,7 @@ privacy policies apply to their processing. Local nickname and profile state
 operations do not require an 8bercue account or an 8bercue server.
 
 Camera access is optional and used to scan an activation QR code. Selected QR
-images are decoded on your phone. There is no advertising or analytics SDK.
+images are decoded on your phone. There is no advertising or behavioral analytics SDK.
 The computer connection starts an authenticated ADB Shell service on your phone.
 No separate privilege-manager app is required.
 
@@ -36,6 +36,27 @@ Uninstalling the app alone does not remove Shell-owned records. Contact support
 for a reviewed removal procedure; do not send activation codes, full EIDs, or
 private protocol payloads in a support request. The publisher cannot remotely
 read or erase these local records.
+
+8bercue has no advertising or behavioral analytics SDK and does not routinely
+upload screen views, clicks, connection attempts or device identifiers.
+A bounded, in-memory list of predefined connection stages and error codes
+supports troubleshooting without automatic network telemetry.
+
+Anonymous crash summaries are disabled by default. When you explicitly enable
+crash reporting in Settings, a Sentry-compatible SDK sends limited failure
+class and app code location to GlitchTip. Raw exception messages, full stack
+traces, screenshots, card content, activation details, APDUs, and unrestricted
+logs are excluded. You can disable future crash reporting in Settings.
+
+After a failed ADB connection or verified card-read error, you may review a
+one-time compatibility report with Android version/API level, manufacturer,
+device model, ROM build ID, security patch level, app version, connection stage
+and normalized failure code. Choosing Send diagnostic report transmits only
+these allowlisted fields to GlitchTip. Canceling sends nothing, and one-time
+submission does not enable future crash reporting. The provider may process
+connection metadata, including the originating IP address; its own privacy
+policy applies to that processing. A missing ADB handshake does not prove ROM
+incompatibility. You can alternatively email support or save a diagnostic ZIP.
 
 Diagnostics are exported only when you choose to share them. They exclude raw
 identifiers, profile names, activation codes and protocol logs. Review the export
