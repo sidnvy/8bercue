@@ -42,7 +42,7 @@ upload screen views, clicks, connection attempts or device identifiers.
 A bounded, in-memory list of predefined connection stages and error codes
 supports troubleshooting without automatic network telemetry.
 
-Anonymous crash summaries are disabled by default. When you explicitly enable
+Optional crash summaries are disabled by default. When you explicitly enable
 crash reporting in Settings, a Sentry-compatible SDK sends limited failure
 class and app code location to GlitchTip. Raw exception messages, full stack
 traces, screenshots, card content, activation details, APDUs, and unrestricted

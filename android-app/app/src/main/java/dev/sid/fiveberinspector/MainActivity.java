@@ -1075,7 +1075,7 @@ public final class MainActivity extends Activity {
     }), 24);
     add(action("Report a problem  ›",false,this::reportProblem),16);
     add(action("Save diagnostic ZIP  ›",false,this::saveDiagnosticZip),12);
-    add(action("Anonymous crash reports: " + (SafeTelemetry.allowed(this) ? "On" : "Off") + "  ›",
+    add(action("Optional crash reports: " + (SafeTelemetry.allowed(this) ? "On" : "Off") + "  ›",
         false, this::chooseCrashReporting), 12);
     if (BuildConfig.DEBUG) add(action("Test crash-report connection",false,
         () -> status(SafeTelemetry.smoke(this) ? "Test event queued" : "Crash reporting disabled",
@@ -1170,8 +1170,8 @@ public final class MainActivity extends Activity {
   private void chooseCrashReporting() {
     boolean enabled = SafeTelemetry.allowed(this);
     new AlertDialog.Builder(this)
-        .setTitle("Anonymous crash reports")
-        .setMessage("If enabled, 8bercue sends only the error class and application code location to GlitchTip. Raw exception messages, logs, eUICC details, and personal identifiers are not uploaded. This setting is off by default.")
+        .setTitle("Optional crash reports")
+        .setMessage("If enabled, 8bercue sends only the error class and application code location to GlitchTip. Raw exception messages, logs, eUICC details, and personal identifiers are not uploaded. The receiving service may process your connection IP. This setting is off by default.")
         .setNegativeButton("Cancel", null)
         .setPositiveButton(enabled ? "Turn off" : "Enable", (dialog, which) -> {
           SafeTelemetry.setAllowed(this, !enabled);
