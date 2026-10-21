@@ -3,7 +3,7 @@ import org.json.JSONObject;
 /** Production binary contains no laboratory mutation or recovery commands. */
 final class LabSupport {
  static int requestTimeout(String request){return 30000;}
- static boolean socketEligible(){return false;}
+ static boolean socketEligible(){return true;}
  static void validateMutation(String card,ProfileLifecycleGuard.Operation op,java.util.List<ProfileLifecycleGuard.Row> before,String target)throws Exception{}
  static void validateDownload(String card,java.util.List<ProfileLifecycleGuard.Row> before)throws Exception{}
 
