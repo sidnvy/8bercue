@@ -1,0 +1,204 @@
+name: Publish signed Beta
+
+# Explicit owner-selected Git tag only. A push to main or a fork PR cannot publish.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing annotated or lightweight beta Git tag (e.g. v0.19.2-beta.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 8bercue-beta-release
+  cancel-in-progress: false
+
+jobs:
+  publish-beta:
+    name: Signed APK, validation, GitHub prerelease
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: beta-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      ORG_GRADLE_PROJECT_glitchtipDsn: ${{ vars.GLITCHTIP_DSN }}
+      APPROVED_CERT_SHA256: 24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm immutable tag, ancestry, version and release notes
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || {
+            echo "Only versioned beta tags are accepted"; exit 1;
+          }
+          git show-ref --verify --quiet "refs/tags/$RELEASE_TAG" || {
+            echo "Release tag is not present in origin"; exit 1;
+          }
+          tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+          git merge-base --is-ancestor "$tag_sha" origin/main || {
+            echo "Release tag does not point to a commit on main"; exit 1;
+          }
+          git checkout --detach "$tag_sha"
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          config=Path("android-app/app/build.gradle").read_text()
+          name=re.search(r"^\s*versionName\s+['\"]([^'\"]+)['\"]",config,re.M)
+          code=re.search(r"^\s*versionCode\s+(\d+)",config,re.M)
+          if not name or not code: raise SystemExit("Cannot read Android version")
+          tag=os.environ["RELEASE_TAG"]
+          if tag != "v"+name.group(1): raise SystemExit("Git tag and versionName differ")
+          notes=Path("release")/("RELEASE_NOTES_"+name.group(1)+".md")
+          if not notes.is_file(): raise SystemExit("Matching Beta release notes are required")
+          import json
+          ready=json.loads(Path("BETA-READINESS.json").read_text())
+          if (ready.get("tag")!=tag or ready.get("apkVersion")!=name.group(1)
+                  or ready.get("versionCode")!=int(code.group(1))):
+              raise SystemExit("Beta readiness metadata does not match release tag/version")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              out.write("version="+name.group(1)+"\n")
+              out.write("code="+code.group(1)+"\n")
+              out.write("notes="+str(notes)+"\n")
+          PY
+          python3 android-app/tools/check_source_manifest.py --check
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "An existing release is immutable and cannot be overwritten"; exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Validate protected release configuration (no secret output)
+        shell: bash
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          FIVEBER_RELEASE_STORE_PASSWORD: ${{ secrets.FIVEBER_RELEASE_STORE_PASSWORD }}
+          FIVEBER_RELEASE_KEY_ALIAS: ${{ secrets.FIVEBER_RELEASE_KEY_ALIAS }}
+          FIVEBER_RELEASE_KEY_PASSWORD: ${{ secrets.FIVEBER_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in RELEASE_KEYSTORE_BASE64 FIVEBER_RELEASE_STORE_PASSWORD FIVEBER_RELEASE_KEY_ALIAS FIVEBER_RELEASE_KEY_PASSWORD ORG_GRADLE_PROJECT_glitchtipDsn; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required beta-release environment input: $name"
+              exit 1
+            fi
+          done
+          [[ "$ORG_GRADLE_PROJECT_glitchtipDsn" == https://* ]] || {
+            echo "Reporting destination must be HTTPS"; exit 1;
+          }
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install locked Android SDK and NDK
+        run: sdkmanager --install "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
+
+      - name: Re-run safety regressions and rebuild native payload from bundled sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android-app/tools/run_bootstrap_tests.sh
+          bash android-app/tools/run_ui_tests.sh
+          bash android-app/tools/run_compatibility_tests.sh
+          bash android-app/tools/run_recovery_tests.sh
+          python3 android-app/tools/test_localization.py
+          python3 android-app/tools/test_reconcile_identity.py
+          python3 android-app/tools/test_feedback_privacy_contract.py
+          bash android-app/tools/build_android_lpac.sh
+
+      - name: Restore keystore only inside protected runner
+        shell: bash
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/8bercue-signer"
+          export FIVEBER_RELEASE_KEYSTORE="$RUNNER_TEMP/8bercue-signer/release.jks"
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$FIVEBER_RELEASE_KEYSTORE"
+          test -s "$FIVEBER_RELEASE_KEYSTORE"
+          echo "FIVEBER_RELEASE_KEYSTORE=$FIVEBER_RELEASE_KEYSTORE" >> "$GITHUB_ENV"
+
+      - name: Build, lint and verify signed APK and reporting configuration
+        shell: bash
+        env:
+          FIVEBER_RELEASE_STORE_PASSWORD: ${{ secrets.FIVEBER_RELEASE_STORE_PASSWORD }}
+          FIVEBER_RELEASE_KEY_ALIAS: ${{ secrets.FIVEBER_RELEASE_KEY_ALIAS }}
+          FIVEBER_RELEASE_KEY_PASSWORD: ${{ secrets.FIVEBER_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          bash android-app/gradlew -p android-app :app:assembleRelease :app:lintRelease --console=plain --no-daemon
+          python3 android-app/tools/verify_artifact.py \
+            android-app/app/build/outputs/apk/release/app-release.apk \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
+            --expected-signer-sha256 "$APPROVED_CERT_SHA256" --require-reporting
+
+      - name: Stage immutable release assets and checksums
+        shell: bash
+        env:
+          FIVEBER_RELEASE_STORE_PASSWORD: ${{ secrets.FIVEBER_RELEASE_STORE_PASSWORD }}
+          FIVEBER_RELEASE_KEY_ALIAS: ${{ secrets.FIVEBER_RELEASE_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/8bercue-dist"
+          mkdir -p "$dir"
+          tag="$RELEASE_TAG"
+          version="${{ steps.version.outputs.version }}"
+          code="${{ steps.version.outputs.code }}"
+          cp android-app/app/build/outputs/apk/release/app-release.apk \
+            "$dir/8bercue-$version-$code.apk"
+          git archive --format=tar "$tag" | gzip -n -9 > "$dir/8bercue-$version-source.tar.gz"
+          cp "${{ steps.version.outputs.notes }}" "$dir/RELEASE-NOTES.md"
+          cp COPYING LICENSING.md PRIVACY.txt "$dir/"
+          cp android-app/app/src/main/assets/legal/third-party-notices.txt "$dir/THIRD-PARTY-NOTICES.txt"
+          keytool -exportcert -keystore "$FIVEBER_RELEASE_KEYSTORE" \
+            -storepass:env FIVEBER_RELEASE_STORE_PASSWORD \
+            -alias "$FIVEBER_RELEASE_KEY_ALIAS" \
+            -file "$dir/release-certificate.der" >/dev/null
+          python3 - "$dir" "$version" "$code" "$tag" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          d=Path(sys.argv[1]); version=sys.argv[2]; code=int(sys.argv[3]); tag=sys.argv[4]
+          ready=json.loads(Path("BETA-READINESS.json").read_text())
+          assert ready["tag"]==tag and ready["apkVersion"]==version and ready["versionCode"]==code
+          apk=d/f"8bercue-{version}-{code}.apk"
+          digest=hashlib.sha256(apk.read_bytes()).hexdigest()
+          if ready.get("apkSha256") not in (None,"",digest):
+              raise SystemExit("Stale readiness APK hash (must describe newly built artifact)")
+          ready["apkSha256"]=digest
+          (d/"BETA-READINESS.json").write_text(json.dumps(ready,indent=2,ensure_ascii=False)+"\n")
+          files=sorted(p for p in d.iterdir() if p.is_file() and p.name!="SHA256SUMS")
+          (d/"SHA256SUMS").write_text("".join(
+              f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in files
+          ))
+          print("Staged",len(files),"assets plus SHA256SUMS")
+          PY
+
+      - name: Publish once as prerelease (no latest/stable promotion)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release appeared after preflight; refusing to overwrite it"; exit 1
+          fi
+          gh release create "$RELEASE_TAG" "$RUNNER_TEMP/8bercue-dist/"* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --prerelease \
+            --title "8bercue ${{ steps.version.outputs.version }} (Beta)" \
+            --notes-file "${{ steps.version.outputs.notes }}"
