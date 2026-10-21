@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "zh-CN"
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+  path_instructions:
+    - path: "android-app/app/src/main/java/dev/sid/fiveberinspector/**"
+      instructions: |
+        Review eUICC state-changing code as safety critical. Preserve exact APDU
+        scoping, pinned card identity and reader selection, transaction locks,
+        durable quarantine on unresolved writers, and independent postflight
+        card inventory verification. A worker exiting does not by itself prove
+        a card operation succeeded, and an APDU being submitted does not prove
+        it completed. Flag cleanup paths that silently suppress unexpected HAL
+        or Binder errors, implicit retry of an uncertain mutation, and changes
+        that permit a second write before state has been reconciled. Require
+        tests for negative paths and REFRESH-related channel invalidation.
+        Never request or expose full EID, ICCID, activation codes, private
+        credentials or raw diagnostic payloads in review comments.
+    - path: ".github/workflows/**"
+      instructions: |
+        Treat pull request content as untrusted. Flag workflows that expose
+        signing secrets to fork PRs, invoke unpinned third-party actions, or
+        permit untrusted code execution with elevated GitHub permissions.
