@@ -101,6 +101,13 @@ public final class LocalAdbBootstrap {
      */
     public static Result start(Context context) throws Exception {
         Context app = context.getApplicationContext();
+        // Avoid touching ADB entirely when the authenticated companion already runs.
+        try {
+            String status = ShellCompanionClient.status();
+            return new Result(true, false, "Shell Companion already active: " + status);
+        } catch (Exception unavailable) {
+            // Only an absent/unreachable companion needs a one-shot ADB bootstrap.
+        }
         Socket socket = new Socket();
         AdbConnection connection = null;
         try {
@@ -138,7 +145,7 @@ public final class LocalAdbBootstrap {
             }
         } catch (java.net.ConnectException error) {
             return new Result(false, false,
-                "手机的 127.0.0.1:5555 未开放；请检查 ADB TCP 服务。");
+                "No existing local TCP ADB listener at 127.0.0.1:5555. Debugging settings were not changed.");
         } finally {
             if (connection != null) {
                 try { connection.close(); } catch (IOException ignored) {}
