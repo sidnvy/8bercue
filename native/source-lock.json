@@ -17,7 +17,7 @@
   "patches": [
     {
       "file": "android-app/patches/lpac-android-bionic.patch",
-      "sha256": "fa3efc76bf93acbfb6083e177a538af2d19c3b460e32d09e8c876a80411366c3"
+      "sha256": "9952a11eeeba77104866c4b922609b07300efca1875bc20f14d05f57794dfd84"
     }
   ]
 }
