@@ -21,6 +21,10 @@ cmake -S "$LPAC_SOURCE" -B "$LPAC_BUILD/build" -G Ninja \
   -DLPAC_WITH_APDU_AT=OFF -DLPAC_WITH_APDU_GBINDER=OFF \
   -DLPAC_WITH_APDU_QMI=OFF -DLPAC_WITH_APDU_QMI_QRTR=OFF \
   -DLPAC_WITH_APDU_UQMI=OFF -DLPAC_WITH_APDU_MBIM=OFF -DBUILD_TESTING=OFF
+# Temporary trace for hermetic CI source-path diagnosis.
+echo "RUNPATH_SOURCE_BEGIN"
+sed -n '128,143p' "$LPAC_SOURCE/driver/euicc-driver-loader.c"
+echo "RUNPATH_SOURCE_END"
 cmake --build "$LPAC_BUILD/build" --parallel "${BUILD_JOBS:-4}"
 LPAC_ANDROID_BUILD="$LPAC_BUILD/build" python3 "$LAB/android-app/tools/package_native_lpac.py"
 python3 "$LAB/android-app/tools/verify_native_release.py" --require-page-size 16384
