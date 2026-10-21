@@ -112,7 +112,8 @@ jobs:
           test -x "$manager"
           echo "SDKMANAGER=$manager" >> "$GITHUB_ENV"
       - name: Install locked Android SDK and NDK
-        run: "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
+        run: |
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
 
       - name: Re-run safety regressions and rebuild native payload from bundled sources
         shell: bash
