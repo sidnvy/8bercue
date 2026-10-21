@@ -31,7 +31,16 @@ for source in lock['sources']:
     if source['component']=='lpac':
         for patch in lock['patches']:
             path=ROOT/patch['file'];assert hashlib.sha256(path.read_bytes()).hexdigest()==patch['sha256']
-            subprocess.run(['git','apply','--check',str(path)],cwd=target,check=True)
-            subprocess.run(['git','apply',str(path)],cwd=target,check=True)
+            # git apply resolves paths relative to the enclosing repository root
+            # when this extracted tree sits under .native-build/. That can report
+            # success while leaving the intended source untouched. GNU patch's
+            # explicit -d target works identically in Git checkouts and /tmp.
+            subprocess.run(['patch','--batch','--forward','--dry-run',
+                            '-d',str(target),'-p1','-i',str(path)],check=True)
+            subprocess.run(['patch','--batch','--forward',
+                            '-d',str(target),'-p1','-i',str(path)],check=True)
+        loader=(target/'driver/euicc-driver-loader.c').read_text()
+        if 'defined(__ANDROID__) || defined(ANDROID)' not in loader or 'static char *get_runpath() { return strdup("$ORIGIN"); }' not in loader:
+            raise SystemExit('BLOCKED: Android Bionic loader patch was not applied to native source')
     receipt.write_text(lock_digest+':'+digest_tree(target)+'\n')
 print('PASS native source closure and patch integrity')

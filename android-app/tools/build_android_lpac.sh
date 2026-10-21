@@ -14,17 +14,13 @@ cmake -S "$LPAC_SOURCE" -B "$LPAC_BUILD/build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
   -DCMAKE_EXE_LINKER_FLAGS='-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384' \
   -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384' \
-  -DCMAKE_C_FLAGS="-DLPAC_ANDROID_BIONIC=1 -ffile-prefix-map=$LPAC_BUILD=/8bercue-native" \
+  -DCMAKE_C_FLAGS="-ffile-prefix-map=$LPAC_BUILD=/8bercue-native" \
   -DFETCHCONTENT_FULLY_DISCONNECTED=ON -DFETCHCONTENT_SOURCE_DIR_CJSON="$CJSON_SOURCE" \
   -DLPAC_DYNAMIC_LIBEUICC=OFF -DSTANDALONE_MODE=ON \
   -DLPAC_WITH_APDU_PCSC=OFF -DLPAC_WITH_HTTP_CURL=OFF \
   -DLPAC_WITH_APDU_AT=OFF -DLPAC_WITH_APDU_GBINDER=OFF \
   -DLPAC_WITH_APDU_QMI=OFF -DLPAC_WITH_APDU_QMI_QRTR=OFF \
   -DLPAC_WITH_APDU_UQMI=OFF -DLPAC_WITH_APDU_MBIM=OFF -DBUILD_TESTING=OFF
-# Temporary trace for hermetic CI source-path diagnosis.
-echo "RUNPATH_SOURCE_BEGIN"
-sed -n '128,143p' "$LPAC_SOURCE/driver/euicc-driver-loader.c"
-echo "RUNPATH_SOURCE_END"
 cmake --build "$LPAC_BUILD/build" --parallel "${BUILD_JOBS:-4}"
 LPAC_ANDROID_BUILD="$LPAC_BUILD/build" python3 "$LAB/android-app/tools/package_native_lpac.py"
 python3 "$LAB/android-app/tools/verify_native_release.py" --require-page-size 16384
