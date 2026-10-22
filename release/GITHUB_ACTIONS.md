@@ -1,8 +1,9 @@
 # GitHub Actions: CI and signed Beta publication
 
-This adds **two independent workflows** for the public 8bercue repository.
+This provides **three independent workflows** for the public 8bercue repository.
 
 * **Android CI** runs on pull requests (including forks) and pushes to `main`: hermetic Java/Python regressions, tracked native package inspection, fresh ARM64 native rebuild with pinned NDK, unsigned Android build, release-surface checks and lint. It receives no release secrets and cannot publish. An unsigned main-branch engineering APK is retained briefly as a CI artifact, **not** as a user-downloadable release.
+* **Verify protected signer** runs only when explicitly dispatched on `main` and approved through the same protected `beta-release` environment. It reconstructs the locked native payload, signs a temporary release APK with environment secrets and verifies its exact certificate fingerprint and reporting configuration. It **never** uploads the signed APK, creates tags, or publishes a Release. Run this first after configuring GitHub environment secrets.
 * **Publish signed Beta** runs only by an owner's explicit `workflow_dispatch` on **main**, with an **existing** `vX.Y.Z-beta.N` Git tag whose commit is on `main`. This workflow rebuilds the ARM64 native payload from bundled source archives, runs tests, builds a signed release APK, validates the approved signer, checks the reporting configuration, packages corresponding source and notices, computes SHA256 checksums and creates a **prerelease**. Any existing release is immutable.
 
 ## One-time GitHub configuration

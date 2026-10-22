@@ -1,0 +1,75 @@
+name: Verify protected signer
+
+# Verification only: never create a tag, upload a signed APK or publish a release.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 8bercue-signer-smoke
+  cancel-in-progress: false
+
+jobs:
+  signed-smoke:
+    name: Signed APK validation (no publication)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: beta-release
+    env:
+      ORG_GRADLE_PROJECT_glitchtipDsn: ${{ vars.GLITCHTIP_DSN }}
+      APPROVED_CERT_SHA256: 24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Select preinstalled Android SDK manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          manager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$manager"
+          echo "SDKMANAGER=$manager" >> "$GITHUB_ENV"
+      - name: Install pinned Android build toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
+      - name: Verify protected signer through a local-only signed build
+        shell: bash
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          FIVEBER_RELEASE_STORE_PASSWORD: ${{ secrets.FIVEBER_RELEASE_STORE_PASSWORD }}
+          FIVEBER_RELEASE_KEY_ALIAS: ${{ secrets.FIVEBER_RELEASE_KEY_ALIAS }}
+          FIVEBER_RELEASE_KEY_PASSWORD: ${{ secrets.FIVEBER_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          for name in RELEASE_KEYSTORE_BASE64 FIVEBER_RELEASE_STORE_PASSWORD FIVEBER_RELEASE_KEY_ALIAS FIVEBER_RELEASE_KEY_PASSWORD ORG_GRADLE_PROJECT_glitchtipDsn; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing protected environment input: $name"
+              exit 1
+            fi
+          done
+          dir="$RUNNER_TEMP/8bercue-signer-smoke"
+          mkdir -m 700 -p "$dir"
+          export FIVEBER_RELEASE_KEYSTORE="$dir/release.p12"
+          trap 'rm -f "$FIVEBER_RELEASE_KEYSTORE"' EXIT
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$FIVEBER_RELEASE_KEYSTORE"
+          test -s "$FIVEBER_RELEASE_KEYSTORE"
+          bash android-app/tools/build_android_lpac.sh
+          bash android-app/gradlew -p android-app :app:assembleRelease --console=plain --no-daemon
+          python3 android-app/tools/verify_artifact.py \
+            android-app/app/build/outputs/apk/release/app-release.apk \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
+            --expected-signer-sha256 "$APPROVED_CERT_SHA256" --require-reporting
+          echo "PASS: protected signer and production APK verification (no artifact published)"
