@@ -95,9 +95,9 @@ public final class Connect {
             System.out.println("8bercue connected. Return to the app; card access is checked separately.");
             System.out.println("No profiles were changed by this command."); return 0;
           }
-          if (!child.isAlive()) {
+            if (!child.isAlive()) {
             // setsid returns after detaching. Exit 0 means the service left the USB session.
-            if (child.exitValue()==0) { Thread.sleep(200); continue; }
+            if (child.exitValue()==0&&!bootstrapError(log)) { Thread.sleep(200); continue; }
             String output = new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
             String code = "START_FAILED";
             for (String line : output.split("\\R")) if (line.startsWith("8BERCUE_ERROR:")) {
@@ -115,6 +115,17 @@ public final class Connect {
         feedback(provider, challenge, ConnectionFeedback.code(failure)); throw failure;
       } finally { log.delete(); }
     }
+  }
+  private static boolean bootstrapError(File log) {
+    try {
+      String output = new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
+      for (String line : output.split("\\R")) {
+        if (!line.startsWith("8BERCUE_ERROR:")) continue;
+        String candidate = line.substring("8BERCUE_ERROR:".length());
+        if (ConnectionFeedback.allowed(candidate)) return true;
+      }
+    } catch (Exception ignored) { /* Log may be unreadable while the child is still exiting. */ }
+    return false;
   }
   private Connect() {}
 }

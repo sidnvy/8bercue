@@ -118,6 +118,7 @@ public final class ProfileUserService extends IProfileService.Stub {
                     .put("canDisable",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DISABLE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DISABLE))
                     .put("canDelete",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DELETE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DELETE)));
             }
+            CompatibilityReport discoveryCompatibility=FiveberReaderSelector.compatibilityReport();
             FiveberReaderSelector.Target finalCard=FiveberReaderSelector.verifySelectedCard(target);
             if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
             if(isolated)ReadOnlyRecovery.observed(target.identityHash,inventoryFingerprint(entries));
@@ -131,9 +132,8 @@ public final class ProfileUserService extends IProfileService.Stub {
                 .put("description",SystemHalAdapter.describeReader(target.reader));
             reply.put("connectionMethod","adb_shell");
             reply.put("transport",transport+" UID2000 / "+target.reader);
-            CompatibilityReport compatibility=FiveberReaderSelector.compatibilityReport();
-            reply.put("compatibility",compatibilityJson(compatibility,true));
-            reply.put("connectionNotice","Card connection: "+compatibility.route()+". "+
+            reply.put("compatibility",compatibilityJson(discoveryCompatibility,true));
+            reply.put("connectionNotice","Card connection: "+discoveryCompatibility.route()+". "+
                 (target.reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX)?"Experimental system-policy workaround; another ROM may block it.":target.reader.startsWith(ReaderDescriptor.HIDL_PREFIX)?"Card reads verified; management writes are not implemented for HIDL.":"Card reads verified; changes still require confirmation."));
             reply.put("readOnly",true);
             if(isolated)reply.put("recoveryState","READ_ONLY_RECOVERED").put("changesBlocked",true)
@@ -351,8 +351,8 @@ public final class ProfileUserService extends IProfileService.Stub {
                         review = record.requiresReconciliation();
                         if (!review) closed = "unstarted_download";
                     }
-                } catch (Throwable failure) {
-                    Log.w("EightberShell", "reconcile close-unstarted failed cause="+failure.getClass().getSimpleName());
+                } catch (java.io.IOException failure) {
+                    Log.w("EightberShell", "reconcile close-unstarted refused");
                 } finally { if (acquired) CardTransactionLock.release(); }
             }
             Log.i("EightberShell", "reconcileOperation status="+status+" review="+review

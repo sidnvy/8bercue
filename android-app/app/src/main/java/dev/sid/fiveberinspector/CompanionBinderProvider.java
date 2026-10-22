@@ -88,26 +88,39 @@ public final class CompanionBinderProvider extends ContentProvider {
         android.content.Context context=getContext();
         return context==null?null:new java.io.File(context.getFilesDir(),"management-shell.pid");
     }
+    private static long bootEpoch(){return android.os.SystemClock.elapsedRealtime()-android.os.SystemClock.uptimeMillis();}
     private void rememberShell(int pid){
         if(pid<2)return;
         trustedShellPid=pid;
         java.io.File file=shellPidFile();if(file==null)return;
-        try{java.nio.file.Files.write(file.toPath(),Integer.toString(pid).getBytes(java.nio.charset.StandardCharsets.UTF_8));}
-        catch(Exception ignored){}
+        String payload=pid+"\n"+bootEpoch()+"\n";
+        java.nio.file.Path path=file.toPath(),tmp=path.resolveSibling(file.getName()+".tmp");
+        try{
+            java.nio.file.Files.write(tmp,payload.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE,java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                java.nio.file.StandardOpenOption.WRITE,java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING,java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        }catch(Exception failure){android.util.Log.w("EightberBinderPilot","shell pid persist failed");trustedShellPid=-1;}
     }
     private int trustedShell(){
         if(trustedShellPid>1)return trustedShellPid;
         java.io.File file=shellPidFile();if(file==null||!file.isFile())return -1;
-        try{trustedShellPid=Integer.parseInt(new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8).trim());}
-        catch(Exception ignored){trustedShellPid=-1;}
+        try{
+            String[] lines=new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8).trim().split("\n");
+            if(lines.length<2||!Long.toString(bootEpoch()).equals(lines[1].trim())){trustedShellPid=-1;return -1;}
+            trustedShellPid=Integer.parseInt(lines[0].trim());
+        }catch(Exception ignored){trustedShellPid=-1;}
         return trustedShellPid;
     }
     static boolean sameShellProcess(int pid,int trusted,String command){
         if(pid<2||pid!=trusted)return false;
-        if(command==null||command.isEmpty())return true;
+        if(command==null||command.isEmpty())return false;
         return command.contains("8bercue-management-v1")||command.contains("CompanionManagementStarter");
     }
+    /** Test-only override for offline bootstrap assertions; never set in production. */
+    static volatile String commandLineOverride;
     private static String commandLine(int pid){
+        if(commandLineOverride!=null)return commandLineOverride;
         try{return new String(java.nio.file.Files.readAllBytes(new java.io.File("/proc/"+pid+"/cmdline").toPath()),java.nio.charset.StandardCharsets.UTF_8).replace('\0',' ');}
         catch(Exception missing){return "";}
     }

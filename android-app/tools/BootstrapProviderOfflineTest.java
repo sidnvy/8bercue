@@ -60,7 +60,7 @@ public final class BootstrapProviderOfflineTest {
   rejected(CompanionBinderProvider.MANAGEMENT_METHOD,replacement,"Recovery challenge remains single-use");
   check(!CompanionBinderProvider.sameShellProcess(1,77,""),"Low pid cannot reattach");
   check(!CompanionBinderProvider.sameShellProcess(78,77,""),"A different shell process cannot reattach");
-  check(CompanionBinderProvider.sameShellProcess(77,77,""),"The original shell process can reattach");
+  check(!CompanionBinderProvider.sameShellProcess(77,77,""),"Unreadable command line cannot reattach");
   check(CompanionBinderProvider.sameShellProcess(77,77,"app_process 8bercue-management-v1"),"Named management process can reattach");
   check(!CompanionBinderProvider.sameShellProcess(77,77,"app_process other"),"Another shell command cannot reuse the saved process");
   resumed.alive=false;
@@ -72,11 +72,15 @@ public final class BootstrapProviderOfflineTest {
   check(call(CompanionBinderProvider.MANAGEMENT_METHOD,attached).getBoolean("accepted"),"First connection records the shell process");
   kept.alive=false;
   Bundle again=new Bundle();again.putString("apkSha256","expected-apk-sha");again.putBinder("managementBinder",new Binder());
+  CompanionBinderProvider.commandLineOverride="app_process 8bercue-management-v1";
   Binder.pid=2147483645;
   rejected(CompanionBinderProvider.REBIND_METHOD,again,"Reattach rejects a different process");
   Binder.pid=2147483646;
   check(call(CompanionBinderProvider.REBIND_METHOD,again).getBoolean("accepted"),"Same shell process reattaches without a new command");
   rejected(CompanionBinderProvider.REBIND_METHOD,again,"Live session is not replaced by reattach");
+  Bundle badApk=new Bundle();badApk.putString("apkSha256","wrong");badApk.putBinder("managementBinder",new Binder());
+  rejected(CompanionBinderProvider.REBIND_METHOD,badApk,"Reattach rejects stale companion digest");
+  rejected(CompanionBinderProvider.REBIND_METHOD,null,"Reattach rejects null extras");
   System.out.println("PASS "+checks+" bootstrap provider authentication/state assertions (actual production provider; simulated Binder)");
  }
 }

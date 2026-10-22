@@ -143,34 +143,34 @@ final class SystemHalAdapter {
    return (removable?"Removable eUICC":"Built-in eUICC")+" · "+fallback;
   }catch(Exception unavailable){return fallback;}
  }
+ private static boolean telephonyPortRequests(Class<?> api)throws Exception{
+  try{
+   Class<?> request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
+   api.getMethod("iccOpenLogicalChannel",request);api.getMethod("iccCloseLogicalChannel",request);
+   api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
+   return true;
+  }catch(ClassNotFoundException|NoSuchMethodException unsupported){return false;}
+ }
  static TelephonySecureElementTransport openTelephony(String reader)throws Exception {
   int[] address=ReaderDescriptor.telephonyIndices(reader);
   Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
   String name="com.android.internal.telephony.ITelephony";
   Class<?> api=Class.forName(name);Object phone=asInterface(name,binder);Object token=new android.os.Binder();
-  try {
+  if(telephonyPortRequests(api)){
    Class<?> request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
-   api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
    return new TelephonySecureElementTransport(phone,api,request,address[0],address[1],token);
-  } catch(ClassNotFoundException|NoSuchMethodException legacy) {
-   int sub=subscriptionForSlot(phone,api,address[0]);
-   if(sub<0)throw new SecureElementFailure(SecureElementFailure.Reason.NO_CARD);
-   return new TelephonySecureElementTransport(phone,api,sub,token);
   }
+  int sub=subscriptionForSlot(phone,api,address[0]);
+  if(sub<0)throw new SecureElementFailure(SecureElementFailure.Reason.NO_CARD);
+  return new TelephonySecureElementTransport(phone,api,sub,token);
  }
  static java.util.List<String> telephonyReaders()throws Exception {
   requireShell();
   Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
   String name="com.android.internal.telephony.ITelephony";
   Class<?> api=Class.forName(name);Object phone=asInterface(name,binder);
-  try {
-   Class<?> request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
-   api.getMethod("iccOpenLogicalChannel",request);api.getMethod("iccCloseLogicalChannel",request);
-   api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
-   return portReaders(api,phone);
-  } catch(ClassNotFoundException|NoSuchMethodException legacy) {
-   return subscriptionReaders(api,phone);
-  }
+  if(telephonyPortRequests(api))return portReaders(api,phone);
+  return subscriptionReaders(api,phone);
  }
  private static java.util.List<String> portReaders(Class<?> api,Object phone)throws Exception {
   java.util.List<String> readers=new java.util.ArrayList<>();

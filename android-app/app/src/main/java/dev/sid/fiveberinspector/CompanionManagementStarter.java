@@ -38,7 +38,7 @@ public final class CompanionManagementStarter {
   payload.putBinder("managementBinder",service.asBinder());
   Bundle accepted=call(provider,CompanionBinderProvider.MANAGEMENT_METHOD,payload);
   if(accepted==null||!accepted.getBoolean("accepted"))throw new SecurityException("Management handoff rejected");
-  listen(service);
+  listen(service,NativeLpacBundle.digest(new java.io.File(NativeLpacBundle.installedApk())));
   }
   System.out.println("MANAGEMENT_BINDER_READY");System.out.flush();Looper.loop();
  }
@@ -51,25 +51,30 @@ public final class CompanionManagementStarter {
       return lookup.exitValue()==0&&line!=null&&!line.trim().isEmpty();
     }catch(Exception missing){return false;}
   }
-  private static void listen(ProfileUserService service){
+  private static void listen(ProfileUserService service,String apkDigest){
     // Survives the app exiting and the USB cable being unplugged. A reboot still ends it.
     // Only contact the app after its process exists. Starting it from here is blocked on this phone.
     Thread waiter=new Thread(()->{
+      int backoffMs=1000;
       while(true){
-        try{Thread.sleep(1000);}catch(InterruptedException stopped){return;}
+        try{Thread.sleep(backoffMs);}catch(InterruptedException stopped){return;}
         if(CardTransactionLock.isActive()||!appRunning())continue;
         try(SystemProviderBridge.Connection connection=SystemProviderBridge.acquire("dev.sid.fiveberinspector.companion")){
           Bundle state=call(connection.provider,CompanionBinderProvider.STATE_METHOD,new Bundle());
-          if(state!=null&&state.getBoolean("connected"))continue;
+          if(state!=null&&state.getBoolean("connected")){backoffMs=1000;continue;}
           Bundle payload=new Bundle();
-          payload.putString("apkSha256",NativeLpacBundle.digest(new java.io.File(NativeLpacBundle.installedApk())));
+          payload.putString("apkSha256",apkDigest);
           payload.putBinder("managementBinder",service.asBinder());
           call(connection.provider,CompanionBinderProvider.REBIND_METHOD,payload);
+          backoffMs=1000;
         }catch(Exception failure){
+          backoffMs=Math.min(backoffMs*2,30000);
           Throwable cause=failure;
           while(cause instanceof java.lang.reflect.InvocationTargetException&&((java.lang.reflect.InvocationTargetException)cause).getTargetException()!=null)
             cause=((java.lang.reflect.InvocationTargetException)cause).getTargetException();
-          if(cause instanceof SecurityException&&String.valueOf(cause.getMessage()).contains("Stale companion"))System.exit(0);
+          if(cause instanceof SecurityException&&String.valueOf(cause.getMessage()).contains("Stale companion")){
+            if(!CardTransactionLock.isActive())System.exit(0);
+          }else System.err.println("8BERCUE_ERROR:REBIND_FAILED");
         }
       }
     },"8bercue-rebind");

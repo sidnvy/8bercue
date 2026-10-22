@@ -180,7 +180,13 @@ public final class MainActivity extends Activity {
   }
   private void copyPlain(String label,String value){
     android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-    clipboard.setPrimaryClip(ClipData.newPlainText(label,value));
+    ClipData clip=ClipData.newPlainText(label,value);
+    if(Build.VERSION.SDK_INT>=33){
+      android.os.PersistableBundle extras=new android.os.PersistableBundle();
+      extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE,true);
+      clip.getDescription().setExtras(extras);
+    }
+    clipboard.setPrimaryClip(clip);
   }
   private String profileIccid(JSONObject profile) {
     if (profile == null) return null;
@@ -458,6 +464,9 @@ public final class MainActivity extends Activity {
                   (compatibility.length()>0?s(R.string.ui_open_compatibility_check_for_the_result_of_each_channel):""));
             render();return;
           }
+          String priorCard=inventory.optString("reader","")+"|"+inventory.optString("eidMasked","");
+          String nextCard=r.optString("reader","")+"|"+r.optString("eidMasked","");
+          if(!priorCard.equals(nextCard))cardInfo=new JSONObject();
           inventory = r;
           recoveryReconnectNeeded=false;
           if("READ_ONLY_RECOVERED".equals(r.optString("recoveryState"))){
@@ -1114,7 +1123,7 @@ public final class MainActivity extends Activity {
     JSONArray settingsProfiles=inventory.optJSONArray("profiles");
     cardPanel.addView(text(settingsProfiles==null?s(R.string.ui_profiles)+s(R.string.ui_not_checked):cardInventorySummary(settingsProfiles.length()),14,MUTED,false),margin(8));
     if(settingsProfiles!=null&&cardInfo.length()==0)cardPanel.addView(text(s(R.string.ui_storage_hint_settings),13,MUTED,false),margin(4));
-    cardPanel.addView(identifierRow(s(R.string.ui_eid).trim(),mask(cardInfo.optString("eidMasked", inventory.optString("eidMasked", s(R.string.ui_not_checked)))),backend!=null?s(R.string.ui_copy_eid):null,this::copyEid),margin(12));
+    cardPanel.addView(identifierRow(s(R.string.ui_eid).trim(),mask(inventory.optString("eidMasked", cardInfo.optString("eidMasked", s(R.string.ui_not_checked)))),backend!=null?s(R.string.ui_copy_eid):null,this::copyEid),margin(12));
     LinearLayout cardActions=new LinearLayout(this);cardActions.setOrientation(LinearLayout.VERTICAL);
     if(backend!=null){
       if(pending&&!OPERATIONS.running())stackedAction(cardActions,s(R.string.ui_verify_card_and_recovery),true,this::reconcile);
@@ -1493,15 +1502,26 @@ public final class MainActivity extends Activity {
       android.util.TypedValue ripple = new android.util.TypedValue();
       getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
       statusBox.setForeground(getDrawable(ripple.resourceId));
+      final boolean connectAction=canConnect,verifyAction=canVerify;
       statusBox.setOnClickListener(v -> {
-        if (canConnect) beginDirectBootstrap();
+        if (connectAction) beginDirectBootstrap();
         else reconcile();
       });
-      statusBox.setContentDescription(canConnect ? s(R.string.ui_connect_using_computer) : s(R.string.ui_verify_card_and_recovery));
+      statusBox.setContentDescription(null);
+      statusBox.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+        @Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){
+          super.onInitializeAccessibilityNodeInfo(host,info);
+          if(connectAction)info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
+              android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK,s(R.string.ui_connect_using_computer)));
+          else if(verifyAction)info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
+              android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK,s(R.string.ui_verify_card_and_recovery)));
+        }
+      });
     } else {
       statusBox.setForeground(null);
       statusBox.setOnClickListener(null);
       statusBox.setContentDescription(null);
+      statusBox.setAccessibilityDelegate(null);
     }
     statusTitle.setText(running ? OPERATIONS.title()
         : canConnect ? s(R.string.ui_connect_your_card)
