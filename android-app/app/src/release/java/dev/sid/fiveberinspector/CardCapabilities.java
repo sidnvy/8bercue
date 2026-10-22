@@ -34,7 +34,8 @@ public final class CardCapabilities {
   FiveberReaderSelector.Target before=FiveberReaderSelector.discover();
   byte[] fullEidResponse=query(false,before.reader);
   String masked=CardCapabilitiesParser.maskedEid(fullEidResponse,before.identityHash);
-  JSONObject result=new JSONObject().put("eidMasked",masked).put("capabilitiesSupported",false);
+  String decimal=CardCapabilitiesParser.decimalEid(fullEidResponse,before.identityHash);
+  JSONObject result=new JSONObject().put("eidMasked",masked).put("eid",decimal).put("capabilitiesSupported",false);
   try{
    byte[] info2=query(true,before.reader);
    Map<String,Object> info=CardCapabilitiesParser.parse(info2);

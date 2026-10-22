@@ -143,6 +143,7 @@
     <string name="ui_connected_check_before_changes" formatted="false">"已连接。添加或更改前，先点上方提示完成核验。"</string>
     <string name="ui_add_unlocks_after_check" formatted="false">"核验通过后才能添加 eSIM。"</string>
     <string name="ui_connect_to_check_this_card" formatted="false">"连接后检查此卡"</string>
+    <string name="ui_pending_connect_first" formatted="false">"请先通过电脑连接，再核验卡片与恢复状态。"</string>
     <string name="ui_your_esims" formatted="false">"我的 eSIM"</string>
     <string name="ui_refresh" formatted="false">"刷新"</string>
     <string name="ui_your_esims_will_appear_here" formatted="false">"连接后将在这里显示 eSIM 配置。"</string>
@@ -186,6 +187,23 @@
     <string name="ui_2_run_this_on_your_computer" formatted="false">"2. 在电脑上运行命令"</string>
     <string name="ui_copy_adb_command" formatted="false">"复制 ADB 命令"</string>
     <string name="ui_command_copied" formatted="false">"命令已复制"</string>
+    <string name="ui_copy_eid" formatted="false">"复制 EID"</string>
+    <string name="ui_copy_iccid" formatted="false">"复制 ICCID"</string>
+    <string name="ui_iccid" formatted="false">"ICCID "</string>
+    <string name="ui_change_card" formatted="false">"更换"</string>
+    <string name="ui_connect_short" formatted="false">"连接"</string>
+    <string name="ui_home_profiles_count" formatted="false">"此卡 %1$d 个配置"</string>
+    <string name="ui_choose_a_card_or_refresh" formatted="false">"请选择卡片后点刷新。"</string>
+    <string name="ui_card_info_short" formatted="false">"卡片信息"</string>
+    <string name="ui_storage_hint_settings" formatted="false">"下方读取卡片信息可查看剩余空间。"</string>
+    <string name="ui_eid_copied" formatted="false">"EID 已复制"</string>
+    <string name="ui_eid_paste_for_operator" formatted="false">"若运营商要求 eUICC EID，可粘贴到表单。界面上仍只显示脱敏 EID。"</string>
+    <string name="ui_eid_copy_unavailable" formatted="false">"暂时无法读取 EID"</string>
+    <string name="eid_clipboard_label" formatted="false">"8bercue EID"</string>
+    <string name="ui_iccid_copied" formatted="false">"ICCID 已复制"</string>
+    <string name="ui_iccid_paste_for_operator" formatted="false">"若运营商索要此 eSIM 的 ICCID，可粘贴使用。界面仍显示脱敏 ICCID。"</string>
+    <string name="ui_iccid_copy_unavailable" formatted="false">"尚无法获取 ICCID"</string>
+    <string name="iccid_clipboard_label" formatted="false">"8bercue ICCID"</string>
     <string name="ui_run_it_while_the_timer_is_active_your_computer_will_confirm_the" formatted="false">"请在倒计时结束前运行。电脑会确认连接，或说明失败原因。"</string>
     <string name="ui_start_connection_again" formatted="false">"重新连接"</string>
     <string name="ui_the_command_stays_the_same_after_app_updates_with_several_phones" formatted="false">"应用更新后，命令保持不变。如果连接了多台手机，请将 adb shell 换成 adb -s SERIAL shell，指定这台手机。"</string>

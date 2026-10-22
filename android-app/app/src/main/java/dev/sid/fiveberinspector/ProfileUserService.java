@@ -93,7 +93,7 @@ public final class ProfileUserService extends IProfileService.Stub {
 
             // The native libeuicc engine independently checks the EID again
             // and only invokes GetEID/GetProfilesInfo via the HAL.
-            JSONObject reply = PhoneNativeLpac.listProfiles();
+            JSONObject reply = PhoneNativeLpac.listProfiles(target);
             // Return the same authoritative order used by preview selection.
             java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.list();
             org.json.JSONArray profiles = new org.json.JSONArray();
@@ -111,13 +111,14 @@ public final class ProfileUserService extends IProfileService.Stub {
                 profiles.put(new JSONObject().put("selectionId",ProfileUiIdentity.key(uiSession,target.identityHash,id)).put("provider", safeLabel(entry.provider))
                     .put("name", safeLabel(entry.name)).put("nickname", safeLabel(entry.nickname))
                     .put("state", entry.enabled ? "enabled" : "disabled")
+                    .put("iccid", id)
                     .put("iccidMasked", id.substring(0,4) + "..." + id.substring(id.length()-4))
                     .put("canRename",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.RENAME,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.RENAME))
                     .put("canEnable",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.ENABLE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.ENABLE))
                     .put("canDisable",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DISABLE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DISABLE))
                     .put("canDelete",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DELETE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DELETE)));
             }
-            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.discover();
+            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.verifySelectedCard(target);
             if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
             if(isolated)ReadOnlyRecovery.observed(target.identityHash,inventoryFingerprint(entries));
             displayedFingerprint = inventoryFingerprint(entries);
@@ -126,7 +127,8 @@ public final class ProfileUserService extends IProfileService.Stub {
             try { displayedLifecycleFingerprint = ProfileLifecycleGuard.selectionFingerprint(PortableProfileLifecycle.rows(entries)); }
             catch (SecurityException unsupportedMutationState) { /* Still display an empty/inactive card for recovery. */ }
             reply.put("profiles", profiles).put("count", profiles.length()).put("writeQualified",writeQualified)
-                .put("reader",target.reader).put("eidMasked",target.eidMasked).put("description",SystemHalAdapter.describeReader(target.reader));
+                .put("reader",target.reader).put("eidMasked",target.eidMasked).put("eid",target.eidDecimal)
+                .put("description",SystemHalAdapter.describeReader(target.reader));
             reply.put("connectionMethod","adb_shell");
             reply.put("transport",transport+" UID2000 / "+target.reader);
             CompatibilityReport compatibility=FiveberReaderSelector.compatibilityReport();
