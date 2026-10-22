@@ -173,10 +173,6 @@ public final class MainActivity extends Activity {
     default -> op;
   };}
   private String countdown(long millis){long seconds=Math.max(0,(millis+999)/1000);return seconds==0?s(R.string.ui_connection_window_expired):s(R.string.connection_countdown,String.format(java.util.Locale.ROOT,"%d:%02d",seconds/60,seconds%60));}
-  private String verifiedEid(){
-    String eid=cardInfo.optString("eid","");
-    return eid.matches("\\d{32}")?eid:null;
-  }
   private void copyPlain(String label,String value){
     android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
     ClipData clip=ClipData.newPlainText(label,value);
@@ -201,15 +197,11 @@ public final class MainActivity extends Activity {
     });
   }
   private void copyEid(){
-    if(OPERATIONS.running())return;
-    String eid=verifiedEid();
-    if(eid!=null){copyPlain(s(R.string.eid_clipboard_label),eid);statusPreservingOutcome(s(R.string.ui_eid_copied),s(R.string.ui_eid_paste_for_operator));render();return;}
+    if(OPERATIONS.running()||backend==null){if(backend==null)status(s(R.string.ui_connect_your_card_first),s(R.string.ui_eid_copy_unavailable));render();return;}
     final IProfileService service=backend;
-    if(service==null){status(s(R.string.ui_connect_your_card_first),s(R.string.ui_eid_copy_unavailable));render();return;}
-    run(s(R.string.ui_reading_card_information),false,()->new JSONObject(service.getCardInfo()),r->{
-      if(r.optBoolean("ok",false))cardInfo=r;
-      String loaded=verifiedEid();
-      if(loaded!=null){copyPlain(s(R.string.eid_clipboard_label),loaded);statusPreservingOutcome(s(R.string.ui_eid_copied),s(R.string.ui_eid_paste_for_operator));}
+    run(s(R.string.ui_reading_card_information),false,()->new JSONObject(service.getCardEid()),r->{
+      String eid=r.optBoolean("ok",false)?r.optString("eid",""):null;
+      if(eid!=null&&eid.matches("\\d{32}")){copyPlain(s(R.string.eid_clipboard_label),eid);statusPreservingOutcome(s(R.string.ui_eid_copied),s(R.string.ui_eid_paste_for_operator));}
       else status(s(R.string.ui_eid_copy_unavailable),s(R.string.ui_reconnect_and_refresh_the_card));
       render();
     });

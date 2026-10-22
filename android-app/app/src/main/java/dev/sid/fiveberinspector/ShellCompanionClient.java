@@ -26,7 +26,7 @@ public final class ShellCompanionClient {
         if (method.equals("executeDownload")) return 300000;
         if (method.equals("executeSwitch") || method.equals("executeOperation")) return 180000;
         if (method.equals("reconcileOperation") || method.equals("listProfiles")
-                || method.equals("getCardInfo") || method.equals("getProfileIccid")
+                || method.equals("getCardInfo") || method.equals("getCardEid") || method.equals("getProfileIccid")
                 || method.equals("PROFILES")) return 65000;
         return 35000;
     }
@@ -79,7 +79,7 @@ public final class ShellCompanionClient {
         // Client allowlist is defense in depth. The server separately checks
         // SO_PEERCRED, current package UID, operation and bounded argument types.
         switch (method) {
-            case "getStatus": case "listProfiles": case "getCardInfo": case "getProfileIccid":
+            case "getStatus": case "listProfiles": case "getCardInfo": case "getCardEid": case "getProfileIccid":
             case "getOperationStatus": case "reconcileOperation":
             case "prepareCardSelection": case "selectCard":
             case "prepareSwitch": case "executeSwitch": case "prepareRename":

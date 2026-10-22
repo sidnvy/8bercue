@@ -34,8 +34,7 @@ public final class CardCapabilities {
   FiveberReaderSelector.Target before=FiveberReaderSelector.discover();
   byte[] fullEidResponse=query(false,before.reader);
   String masked=CardCapabilitiesParser.maskedEid(fullEidResponse,before.identityHash);
-  String decimal=CardCapabilitiesParser.decimalEid(fullEidResponse,before.identityHash);
-  JSONObject result=new JSONObject().put("eidMasked",masked).put("eid",decimal).put("capabilitiesSupported",false);
+  JSONObject result=new JSONObject().put("eidMasked",masked).put("capabilitiesSupported",false);
   try{
    byte[] info2=query(true,before.reader);
    Map<String,Object> info=CardCapabilitiesParser.parse(info2);
@@ -46,5 +45,15 @@ public final class CardCapabilities {
   if(!before.reader.equals(after.reader)||!before.identityHash.equals(after.identityHash))throw new SecurityException("Card identity changed during capability read");
   if(result.optBoolean("capabilitiesSupported"))result.put("capabilitiesStatus","available");
   return result;
+ }
+ /** Full decimal EID for explicit copy only; routine getCardInfo stays masked. */
+ public static String decimalEid()throws Exception{
+  if(android.os.Process.myUid()!=android.os.Process.SHELL_UID)throw new SecurityException("Shell UserService required");
+  FiveberReaderSelector.Target before=FiveberReaderSelector.discover();
+  byte[] fullEidResponse=query(false,before.reader);
+  String decimal=CardCapabilitiesParser.decimalEid(fullEidResponse,before.identityHash);
+  FiveberReaderSelector.Target after=FiveberReaderSelector.discover();
+  if(!before.reader.equals(after.reader)||!before.identityHash.equals(after.identityHash))throw new SecurityException("Card identity changed during EID read");
+  return decimal;
  }
 }

@@ -193,7 +193,7 @@ public final class OperationJournal {
     /** Network failure before any server response. Card-touching phases stay unknown. */
     public static boolean networkStoppedBeforeCard(Properties fields) {
         return fields.getProperty("downloadPhase","").matches("LAUNCH|INITIATE_AUTHENTICATION")
-            && fields.getProperty("downloadFailure","").matches("TLS|DNS|NETWORK_TIMEOUT")
+            && fields.getProperty("downloadFailure","").matches("TLS|DNS")
             && "true".equals(fields.getProperty("downloadWorkerStopped"))
             && "true".equals(fields.getProperty("downloadNativeStopped"))
             && "0".equals(fields.getProperty("downloadHttpStatus"))

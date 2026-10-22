@@ -383,6 +383,17 @@ public final class ProfileUserService extends IProfileService.Stub {
             } finally { CardTransactionLock.release(); }
         } catch (Throwable e) { return safeOperationError("profile-iccid", e); }
     }
+    @Override public synchronized String getCardEid() {
+        boolean acquired = false;
+        try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            ReadOnlyRecovery.acquire(); acquired = true;
+            String eid = CardCapabilities.decimalEid();
+            if (!eid.matches("\\d{32}")) throw new SecurityException("Invalid EID");
+            return new JSONObject().put("ok", true).put("eid", eid).toString();
+        } catch (Throwable e) { return safeOperationError("card-eid", e); }
+        finally { if (acquired) CardTransactionLock.release(); }
+    }
     @Override public synchronized String getCardInfo() {
         boolean acquired = false;
         try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {

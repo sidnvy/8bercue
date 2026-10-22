@@ -98,12 +98,13 @@ public final class CompanionBinderProvider extends ContentProvider {
     }
     private void rememberShell(int pid){
         if(pid<2)return;
+        if(shellPidFile()==null)return;
         trustedShellPid=pid;
-        java.io.File file=shellPidFile();if(file==null)return;
-        String payload=pid+"\n"+bootId()+"\n";
+        byte[] payload=(pid+"\n"+bootId()+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.File file=shellPidFile();
         java.nio.file.Path path=file.toPath(),tmp=path.resolveSibling(file.getName()+".tmp");
         try{
-            java.nio.file.Files.write(tmp,payload.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            java.nio.file.Files.write(tmp,payload,
                 java.nio.file.StandardOpenOption.CREATE,java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
                 java.nio.file.StandardOpenOption.WRITE,java.nio.file.LinkOption.NOFOLLOW_LINKS);
             try{
@@ -111,7 +112,11 @@ public final class CompanionBinderProvider extends ContentProvider {
             }catch(java.nio.file.AtomicMoveNotSupportedException unsupported){
                 java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
-        }catch(Exception failure){android.util.Log.w("EightberBinderPilot","shell pid persist failed");}
+        }catch(Exception failure){android.util.Log.w("EightberBinderPilot","shell pid persist failed");trustedShellPid=-1;}
+    }
+    private static boolean shellPidAlive(int pid){
+        try{return java.nio.file.Files.exists(java.nio.file.Paths.get("/proc",Integer.toString(pid)));}
+        catch(Exception missing){return false;}
     }
     private int trustedShell(){
         if(trustedShellPid>1)return trustedShellPid;
@@ -121,7 +126,7 @@ public final class CompanionBinderProvider extends ContentProvider {
             if(lines.length<2)return -1;
             int pid=Integer.parseInt(lines[0].trim());
             if(!bootId().equals(lines[1].trim())){
-                if(!sameShellProcess(pid,pid,commandLine(pid)))return -1;
+                if(!shellPidAlive(pid))return -1;
                 rememberShell(pid);
             }
             trustedShellPid=pid;
@@ -131,9 +136,7 @@ public final class CompanionBinderProvider extends ContentProvider {
     private boolean shellMayRebind(int pid){
         if(Binder.getCallingUid()!=Process.SHELL_UID||pid<2)return false;
         int trusted=trustedShell();
-        if(trusted>1)return pid==trusted;
-        // ponytail: cross-uid /proc cmdline is often unreadable; shell UID is already required here.
-        return true;
+        return trusted>1&&pid==trusted;
     }
     static boolean sameShellProcess(int pid,int trusted,String command){
         if(pid<2||pid!=trusted)return false;

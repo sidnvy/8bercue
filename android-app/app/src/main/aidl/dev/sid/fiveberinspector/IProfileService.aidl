@@ -17,6 +17,7 @@ interface IProfileService {
     String getCardInfo() = 13;
     // Full ICCID only for explicit copy; routine listProfiles stays masked.
     String getProfileIccid(int profileIndex) = 18;
+    String getCardEid() = 19;
     String prepareNotificationCleanup() = 14;
     String executeNotificationCleanup(String opaqueToken) = 15;
     String prepareCardSelection() = 16;
