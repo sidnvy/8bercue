@@ -32,24 +32,53 @@ public final class CompanionManagementStarter {
   String nonce=challenge.getString("nonce");if(!OperationTokens.isValid(nonce))throw new SecurityException("Invalid bootstrap challenge");
   IBinder lifetime=challenge.getBinder("clientLifetime");
   if(lifetime==null||!lifetime.pingBinder())throw new SecurityException("App lifetime unavailable");
-  lifetime.linkToDeath(()->{
-    // A foreground app disappearing must not interrupt an in-flight card write.
-    // Exit only after exclusion is released. Quarantined workers retain the process
-    // and durable block for explicit recovery; they are never silently abandoned.
-    Thread shutdown=new Thread(()->{
-      while(CardTransactionLock.isActive()) {
-        try {Thread.sleep(250);}catch(InterruptedException ignored){return;}
-      }
-      System.exit(0);
-    },"8bercue-client-lifetime");shutdown.setDaemon(true);shutdown.start();
-  },0);
+  ProfileUserService service=new ProfileUserService("Independent Binder");
   Bundle payload=new Bundle();payload.putString("nonce",nonce);payload.putInt("protocol",CompanionBinderProvider.MANAGEMENT_VERSION);payload.putInt("versionCode",BuildConfig.VERSION_CODE);
   payload.putString("apkSha256",NativeLpacBundle.digest(new java.io.File(NativeLpacBundle.installedApk())));
-  payload.putBinder("managementBinder",new ProfileUserService("Independent Binder").asBinder());
+  payload.putBinder("managementBinder",service.asBinder());
   Bundle accepted=call(provider,CompanionBinderProvider.MANAGEMENT_METHOD,payload);
   if(accepted==null||!accepted.getBoolean("accepted"))throw new SecurityException("Management handoff rejected");
+  listen(service,NativeLpacBundle.digest(new java.io.File(NativeLpacBundle.installedApk())));
   }
   System.out.println("MANAGEMENT_BINDER_READY");System.out.flush();Looper.loop();
  }
+  private static boolean appRunning(){
+    try{
+      java.lang.Process lookup=new ProcessBuilder("/system/bin/pidof","dev.sid.fiveberinspector").redirectErrorStream(true).start();
+      boolean finished=lookup.waitFor(2,java.util.concurrent.TimeUnit.SECONDS);
+      if(!finished){lookup.destroyForcibly();return false;}
+      String line;try(java.io.BufferedReader reader=new java.io.BufferedReader(new java.io.InputStreamReader(lookup.getInputStream(),java.nio.charset.StandardCharsets.UTF_8))){line=reader.readLine();}
+      return lookup.exitValue()==0&&line!=null&&!line.trim().isEmpty();
+    }catch(Exception missing){return false;}
+  }
+  private static void listen(ProfileUserService service,String apkDigest){
+    // Survives the app exiting and the USB cable being unplugged. A reboot still ends it.
+    // Only contact the app after its process exists. Starting it from here is blocked on this phone.
+    Thread waiter=new Thread(()->{
+      int backoffMs=1000;
+      while(true){
+        try{Thread.sleep(backoffMs);}catch(InterruptedException stopped){return;}
+        if(CardTransactionLock.isActive()||!appRunning())continue;
+        try(SystemProviderBridge.Connection connection=SystemProviderBridge.acquire("dev.sid.fiveberinspector.companion")){
+          Bundle state=call(connection.provider,CompanionBinderProvider.STATE_METHOD,new Bundle());
+          if(state!=null&&state.getBoolean("connected")){backoffMs=1000;continue;}
+          Bundle payload=new Bundle();
+          payload.putString("apkSha256",apkDigest);
+          payload.putBinder("managementBinder",service.asBinder());
+          call(connection.provider,CompanionBinderProvider.REBIND_METHOD,payload);
+          backoffMs=1000;
+        }catch(Exception failure){
+          backoffMs=Math.min(backoffMs*2,30000);
+          Throwable cause=failure;
+          while(cause instanceof java.lang.reflect.InvocationTargetException&&((java.lang.reflect.InvocationTargetException)cause).getTargetException()!=null)
+            cause=((java.lang.reflect.InvocationTargetException)cause).getTargetException();
+          if(cause instanceof SecurityException&&String.valueOf(cause.getMessage()).contains("Stale companion")){
+            if(!CardTransactionLock.isActive())System.exit(0);
+          }else System.err.println("8BERCUE_ERROR:REBIND_FAILED");
+        }
+      }
+    },"8bercue-rebind");
+    waiter.setDaemon(true);waiter.start();
+  }
  private CompanionManagementStarter(){}
 }

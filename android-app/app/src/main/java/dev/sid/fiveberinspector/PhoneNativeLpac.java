@@ -117,10 +117,13 @@ public final class PhoneNativeLpac {
     }
   }
   public static JSONObject listProfiles()throws Exception{
+    return listProfiles(FiveberReaderSelector.discover());
+  }
+  public static JSONObject listProfiles(FiveberReaderSelector.Target expected)throws Exception{
     if(android.os.Process.myUid()!=android.os.Process.SHELL_UID)throw new SecurityException("Requires Shell UID");
+    if(expected==null)throw new SecurityException("Card target required");
     // This remains the READ-ONLY path. Mutating transactions separately require
     // an enrolled device/card pair, confirmation, and independent readback.
-    FiveberReaderSelector.Target expected=FiveberReaderSelector.discover();
     try {cardPreflight(expected);}
     catch(Exception ex){throw new StageException("preflight",ex);}
     AtomicReference<Process> child=new AtomicReference<>();

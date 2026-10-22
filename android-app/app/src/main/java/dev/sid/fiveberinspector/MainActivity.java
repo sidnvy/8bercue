@@ -7,6 +7,7 @@ import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.text.InputType;
+import android.util.Log;
 import android.view.*;
 import android.widget.*;
 import java.util.concurrent.*;
@@ -127,7 +128,7 @@ public final class MainActivity extends Activity {
       screen = saved.getInt("screen", 0) == 2 ? 2 : 0;
     SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.APP_STARTED);
     if (getPreferences(0).getBoolean("pending", false))
-      notice = s(R.string.ui_card_and_operation_state_need_verification_open_settings_verify);
+      notice = s(R.string.ui_pending_connect_first);
     render();
   }
   @Override
@@ -172,6 +173,39 @@ public final class MainActivity extends Activity {
     default -> op;
   };}
   private String countdown(long millis){long seconds=Math.max(0,(millis+999)/1000);return seconds==0?s(R.string.ui_connection_window_expired):s(R.string.connection_countdown,String.format(java.util.Locale.ROOT,"%d:%02d",seconds/60,seconds%60));}
+  private void copyPlain(String label,String value){
+    android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+    ClipData clip=ClipData.newPlainText(label,value);
+    if(Build.VERSION.SDK_INT>=33){
+      android.os.PersistableBundle extras=new android.os.PersistableBundle();
+      extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE,true);
+      clip.getDescription().setExtras(extras);
+    }
+    clipboard.setPrimaryClip(clip);
+  }
+  private void copyIccid() {
+    if (OPERATIONS.running() || backend == null || selectedProfile < 0) return;
+    final IProfileService service = backend;
+    final int index = selectedProfile;
+    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getProfileIccid(index)), r -> {
+      String iccid = r.optBoolean("ok", false) ? r.optString("iccid", "") : null;
+      if (iccid != null && iccid.matches("[0-9]{19,20}")) {
+        copyPlain(s(R.string.iccid_clipboard_label), iccid);
+        statusPreservingOutcome(s(R.string.ui_iccid_copied), s(R.string.ui_iccid_paste_for_operator));
+      } else status(s(R.string.ui_iccid_copy_unavailable), s(R.string.ui_refresh_the_card_and_select_a_profile));
+      render();
+    });
+  }
+  private void copyEid(){
+    if(OPERATIONS.running()||backend==null){if(backend==null)status(s(R.string.ui_connect_your_card_first),s(R.string.ui_eid_copy_unavailable));render();return;}
+    final IProfileService service=backend;
+    run(s(R.string.ui_reading_card_information),false,()->new JSONObject(service.getCardEid()),r->{
+      String eid=r.optBoolean("ok",false)?r.optString("eid",""):null;
+      if(eid!=null&&eid.matches("\\d{32}")){copyPlain(s(R.string.eid_clipboard_label),eid);statusPreservingOutcome(s(R.string.ui_eid_copied),s(R.string.ui_eid_paste_for_operator));}
+      else status(s(R.string.ui_eid_copy_unavailable),s(R.string.ui_reconnect_and_refresh_the_card));
+      render();
+    });
+  }
   private String connectionNotice(JSONObject result){
     String reader=result.optString("reader","");
     String explanation=s(reader.startsWith("telephony.")?R.string.connection_telephony_notice:reader.startsWith("hidl.")?R.string.connection_hidl_notice:R.string.connection_verified_notice);
@@ -417,6 +451,9 @@ public final class MainActivity extends Activity {
                   (compatibility.length()>0?s(R.string.ui_open_compatibility_check_for_the_result_of_each_channel):""));
             render();return;
           }
+          String priorCard=inventory.optString("reader","")+"|"+inventory.optString("eidMasked","");
+          String nextCard=r.optString("reader","")+"|"+r.optString("eidMasked","");
+          if(!priorCard.equals(nextCard))cardInfo=new JSONObject();
           inventory = r;
           recoveryReconnectNeeded=false;
           if("READ_ONLY_RECOVERED".equals(r.optString("recoveryState"))){
@@ -464,7 +501,8 @@ public final class MainActivity extends Activity {
       String phase = r.optString("status", r.optString("stage", "unknown"));
       boolean recoveryBlocked = RecoveryUiPolicy.blocks(true, r.optBoolean("requiresReconciliation", true), r.optBoolean("reviewRequired", true), phase);
       if (recoveryBlocked) getPreferences(0).edit().putBoolean("pending", true).commit();
-      if (recoveryBlocked || getPreferences(0).getBoolean("pending", false))
+      else getPreferences(0).edit().remove("pending").commit();
+      if (recoveryBlocked)
         notice = s(R.string.ui_recovery_check) + safeState(phase)
             + s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
       if (r.optBoolean("notificationReviewRequired", false))
@@ -475,16 +513,28 @@ public final class MainActivity extends Activity {
   private void reconcile() {
     final IProfileService s = backend;
     if (s == null) {
+      Log.i("EightberUi", "reconcile stopped no-backend");
       connect();
       return;
     }
+    Log.i("EightberUi", "reconcile started");
     run(s(R.string.ui_verifying_card_and_recovery), false, () -> new JSONObject(s.reconcileOperation()), r -> {
       if(!r.optBoolean("ok",false)){
         getPreferences(0).edit().putBoolean("pending",true).commit();
+        Log.i("EightberUi", "reconcile stopped ok=false status="+r.optString("status")
+            +" recoveryError="+r.optString("recoveryError")+" error="+r.optString("error")
+            +" stage="+r.optString("stage"));
         status(s(R.string.recovery_access_paused),recoveryFailure(r.optString("recoveryError")));render();return;
       }
       boolean review = RecoveryUiPolicy.blocks(r.optBoolean("ok", false), r.optBoolean("requiresReconciliation", false), r.optBoolean("reviewRequired", true), r.optString("status", "unknown"));
+      Log.i("EightberUi", "reconcile decision status="+r.optString("status")
+          +" reviewRequired="+r.optBoolean("reviewRequired")
+          +" requiresReconciliation="+r.optBoolean("requiresReconciliation")
+          +" closed="+r.optString("closed")
+          +" blocks="+review+" pendingCleared="+!review);
       notice = review ? s(R.string.ui_card_read_completed_the_previous_operation_still_requires_review)
+                      : "unstarted_download".equals(r.optString("closed"))
+                          ? s(R.string.ui_download_stopped_before_the_server_the_card_is_unchanged)
                       : "reviewed_abandoned".equals(r.optString("status"))
                           ? s(R.string.ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve)
                           : s(R.string.ui_read_only_reconciliation_completed_check_the_current_profile_inv);
@@ -565,14 +615,19 @@ public final class MainActivity extends Activity {
               || (r.optBoolean("installed", false)
                   && "installed_disabled".equals(r.optString("status")));
           boolean review = r.optBoolean("reviewRequired", !verified);
-          if (op.equals("download")) {
+          boolean unstarted = op.equals("download") && "not_completed".equals(r.optString("status"))
+              && r.optBoolean("inventoryUnchanged", false) && !r.optBoolean("reviewRequired", true);
+          if (op.equals("download") && !unstarted) {
             verified = InstallResultPolicy.verified(r.optString("status"),
                 r.isNull("installed") ? null : r.optBoolean("installed", false),
                 r.isNull("enabled") ? null : r.optBoolean("enabled", true),
                 r.optBoolean("reviewRequired", true));
             review = review || !verified;
           }
-          notice = verified && !review
+          if (unstarted) { verified = false; review = false; }
+          notice = unstarted
+              ? s(R.string.ui_download_stopped_before_the_server_the_card_is_unchanged)
+              : verified && !review
               ? (op.equals("download")
                         ? s(R.string.ui_esim_installed_and_independently_verified_it_remains_disabled_yo)
                         : s(R.string.ui_operation_verified_by_a_fresh_card_read_review_the_updated_inven))
@@ -588,13 +643,14 @@ public final class MainActivity extends Activity {
           }
           if (r.has("notificationStatus") && verified && !review)
             notice += "\n" + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
-          if (verified && !review)
+          if ((verified && !review) || unstarted)
             getPreferences(0).edit().remove("pending").commit();
           if (r.optBoolean("restartRequired", false) || !r.optBoolean("notificationWorkerStopped", true)) {
             getPreferences(0).edit().putBoolean("pending", true).commit();
             notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
-          recentResults.add(0, (verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
+          recentResults.add(0, (unstarted ? s(R.string.ui_connection_not_completed)
+              : verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;
@@ -728,9 +784,9 @@ public final class MainActivity extends Activity {
     FrameLayout workspace=new FrameLayout(this);
     workspace.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
     root.addView(workspace,new LinearLayout.LayoutParams(-1,0,1));
-    if(screen==0&&inventory.has("profiles")&&!binderReadOnlyInventory){
+    if(screen==0&&inventory.has("profiles")&&!binderReadOnlyInventory&&!getPreferences(0).getBoolean("pending",false)){
       Button fab=action(s(R.string.ui_add_esim_134),false,()->navigate(1));fab.setTextColor(ON_TONAL);fab.setBackground(rounded(TONAL,16));fab.setElevation(dp(2));
-      FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(-2,dp(56),Gravity.BOTTOM|Gravity.END);placement.setMargins(dp(24),dp(16),dp(24),dp(16));workspace.addView(fab,placement);availability(fab,!getPreferences(0).getBoolean("pending",false));
+      FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(-2,dp(56),Gravity.BOTTOM|Gravity.END);placement.setMargins(dp(24),dp(16),dp(24),dp(16));workspace.addView(fab,placement);
       content.setPadding(dp(24),0,dp(24),dp(100));
     }
     setContentView(root);
@@ -764,22 +820,36 @@ public final class MainActivity extends Activity {
       add(text(s(R.string.ui_installation_supported_management_unavailable),20,TEXT,true),24);
       add(text(managementUnavailable()),12);return;
     }
+    boolean pending=getPreferences(0).getBoolean("pending",false);
     LinearLayout card=box();
-    Button choice=button(cardLabel()+s(R.string.ui_choose),false);
-    choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
-    choice.setTextSize(18);choice.setTextColor(TEXT);
-    choice.setBackgroundColor(Color.TRANSPARENT);
-    choice.setOnClickListener(v->{if(backend!=null)chooseCard();else beginDirectBootstrap();});
-    taskControls.add(choice);card.addView(choice,new LinearLayout.LayoutParams(-1,-2));
-    card.addView(text(s(R.string.ui_eid)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),margin(4));
-    card.addView(text(inventory.has("profiles")?s(R.string.ui_card_connected_read_verified):s(R.string.ui_connect_to_check_this_card),12,MUTED,false),margin(14));
+    card.addView(text(cardLabel(),20,TEXT,true));
+    JSONArray homeProfiles=inventory.optJSONArray("profiles");
+    if(homeProfiles!=null)card.addView(text(cardInventorySummary(homeProfiles.length()),14,MUTED,false),margin(8));
+    else if(backend!=null)card.addView(text(s(R.string.ui_storage_hint_settings),13,MUTED,false),margin(8));
+    card.addView(identifierRow(s(R.string.ui_eid).trim(),inventory.optString("eidMasked",s(R.string.ui_not_checked)),backend!=null?s(R.string.ui_copy_eid):null,this::copyEid),margin(12));
+    card.addView(text(homeCardStatusLine(pending),14,MUTED,false),margin(10));
+    LinearLayout cardActions=new LinearLayout(this);cardActions.setOrientation(LinearLayout.VERTICAL);
+    if(backend==null)stackedAction(cardActions,s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap);
+    else{
+      if(pending&&!OPERATIONS.running())stackedAction(cardActions,s(R.string.ui_verify_card_and_recovery),true,this::reconcile);
+      stackedAction(cardActions,s(R.string.ui_choose_card),false,this::chooseCard);
+    }
+    card.addView(cardActions,margin(16));
     add(card,18);
-    LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.setMinimumHeight(dp(48));
     heading.addView(text(s(R.string.ui_your_esims),22,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
-    Button refresh=action(s(R.string.ui_refresh),false,this::refresh);refresh.setTextSize(13);refresh.setBackgroundColor(Color.TRANSPARENT);
-    heading.addView(refresh,new LinearLayout.LayoutParams(dp(88),dp(48)));add(heading,22);
+    heading.addView(textButton(s(R.string.ui_refresh),this::refresh));add(heading,20);
     JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_check_compatibility_in_settings)),16);add(action(backend==null?s(R.string.ui_connect_using_computer):s(R.string.ui_choose_card),true,backend==null?this::beginDirectBootstrap:this::chooseCard),20);return;}
+    if(profiles==null){
+      add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_refresh)),15);
+      if(backend!=null){
+        LinearLayout emptyActions=new LinearLayout(this);emptyActions.setOrientation(LinearLayout.VERTICAL);
+        stackedAction(emptyActions,s(R.string.ui_choose_card),false,this::chooseCard);
+        stackedAction(emptyActions,s(R.string.ui_refresh),false,this::refresh);
+        add(emptyActions,16);
+      }
+      return;
+    }
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));
@@ -789,7 +859,7 @@ public final class MainActivity extends Activity {
       boolean on="enabled".equalsIgnoreCase(profile.optString("state"));TextView state=text(on?s(R.string.ui_enabled):"disabled".equalsIgnoreCase(profile.optString("state"))?s(R.string.ui_disabled):s(R.string.ui_unknown),11,on?ACCENT:MUTED,false);state.setPadding(dp(8),dp(4),dp(8),dp(4));state.setBackground(rounded(SURFACE,8));row.addView(state);
       row.setContentDescription(s(R.string.profile_accessibility,profileName(profile),state.getText()));row.setFocusable(true);ripple(row);row.setOnClickListener(v->{if(!OPERATIONS.running())showProfile(index,profile,row);});taskControls.add(row);add(row,0);addDivider();
     }
-    if(profiles.length()==0)add(text(s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
+    if(profiles.length()==0)add(text(getPreferences(0).getBoolean("pending",false)?s(R.string.ui_add_unlocks_after_check):s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
     add(text(s(R.string.ui_enabled_describes_the_card_state_network_service_has_not_been_ch),12,MUTED,false),20);
 
   }
@@ -799,7 +869,8 @@ public final class MainActivity extends Activity {
   private void profileDetails(){
     JSONObject p=detailProfile;if(p==null){add(text(s(R.string.ui_refresh_the_card_and_select_a_profile)),24);return;}
     add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),16);
-    add(text(profileName(p),28,TEXT,false),28);add(text(selectedIccid),6);
+    add(text(profileName(p),28,TEXT,false),28);
+    add(identifierRow(s(R.string.ui_iccid).trim(),selectedIccid,backend!=null?s(R.string.ui_copy_iccid):null,this::copyIccid),12);
     boolean enabled="enabled".equalsIgnoreCase(p.optString("state"));boolean disabled="disabled".equalsIgnoreCase(p.optString("state"));
     Switch toggle=new Switch(this);toggle.setText(s(R.string.ui_use_this_esim));toggle.setTextSize(20);toggle.setTextColor(ON_TONAL);toggle.setPadding(dp(20),dp(18),dp(20),dp(18));toggle.setMinHeight(dp(80));toggle.setBackground(rounded(TONAL,24));toggle.setChecked(enabled);toggle.setContentDescription(s(R.string.ui_use_this_esim));
     toggle.setThumbTintList(android.content.res.ColorStateList.valueOf(darkTheme?0xffffdbcC:Color.WHITE));toggle.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{ACCENT,MUTED}));
@@ -1004,20 +1075,52 @@ public final class MainActivity extends Activity {
     check.button(s(R.string.ui_done),false,check.dialog::dismiss);check.show();
   }
   private void settings() {
-    add(text(s(R.string.ui_connection), 19, TEXT, true), 24);
-    add(text(s(R.string.ui_card_connection)+compatibility.optString("route",s(R.string.ui_not_checked_in_this_connection)),14,MUTED,false),8);
-    add(action(s(R.string.ui_compatibility_check),false,this::showCompatibility),12);
-    if(backend!=null)add(action(s(R.string.ui_choose_card),false,this::chooseCard),12);
-    add(text(directManagement && backend != null ? s(R.string.ui_computer_connection_active)
+    boolean pending=getPreferences(0).getBoolean("pending",false);
+    sectionHeading(s(R.string.ui_connection), 8);
+    LinearLayout connectionPanel=box();
+    connectionPanel.addView(text(directManagement && backend != null ? s(R.string.ui_computer_connection_active)
           : companionManagement ? s(R.string.ui_local_companion_connected)
           : binderReadOnlyInventory ? s(R.string.ui_read_only_diagnostic_connection)
           : backend != null ? s(R.string.ui_computer_connection_active)
-          : fallback ? s(R.string.ui_read_only_companion_connected) : s(R.string.ui_not_connected), 15, MUTED, false), 8);
-    if (LabSupport.socketEligible())
-      add(action(s(R.string.ui_use_legacy_local_companion), useCompanion(), this::selectLegacyCompanion), 12);
-    add(action(s(R.string.ui_connect_using_computer), backend==null, this::beginDirectBootstrap), 12);
-    if (CompatibilityDiagnostics.lastFailure()!=null)
-      add(action(s(R.string.ui_feedback_2),false,this::offerCompatibilityReport),12);
+          : fallback ? s(R.string.ui_read_only_companion_connected) : s(R.string.ui_not_connected), 16, TEXT, true));
+    connectionPanel.addView(text(s(R.string.ui_card_connection)+compatibility.optString("route",s(R.string.ui_not_checked_in_this_connection)),14,MUTED,false),margin(8));
+    LinearLayout connectActions=new LinearLayout(this);connectActions.setOrientation(LinearLayout.VERTICAL);
+    if(backend==null)stackedAction(connectActions,s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap);
+    else stackedAction(connectActions,s(R.string.ui_connect_using_computer),false,this::beginDirectBootstrap);
+    stackedAction(connectActions,s(R.string.ui_compatibility_check),false,this::showCompatibility);
+    stackedAction(connectActions,s(R.string.ui_setup_help),false,()->{
+      Sheet help=new Sheet(s(R.string.ui_connect_your_card));
+      help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
+      help.copy(s(R.string.ui_after_connection_open_compatibility_check_a_connected_service_al));
+      help.copy(s(R.string.ui_reconnect_after_a_phone_restart_app_update_or_service_terminatio));
+      help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
+    });
+    if(CompatibilityDiagnostics.lastFailure()!=null)
+      stackedAction(connectActions,s(R.string.ui_feedback_2),false,this::offerCompatibilityReport);
+    if(LabSupport.socketEligible()){
+      Button legacy=action(s(R.string.ui_use_legacy_local_companion),false,this::selectLegacyCompanion);
+      availability(legacy,useCompanion());
+      LinearLayout.LayoutParams legacyLp=new LinearLayout.LayoutParams(-1,-2);legacyLp.topMargin=dp(8);
+      connectActions.addView(legacy,legacyLp);
+    }
+    connectionPanel.addView(connectActions,margin(16));
+    add(connectionPanel,12);
+    sectionHeading(s(R.string.ui_card), 24);
+    LinearLayout cardPanel=box();
+    cardPanel.addView(text(cardLabel(),20,TEXT,true));
+    JSONArray settingsProfiles=inventory.optJSONArray("profiles");
+    cardPanel.addView(text(settingsProfiles==null?s(R.string.ui_profiles)+s(R.string.ui_not_checked):cardInventorySummary(settingsProfiles.length()),14,MUTED,false),margin(8));
+    if(settingsProfiles!=null&&cardInfo.length()==0)cardPanel.addView(text(s(R.string.ui_storage_hint_settings),13,MUTED,false),margin(4));
+    cardPanel.addView(identifierRow(s(R.string.ui_eid).trim(),mask(inventory.optString("eidMasked", cardInfo.optString("eidMasked", s(R.string.ui_not_checked)))),backend!=null?s(R.string.ui_copy_eid):null,this::copyEid),margin(12));
+    LinearLayout cardActions=new LinearLayout(this);cardActions.setOrientation(LinearLayout.VERTICAL);
+    if(backend!=null){
+      if(pending&&!OPERATIONS.running())stackedAction(cardActions,s(R.string.ui_verify_card_and_recovery),true,this::reconcile);
+      stackedAction(cardActions,s(R.string.ui_choose_card),false,this::chooseCard);
+      stackedAction(cardActions,cardInfo.length()==0?s(R.string.ui_read_card_information):s(R.string.ui_refresh_card_information),false,this::readCardInformation);
+      if(cardInfo.length()>0)stackedAction(cardActions,s(R.string.ui_capability_details),false,this::showCardCapabilities);
+    }else cardPanel.addView(text(pending?s(R.string.ui_pending_connect_first):s(R.string.ui_connect_your_card_first),13,MUTED,false),margin(8));
+    cardPanel.addView(cardActions,margin(16));
+    add(cardPanel,12);
     if (BuildConfig.DEBUG) add(action(s(R.string.ui_check_direct_binder_companion_read_only), false, () -> {
       run(s(R.string.ui_checking_local_binder), false, () -> {
         ICompanionProbe probe = CompanionBinderProvider.service();
@@ -1082,42 +1185,19 @@ public final class MainActivity extends Activity {
         }
       });
     }), 12);
-    add(action(s(R.string.ui_setup_help), false, () -> {
-      Sheet help = new Sheet(s(R.string.ui_connect_your_card));
-      help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
-      help.copy(s(R.string.ui_after_connection_open_compatibility_check_a_connected_service_al));
-      help.copy(s(R.string.ui_reconnect_after_a_phone_restart_app_update_or_service_terminatio));help.button(s(R.string.ui_done), false, help.dialog::dismiss);help.show();
-    }), 12);
-    add(text(s(R.string.language_title),19,TEXT,true),28);
+    sectionHeading(s(R.string.language_title), 28);
     add(action(s(R.string.language_current,AppLanguage.label(this)),false,this::chooseLanguage),12);
-    add(text(s(R.string.ui_appearance),19,TEXT,true),28);
+    sectionHeading(s(R.string.ui_appearance), 28);
     add(action(darkTheme?s(R.string.ui_theme_dark):s(R.string.ui_theme_light),false,()->{getPreferences(0).edit().putBoolean("darkTheme",!darkTheme).apply();applyPalette();render();}),12);
-    add(text(s(R.string.ui_support),19,TEXT,true),28);
-    add(action(s(R.string.ui_operation_records),false,()->{screen=5;navigationSession++;render();}),12);
-    add(text(s(R.string.ui_card), 19, TEXT, true), 28);
-    add(text(s(R.string.ui_eid_269) + mask(cardInfo.optString("eidMasked", inventory.optString("eidMasked", s(R.string.ui_not_checked))))), 10);
-    add(text(s(R.string.ui_profiles) + (inventory.optJSONArray("profiles") == null ? s(R.string.ui_not_checked) : inventory.optJSONArray("profiles").length())), 8);
-    add(text(s(R.string.ui_storage) + (cardInfo.length() == 0 ? s(R.string.ui_not_checked) : storage())), 8);
-    add(action(cardInfo.length() == 0 ? s(R.string.ui_read_card_information) : s(R.string.ui_refresh_card_information), false, () -> {
-      IProfileService service = backend;
-      if (service == null) { status(s(R.string.ui_connect_your_card_first), s(R.string.ui_card_information_needs_the_authorized_service));return; }
-      run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getCardInfo()), r -> {
-        if (!r.optBoolean("ok", false)) { status(s(R.string.ui_card_information_unavailable), s(R.string.ui_reconnect_and_refresh_the_card));return; }
-        cardInfo = r;status(s(R.string.ui_card_information_checked), s(R.string.ui_only_details_reported_by_your_card_are_shown));render();
-      });
-    }), 16);
-    if (cardInfo.length() > 0) add(action(s(R.string.ui_capability_details), false, () -> {
-      Sheet info = new Sheet(s(R.string.ui_card_capabilities));
-      info.copy(cardInfo.optBoolean("capabilitiesSupported", false) ? capabilitySummary() : s(R.string.ui_optional_capabilities_were_not_reported_by_this_reader));
-      info.button(s(R.string.ui_done), false, info.dialog::dismiss);info.show();
-    }), 10);
-    if (!notificationStatus.isEmpty()) {
-      add(text(s(R.string.ui_operator_notification), 19, TEXT, true), 24);
-      add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus)), 14, MUTED, false), 8);
-      if (notificationCleanupAvailable) add(action(s(R.string.ui_review_notification_cleanup), false, this::prepareNotificationCleanup), 12);
+    sectionHeading(s(R.string.ui_support), 28);
+    LinearLayout supportPanel=box();
+    LinearLayout supportActions=new LinearLayout(this);supportActions.setOrientation(LinearLayout.VERTICAL);
+    stackedAction(supportActions,s(R.string.ui_operation_records),false,()->{screen=5;navigationSession++;render();});
+    if(!notificationStatus.isEmpty()){
+      supportPanel.addView(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus)),14,MUTED,false),margin(4));
+      if(notificationCleanupAvailable)stackedAction(supportActions,s(R.string.ui_review_notification_cleanup),false,this::prepareNotificationCleanup);
     }
-    if (getPreferences(0).getBoolean("pending", false)) add(action(s(R.string.ui_verify_card_and_recovery), true, this::reconcile), 24);
-    add(action(s(R.string.ui_recovery_advanced), false, () -> {
+    stackedAction(supportActions,s(R.string.ui_recovery_advanced),false,()->{
       Sheet advanced = new Sheet(s(R.string.ui_recovery_advanced_285));
       advanced.copy(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a));
       advanced.button(s(R.string.ui_verify_card_and_recovery), false, () -> { advanced.dialog.dismiss();reconcile(); });
@@ -1125,11 +1205,12 @@ public final class MainActivity extends Activity {
       advanced.button(s(R.string.ui_export_safe_diagnostics), false, this::exportDiagnostics);
       advanced.copy(s(R.string.ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a));
       advanced.button(s(R.string.ui_done), false, advanced.dialog::dismiss);advanced.show();
-    }), 24);
-    add(action(s(R.string.ui_feedback_3),false,this::reportProblem),16);
-    add(action(s(R.string.ui_feedback_4),false,this::saveDiagnosticZip),12);
-    add(action(s(R.string.ui_feedback_5) + (SafeTelemetry.allowed(this) ? s(R.string.ui_feedback_6) : s(R.string.ui_feedback_7)) + "  ›",
-        false, this::chooseCrashReporting), 12);
+    });
+    stackedAction(supportActions,s(R.string.ui_feedback_3),false,this::reportProblem);
+    stackedAction(supportActions,s(R.string.ui_feedback_4),false,this::saveDiagnosticZip);
+    stackedAction(supportActions,s(R.string.ui_feedback_5)+(SafeTelemetry.allowed(this)?s(R.string.ui_feedback_6):s(R.string.ui_feedback_7))+"  ›",false,this::chooseCrashReporting);
+    supportPanel.addView(supportActions,margin(notificationStatus.isEmpty()?0:8));
+    add(supportPanel,12);
     if (BuildConfig.DEBUG) add(action(s(R.string.ui_feedback_8),false,
         () -> status(SafeTelemetry.smoke(this) ? s(R.string.ui_feedback_9) : s(R.string.ui_feedback_10),
             s(R.string.ui_feedback_11))), 12);
@@ -1401,8 +1482,43 @@ public final class MainActivity extends Activity {
     if (busyProgress != null) busyProgress.setVisibility(running ? View.VISIBLE : View.GONE);
     statusBox.setVisibility(UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
     statusBox.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    statusTitle.setText(running ? OPERATIONS.title() : !notice.isEmpty() ? pending ? s(R.string.ui_needs_verification) : s(R.string.ui_update) : title);
-    statusDetail.setText(running ? detail : !notice.isEmpty() ? notice : detail + (pending ? s(R.string.ui_safety_verification_is_required_use_settings_verify_card_and_rec) : ""));
+    boolean canVerify = pending && !running && backend != null;
+    boolean canConnect = backend == null && !running;
+    statusBox.setClickable(canVerify || canConnect);
+    statusBox.setFocusable(canVerify || canConnect);
+    if (canVerify || canConnect) {
+      android.util.TypedValue ripple = new android.util.TypedValue();
+      getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
+      statusBox.setForeground(getDrawable(ripple.resourceId));
+      final boolean connectAction=canConnect,verifyAction=canVerify;
+      statusBox.setOnClickListener(v -> {
+        if (connectAction) beginDirectBootstrap();
+        else reconcile();
+      });
+      statusBox.setContentDescription(null);
+      statusBox.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+        @Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){
+          super.onInitializeAccessibilityNodeInfo(host,info);
+          if(connectAction)info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
+              android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK,s(R.string.ui_connect_using_computer)));
+          else if(verifyAction)info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
+              android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK,s(R.string.ui_verify_card_and_recovery)));
+        }
+      });
+    } else {
+      statusBox.setForeground(null);
+      statusBox.setOnClickListener(null);
+      statusBox.setContentDescription(null);
+      statusBox.setAccessibilityDelegate(null);
+    }
+    statusTitle.setText(running ? OPERATIONS.title()
+        : canConnect ? s(R.string.ui_connect_your_card)
+        : canVerify ? s(R.string.ui_verify_card_and_recovery)
+        : !notice.isEmpty() ? s(R.string.ui_update) : title);
+    statusDetail.setText(running ? detail
+        : !notice.isEmpty() ? notice
+        : canConnect ? (pending ? s(R.string.ui_pending_connect_first) : detail)
+        : detail + (pending && backend != null ? s(R.string.ui_safety_verification_is_required_use_settings_verify_card_and_rec) : ""));
   }
   private void status(String a, String b) {
     notice = "";title = a;detail = b;updateStatusRegion();
@@ -1431,6 +1547,101 @@ public final class MainActivity extends Activity {
                   : InputType.TYPE_TEXT_FLAG_CAP_SENTENCES));
     return e;
   }
+  private void sectionHeading(String title, int top) {
+    add(text(title, 19, TEXT, true), top);
+  }
+  private void stackedAction(LinearLayout parent, String label, boolean primary, Runnable click) {
+    Button b = action(label, primary, click);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    lp.topMargin = dp(8);
+    parent.addView(b, lp);
+  }
+  private LinearLayout identifierRow(String label, String value, String copyLabel, Runnable copy) {
+    LinearLayout block = new LinearLayout(this);
+    block.setOrientation(LinearLayout.VERTICAL);
+    block.addView(text(label, 12, MUTED, true));
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setMinimumHeight(dp(48));
+    row.addView(text(value, 15, TEXT, false),
+        new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+    if (copyLabel != null && copy != null)
+      row.addView(textButton(copyLabel, copy));
+    block.addView(row, margin(4));
+    return block;
+  }
+  private String homeCardStatusLine(boolean pending) {
+    if (backend == null)
+      return s(R.string.ui_connect_to_check_this_card);
+    if (!inventory.has("profiles"))
+      return s(R.string.ui_choose_a_card_or_refresh);
+    if (pending)
+      return s(R.string.ui_connected_check_before_changes);
+    return s(R.string.ui_card_connected_read_verified);
+  }
+  private String cardInventorySummary(int count) {
+    String line = s(R.string.ui_home_profiles_count, count);
+    if (cardInfo.length() > 0) {
+      long bytes = cardInfo.optLong("freeNonvolatileMemoryBytes", cardInfo.optLong("freeNonvolatileBytes", -1));
+      if (bytes >= 0)
+        line += " · " + storage();
+    }
+    return line;
+  }
+  private void readCardInformation() {
+    IProfileService service = backend;
+    if (service == null) {
+      status(s(R.string.ui_connect_your_card_first), s(R.string.ui_card_information_needs_the_authorized_service));
+      return;
+    }
+    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getCardInfo()), r -> {
+      if (!r.optBoolean("ok", false)) {
+        status(s(R.string.ui_card_information_unavailable), s(R.string.ui_reconnect_and_refresh_the_card));
+        return;
+      }
+      cardInfo = r;
+      status(s(R.string.ui_card_information_checked), s(R.string.ui_only_details_reported_by_your_card_are_shown));
+      render();
+    });
+  }
+  private void showCardCapabilities() {
+    Sheet info = new Sheet(s(R.string.ui_card_capabilities));
+    info.copy(cardInfo.optBoolean("capabilitiesSupported", false)
+        ? capabilitySummary()
+        : s(R.string.ui_optional_capabilities_were_not_reported_by_this_reader));
+    info.button(s(R.string.ui_done), false, info.dialog::dismiss);
+    info.show();
+  }
+  private Button textButton(String label, Runnable click) {
+    Button b = new Button(this);
+    b.setStateListAnimator(null);
+    b.setElevation(0);
+    b.setText(label);
+    b.setTextSize(14);
+    b.setAllCaps(false);
+    b.setTextColor(ACCENT);
+    b.setMinHeight(dp(48));
+    b.setMinimumHeight(dp(48));
+    b.setPadding(dp(12), dp(8), dp(12), dp(8));
+    android.util.TypedValue ripple = new android.util.TypedValue();
+    getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true);
+    b.setBackgroundResource(ripple.resourceId);
+    taskControls.add(b);
+    b.setEnabled(!OPERATIONS.running());
+    b.setAlpha(OPERATIONS.running() ? .45f : 1f);
+    b.setOnClickListener(v -> {
+      if (!OPERATIONS.running()) {
+        if (!getPreferences(0).getBoolean("pending", false)) {
+          notice = "";
+          updateStatusRegion();
+        }
+        click.run();
+      } else
+        status(OPERATIONS.title(), s(R.string.ui_please_wait_for_the_current_operation_to_finish));
+    });
+    return b;
+  }
   private Button action(String label, boolean primary, Runnable click) {
     Button b = button(label, primary);
     taskControls.add(b);
@@ -1458,12 +1669,12 @@ public final class MainActivity extends Activity {
     b.setTextSize(14);
     b.setAllCaps(false);
     b.setTextColor(primary ? (darkTheme?0xff5c1b00:Color.WHITE) : TEXT);
-    b.setMinHeight(dp(52));
-    b.setPadding(dp(12), dp(10), dp(12), dp(10));
+    b.setMinHeight(dp(48));
+    b.setPadding(dp(24), dp(10), dp(24), dp(10));
     GradientDrawable d = new GradientDrawable();
-    d.setColor(primary ? ACCENT : BG);
+    d.setColor(primary ? ACCENT : SURFACE);
     if (!primary) d.setStroke(dp(1), LINE);
-    d.setCornerRadius(dp(28));
+    d.setCornerRadius(dp(12));
     b.setBackground(d);
     return b;
   }
@@ -1483,7 +1694,8 @@ public final class MainActivity extends Activity {
     l.setPadding(dp(18), dp(18), dp(18), dp(18));
     GradientDrawable d = new GradientDrawable();
     d.setColor(SURFACE);
-    d.setCornerRadius(dp(28));
+    d.setCornerRadius(dp(16));
+    d.setStroke(dp(1), LINE);
     l.setBackground(d);
     return l;
   }

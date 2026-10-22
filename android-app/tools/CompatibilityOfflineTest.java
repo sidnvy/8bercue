@@ -72,6 +72,9 @@ public final class CompatibilityOfflineTest {
    check(slot==1&&port==0&&channel==2);frames++;this.cla=cla;this.command=command;this.p3=p3;this.data=data;if(failSend)throw new IllegalStateException("Synthetic lost result");return reply;
   }
   public boolean iccCloseLogicalChannel(Request request){check(request.slotIndex==1&&request.portIndex==0&&request.channel==2);closed=true;return closeOk;}
+  public Result iccOpenLogicalChannel(int subId,String callingPackage,String aid,int p2){last=new Request();last.subId=subId;last.callingPackage=callingPackage;last.aid=aid;last.p2=p2;return result;}
+  public String iccTransmitApduLogicalChannel(int subId,int channel,int cla,int command,int p1,int p2,int p3,String data){check(subId==4&&channel==2);frames++;this.cla=cla;this.command=command;this.p3=p3;this.data=data;if(failSend)throw new IllegalStateException("Synthetic lost result");return reply;}
+  public boolean iccCloseLogicalChannel(int subId,int channel){check(subId==4&&channel==2);closed=true;return closeOk;}
  }
  static byte[] concat(byte[]...arrays){java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();for(byte[] a:arrays)out.writeBytes(a);return out.toByteArray();}
  static byte[] deletionMetadata(String id,long sequence,int operation,String host){return NotificationCodec.tlv(0xbf2f,concat(NotificationCodec.tlv(0x80,new byte[]{(byte)sequence}),NotificationCodec.tlv(0x81,new byte[]{4,(byte)operation}),NotificationCodec.tlv(0x5a,Arrays.copyOfRange(ProfileLifecycleGuard.command(ProfileLifecycleGuard.Operation.DELETE,id,"",1),10,20)),NotificationCodec.tlv(0x0c,host.getBytes(java.nio.charset.StandardCharsets.US_ASCII))));}
@@ -261,6 +264,13 @@ public final class CompatibilityOfflineTest {
   Phone unavailable=new Phone();unavailable.result.status=3;
   try{new TelephonySecureElementTransport(unavailable,Phone.class,Request.class,1,0,token).openLogicalChannel(TelephonyChannelCodec.unhex(TelephonyChannelCodec.ISDR),(byte)0);throw new AssertionError();}
   catch(java.util.NoSuchElementException expected){check(!unavailable.closed);}
+  Phone legacy=new Phone();
+  TelephonySecureElementTransport subscription=new TelephonySecureElementTransport(legacy,Phone.class,4,token);
+  check(subscription.openLogicalChannel(canonical,(byte)0)==2);
+  check(legacy.last.subId==4&&legacy.last.callingPackage.equals("com.android.shell")&&legacy.last.aid.equals("a0000005591010ffffffff8900000100"));
+  subscription.transmit(new byte[]{(byte)0x82,(byte)0xE2,(byte)0x91,0,3,(byte)0xBF,0x2D,0});
+  check(legacy.frames==1&&legacy.cla==0x80&&legacy.p3==3&&legacy.data.equals("bf2d00"));
+  subscription.closeChannel(2);check(legacy.closed);
   SystemHalAdapter.transports.clear();SystemHalAdapter.fallback.clear();
   Card denied=new Card(1);denied.denied=true;SystemHalAdapter.transports.put("omapi.SIM1",denied);
   SystemHalAdapter.fallback.put("telephony.1.0",new Card(1));

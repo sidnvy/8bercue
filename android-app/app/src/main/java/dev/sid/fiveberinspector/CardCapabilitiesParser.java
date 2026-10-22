@@ -49,14 +49,21 @@ public final class CardCapabilitiesParser {
   }
   if(result.isEmpty())throw new SecurityException("No supported capability fields");return Collections.unmodifiableMap(result);
  }
- /** Checks the actual EID digest against enrollment; returns only 4+4 decimal digits. */
- public static String maskedEid(byte[] b,String expectedHash)throws Exception{
+ private static byte[] verifiedEidBytes(byte[] b,String expectedHash)throws Exception{
   if(b==null||b.length!=21)throw new SecurityException("Invalid EID response length");
   Node outer=node(b,0,b.length);Node value=node(b,outer.start,outer.end);
   if(outer.tag!=0xBF3E||outer.end!=b.length||value.tag!=0x5A||value.end!=outer.end||value.end-value.start!=16)throw new SecurityException("Invalid EID response");
   byte[] eid=Arrays.copyOfRange(b,value.start,value.end);byte[] digest=MessageDigest.getInstance("SHA-256").digest(eid);StringBuilder hash=new StringBuilder();for(int i=0;i<32;i++)hash.append(String.format(Locale.ROOT,"%02X",digest[i]&255));
   if(expectedHash==null||!(expectedHash.length()==64?hash.toString().equalsIgnoreCase(expectedHash):expectedHash.length()==16&&hash.substring(0,16).equalsIgnoreCase(expectedHash)))throw new SecurityException("Enrolled card identity mismatch");
-  StringBuilder decimal=new StringBuilder();for(byte v:eid){int high=(v>>>4)&15,low=v&15;if(high>9||low>9)throw new SecurityException("Invalid EID digits");decimal.append(high).append(low);}
+  return eid;
+ }
+ /** Checks enrollment; returns the full 32-digit GSMA decimal EID. */
+ public static String decimalEid(byte[] b,String expectedHash)throws Exception{
+  return FiveberReaderSelector.eidDecimalDigits(verifiedEidBytes(b,expectedHash));
+ }
+ /** Checks the actual EID digest against enrollment; returns only 4+4 decimal digits. */
+ public static String maskedEid(byte[] b,String expectedHash)throws Exception{
+  String decimal=decimalEid(b,expectedHash);
   return decimal.substring(0,4)+"…"+decimal.substring(28);
  }
 }

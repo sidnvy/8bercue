@@ -23,8 +23,10 @@ public final class FiveberReaderSelector {
         public final String sha256Prefix;
         public final String identityHash;
         public final String eidMasked;
-        private Target(String reader,String prefix,String masked) {
-            this.reader=reader;this.identityHash=prefix.toLowerCase(Locale.ROOT);this.sha256Prefix=prefix.substring(0,16);this.eidMasked=masked;
+        /** GSMA decimal EID (32 digits). Stays in the Shell service; the app receives it only for explicit copy. */
+        public final String eidDecimal;
+        private Target(String reader,String prefix,String masked,String decimal) {
+            this.reader=reader;this.identityHash=prefix.toLowerCase(Locale.ROOT);this.sha256Prefix=prefix.substring(0,16);this.eidMasked=masked;this.eidDecimal=decimal;
         }
     }
 
@@ -78,6 +80,12 @@ public final class FiveberReaderSelector {
         byte[] h=MessageDigest.getInstance("SHA-256").digest(eid);
         return upperHex(h);
     }
+    static String eidDecimalDigits(byte[] eid) {
+        if(eid==null||eid.length!=16)throw new SecurityException("Invalid EID length");
+        StringBuilder decimal=new StringBuilder(32);
+        for(byte v:eid){int high=(v>>>4)&15,low=v&15;if(high>9||low>9)throw new SecurityException("Invalid EID digits");decimal.append(high).append(low);}
+        return decimal.toString();
+    }
     private static Target inspectOne(String reader,CompatibilityReport.Backend backend,CompatibilityReport report) throws Exception {
         SecureElementTransport hal=null;int channel=-1;Target found=null;
         CompatibilityReport.Stage phase=CompatibilityReport.Stage.SERVICE_LOOKUP;
@@ -93,7 +101,7 @@ public final class FiveberReaderSelector {
                 phase=CompatibilityReport.Stage.EID_READ;
                 byte[] eid=readEid(hal,channel);String digest=digestPrefix(eid);
                 if(!ReaderAdmission.accepts(digest))throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_EID_RESPONSE);
-                String digits=upperHex(eid);found=new Target(reader,digest,"…"+digits.substring(digits.length()-4));
+                String digits=upperHex(eid);found=new Target(reader,digest,"…"+digits.substring(digits.length()-4),eidDecimalDigits(eid));
             }
         }catch(Exception error) {
             Throwable cause=unwrap(error);SecureElementFailure typed=SecureElementFailure.find(error);
@@ -129,6 +137,11 @@ public final class FiveberReaderSelector {
     static Target selectExplicitly(Target expected)throws Exception {
         if(Process.myUid()!=Process.SHELL_UID)throw new SecurityException("Shell required");
         Target observed=verifySelected(expected);explicitSelection=observed;return observed;
+    }
+    /** Re-open the pinned reader and GetEID without rescanning every backend. */
+    public static Target verifySelectedCard(Target expected) throws Exception {
+        if(Process.myUid()!=Process.SHELL_UID)throw new SecurityException("Requires authorized ADB Shell UID2000");
+        return verifySelected(expected);
     }
     private static Target verifySelected(Target expected)throws Exception {
         CompatibilityReport report=new CompatibilityReport();REPORT.set(report);

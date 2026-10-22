@@ -4,7 +4,7 @@ package dev.sid.fiveberinspector;
 final class TelephonySecureElementTransport implements SecureElementTransport {
  private final Object phone,token;
  private final Class<?> api,requestApi;
- private final int slot,port;
+ private final int slot,port,subId;
  private int channel=-1;
  private CardReadApduPolicy policy;
  private TelephonyLifecyclePolicy lifecycle;
@@ -15,8 +15,23 @@ final class TelephonySecureElementTransport implements SecureElementTransport {
  private boolean opened;
  private boolean notificationMetadata;
  TelephonySecureElementTransport(Object phone,Class<?> api,Class<?> requestApi,int slot,int port,Object token){
-  this.phone=phone;this.api=api;this.requestApi=requestApi;this.slot=slot;this.port=port;this.token=token;
+  this.phone=phone;this.api=api;this.requestApi=requestApi;this.slot=slot;this.port=port;this.subId=-1;this.token=token;
  }
+ /** Pre-T telephony: subscription id, no port request object. */
+ TelephonySecureElementTransport(Object phone,Class<?> api,int subId,Object token){
+  this.phone=phone;this.api=api;this.requestApi=null;this.slot=0;this.port=0;this.subId=subId;this.token=token;
+  if(subId<0)throw new SecurityException("Subscription required");
+ }
+ TelephonySecureElementTransport bindLifecycle(ProfileLifecycleGuard.Operation operation,String id,String nickname){
+  lifecycle=new TelephonyLifecyclePolicy(operation,id,nickname);return this;
+ }
+ TelephonySecureElementTransport bindDownload(DownloadSessionPolicy policy){
+  if(policy==null)throw new SecurityException("Download policy required");download=policy;return this;
+ }
+ TelephonySecureElementTransport bindNotification(long sequence,boolean acknowledgedRemoval){
+  notification=new TelephonyNotificationPolicy(sequence,acknowledgedRemoval);return this;
+ }
+ TelephonySecureElementTransport bindMetadata(){notificationMetadata=true;return this;}
  TelephonySecureElementTransport(Object phone,Class<?> api,Class<?> requestApi,int slot,int port,Object token,String id,String nickname){
   this(phone,api,requestApi,slot,port,token,ProfileLifecycleGuard.Operation.RENAME,id,nickname);
  }
@@ -40,6 +55,10 @@ final class TelephonySecureElementTransport implements SecureElementTransport {
  TelephonySecureElementTransport(Object phone,Class<?> api,Class<?> requestApi,int slot,int port,Object token,boolean notificationMetadata){
   this(phone,api,requestApi,slot,port,token);this.notificationMetadata=notificationMetadata;
  }
+ private boolean closePort()throws Exception{
+  Object request=request();requestApi.getField("channel").setInt(request,channel);
+  return (Boolean)api.getMethod("iccCloseLogicalChannel",requestApi).invoke(phone,request);
+ }
  private Object request()throws Exception{
   Object request=requestApi.getConstructor().newInstance();
   requestApi.getField("subId").setInt(request,-1);
@@ -51,9 +70,14 @@ final class TelephonySecureElementTransport implements SecureElementTransport {
  public boolean isCardPresent() {return true;} // Inventoried active slot; SELECT and GetEID verify the card.
  public int openLogicalChannel(byte[] aid,byte p2)throws Exception{
   if(channel>0||p2!=0||((lifecycle!=null||download!=null||notification!=null)&&opened))throw new SecurityException("Unexpected logical channel open");
-  Object request=request();requestApi.getField("aid").set(request,TelephonyChannelCodec.aid(aid));
-  requestApi.getField("p2").setInt(request,0);
-  Object result=api.getMethod("iccOpenLogicalChannel",requestApi).invoke(phone,request);
+  Object result;
+  if(requestApi==null)result=api.getMethod("iccOpenLogicalChannel",int.class,String.class,String.class,int.class)
+   .invoke(phone,subId,"com.android.shell",TelephonyChannelCodec.aid(aid),0);
+  else{
+   Object request=request();requestApi.getField("aid").set(request,TelephonyChannelCodec.aid(aid));
+   requestApi.getField("p2").setInt(request,0);
+   result=api.getMethod("iccOpenLogicalChannel",requestApi).invoke(phone,request);
+  }
   if(result==null)throw new IllegalStateException("No channel result");
   int status=(Integer)result.getClass().getMethod("getStatus").invoke(result);
   if(status!=1)throw new java.util.NoSuchElementException("ISD-R channel unavailable");
@@ -77,8 +101,12 @@ final class TelephonySecureElementTransport implements SecureElementTransport {
   // Every protocol consumes authorization before Binder; uncertain sends are not retried.
   outstanding=true;int lc=command[4]&255;
   if(command.length!=5&&command.length!=5+lc)throw new SecurityException("Unsupported APDU shape");
-  String result=(String)api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class)
-   .invoke(phone,slot,port,channel,command[0]&0xFC,command[1]&255,command[2]&255,command[3]&255,lc,TelephonyChannelCodec.hex(command,5));
+  String payload=TelephonyChannelCodec.hex(command,5);
+  String result=requestApi==null
+   ?(String)api.getMethod("iccTransmitApduLogicalChannel",int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class)
+    .invoke(phone,subId,channel,command[0]&0xFC,command[1]&255,command[2]&255,command[3]&255,lc,payload)
+   :(String)api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class)
+    .invoke(phone,slot,port,channel,command[0]&0xFC,command[1]&255,command[2]&255,command[3]&255,lc,payload);
   byte[] response=TelephonyChannelCodec.unhex(result);
   expectedLe=(response[response.length-2]&255)==0x61?response[response.length-1]&255:-1;
   if(lifecycle!=null)lifecycle.acceptResponse(response);
@@ -90,8 +118,10 @@ final class TelephonySecureElementTransport implements SecureElementTransport {
  public void closeChannel(int number)throws Exception{
   if(channel<1)return;
   if(number!=channel)throw new SecurityException("Foreign logical channel");
-  Object request=request();requestApi.getField("channel").setInt(request,channel);
-  if(!(Boolean)api.getMethod("iccCloseLogicalChannel",requestApi).invoke(phone,request))
+  boolean closed=requestApi==null
+   ?(Boolean)api.getMethod("iccCloseLogicalChannel",int.class,int.class).invoke(phone,subId,channel)
+   :closePort();
+  if(!closed)
    throw new SecureElementFailure(SecureElementFailure.Reason.CHANNEL_CLEANUP_FAILED);
   channel=-1;policy=null;
  }
