@@ -247,7 +247,7 @@ public final class ProfileUserService extends IProfileService.Stub {
         String safe = value.replaceAll("[\\p{Cntrl}]", "").replaceAll("[0-9]{8,}", "[hidden]");
         return safe.substring(0, Math.min(96, safe.length()));
     }
-    private void requireSelectionCurrent() throws Exception {
+    private FiveberReaderSelector.Target requireSelectionCurrent() throws Exception {
         requireReconciled();
         CardTransactionLock.acquire();
         try {
@@ -255,6 +255,7 @@ public final class ProfileUserService extends IProfileService.Stub {
         String now = inventoryFingerprint(CardProfileInventory.list());
         if (displayedLifecycleFingerprint == null || displayedFingerprint == null || !now.equals(displayedFingerprint) || !card.identityHash.equals(displayedCard))
             throw new SecurityException("RefreshRequired");
+        return card;
         } finally { CardTransactionLock.release(); }
     }
     private void requireReconciled() throws Exception {
@@ -372,10 +373,10 @@ public final class ProfileUserService extends IProfileService.Stub {
     @Override public synchronized String getProfileIccid(int profileIndex) {
         try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
             ServiceCaller.requireApp();
-            requireSelectionCurrent();
+            FiveberReaderSelector.Target expected = requireSelectionCurrent();
             CardTransactionLock.acquire();
             try {
-                java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.list();
+                java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.listKnownCardReadOnly(expected);
                 if (profileIndex < 0 || profileIndex >= entries.size())
                     throw new SecurityException("Invalid profile");
                 return new JSONObject().put("ok", true).put("iccid", entries.get(profileIndex).iccid).toString();

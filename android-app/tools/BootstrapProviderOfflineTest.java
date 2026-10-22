@@ -75,9 +75,12 @@ public final class BootstrapProviderOfflineTest {
   CompanionBinderProvider.commandLineOverride="app_process 8bercue-management-v1";
   Binder.pid=2147483645;
   rejected(CompanionBinderProvider.REBIND_METHOD,again,"Reattach rejects a different process");
+  Binder rebound=new Binder();again.putBinder("managementBinder",rebound);
   Binder.pid=2147483646;
   check(call(CompanionBinderProvider.REBIND_METHOD,again).getBoolean("accepted"),"Same shell process reattaches without a new command");
   rejected(CompanionBinderProvider.REBIND_METHOD,again,"Live session is not replaced by reattach");
+  rebound.alive=false;
+  check(!call(CompanionBinderProvider.STATE_METHOD,new Bundle()).getBoolean("connected"),"Dead rebound session clears management");
   Bundle badApk=new Bundle();badApk.putString("apkSha256","wrong");badApk.putBinder("managementBinder",new Binder());
   rejected(CompanionBinderProvider.REBIND_METHOD,badApk,"Reattach rejects stale companion digest");
   rejected(CompanionBinderProvider.REBIND_METHOD,null,"Reattach rejects null extras");

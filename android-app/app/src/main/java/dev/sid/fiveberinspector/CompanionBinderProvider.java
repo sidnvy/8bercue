@@ -88,12 +88,19 @@ public final class CompanionBinderProvider extends ContentProvider {
         android.content.Context context=getContext();
         return context==null?null:new java.io.File(context.getFilesDir(),"management-shell.pid");
     }
-    private static long bootEpoch(){return android.os.SystemClock.elapsedRealtime()-android.os.SystemClock.uptimeMillis();}
+    private static String bootId(){
+        try{
+            java.nio.file.Path boot=java.nio.file.Paths.get("/proc/sys/kernel/random/boot_id");
+            if(java.nio.file.Files.isRegularFile(boot,java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                return new String(java.nio.file.Files.readAllBytes(boot),java.nio.charset.StandardCharsets.UTF_8).trim();
+        }catch(Exception ignored){}
+        return "offline";
+    }
     private void rememberShell(int pid){
         if(pid<2)return;
         trustedShellPid=pid;
         java.io.File file=shellPidFile();if(file==null)return;
-        String payload=pid+"\n"+bootEpoch()+"\n";
+        String payload=pid+"\n"+bootId()+"\n";
         java.nio.file.Path path=file.toPath(),tmp=path.resolveSibling(file.getName()+".tmp");
         try{
             java.nio.file.Files.write(tmp,payload.getBytes(java.nio.charset.StandardCharsets.UTF_8),
@@ -107,7 +114,7 @@ public final class CompanionBinderProvider extends ContentProvider {
         java.io.File file=shellPidFile();if(file==null||!file.isFile())return -1;
         try{
             String[] lines=new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8).trim().split("\n");
-            if(lines.length<2||!Long.toString(bootEpoch()).equals(lines[1].trim())){trustedShellPid=-1;return -1;}
+            if(lines.length<2||!bootId().equals(lines[1].trim())){trustedShellPid=-1;return -1;}
             trustedShellPid=Integer.parseInt(lines[0].trim());
         }catch(Exception ignored){trustedShellPid=-1;}
         return trustedShellPid;

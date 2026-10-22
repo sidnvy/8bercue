@@ -657,7 +657,8 @@ public final class MainActivity extends Activity {
             getPreferences(0).edit().putBoolean("pending", true).commit();
             notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
-          recentResults.add(0, (verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
+          recentResults.add(0, (unstarted ? s(R.string.ui_connection_not_completed)
+              : verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;
