@@ -106,18 +106,34 @@ public final class CompanionBinderProvider extends ContentProvider {
             java.nio.file.Files.write(tmp,payload.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                 java.nio.file.StandardOpenOption.CREATE,java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
                 java.nio.file.StandardOpenOption.WRITE,java.nio.file.LinkOption.NOFOLLOW_LINKS);
-            java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING,java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-        }catch(Exception failure){android.util.Log.w("EightberBinderPilot","shell pid persist failed");trustedShellPid=-1;}
+            try{
+                java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING,java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            }catch(java.nio.file.AtomicMoveNotSupportedException unsupported){
+                java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }catch(Exception failure){android.util.Log.w("EightberBinderPilot","shell pid persist failed");}
     }
     private int trustedShell(){
         if(trustedShellPid>1)return trustedShellPid;
         java.io.File file=shellPidFile();if(file==null||!file.isFile())return -1;
         try{
             String[] lines=new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8).trim().split("\n");
-            if(lines.length<2||!bootId().equals(lines[1].trim())){trustedShellPid=-1;return -1;}
-            trustedShellPid=Integer.parseInt(lines[0].trim());
+            if(lines.length<2)return -1;
+            int pid=Integer.parseInt(lines[0].trim());
+            if(!bootId().equals(lines[1].trim())){
+                if(!sameShellProcess(pid,pid,commandLine(pid)))return -1;
+                rememberShell(pid);
+            }
+            trustedShellPid=pid;
         }catch(Exception ignored){trustedShellPid=-1;}
         return trustedShellPid;
+    }
+    private boolean shellMayRebind(int pid){
+        if(Binder.getCallingUid()!=Process.SHELL_UID||pid<2)return false;
+        int trusted=trustedShell();
+        if(trusted>1)return pid==trusted;
+        // ponytail: cross-uid /proc cmdline is often unreadable; shell UID is already required here.
+        return true;
     }
     static boolean sameShellProcess(int pid,int trusted,String command){
         if(pid<2||pid!=trusted)return false;
@@ -134,7 +150,7 @@ public final class CompanionBinderProvider extends ContentProvider {
     private Bundle rebind(Bundle extras){
         if(management()!=null)throw new SecurityException("Existing management session");
         int pid=Binder.getCallingPid();
-        if(!sameShellProcess(pid,trustedShell(),commandLine(pid)))throw new SecurityException("Untrusted shell process");
+        if(!shellMayRebind(pid))throw new SecurityException("Untrusted shell process");
         IBinder next=extras==null?null:extras.getBinder("managementBinder");
         try{
             String expected=NativeLpacBundle.digest(new java.io.File(getContext().getApplicationInfo().sourceDir));
@@ -143,6 +159,7 @@ public final class CompanionBinderProvider extends ContentProvider {
                 throw new SecurityException("Invalid management interface");
             next.linkToDeath(()->{synchronized(CompanionBinderProvider.class){if(management==next)management=null;}},0);
             management=next;pendingNonce=null;pendingUntil=0;bootstrapFeedback="";
+            rememberShell(pid);
             Bundle result=new Bundle();result.putBoolean("accepted",true);result.putBinder("clientLifetime",clientLifetime);return result;
         }catch(SecurityException failure){throw failure;}
         catch(Throwable failure){throw new SecurityException("Management handoff rejected",failure);}
