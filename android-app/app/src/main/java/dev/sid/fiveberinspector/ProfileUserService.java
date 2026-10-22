@@ -219,7 +219,11 @@ public final class ProfileUserService extends IProfileService.Stub {
                 java.util.Properties diagnostics=new java.util.Properties();
                 JSONObject detail=result.optJSONObject("downloadDiagnostics");
                 if(detail!=null)for(java.util.Iterator<String> keys=detail.keys();keys.hasNext();) {String key=keys.next();diagnostics.setProperty(key,detail.getString(key));}
-                record.finish(verified && !uncertain ? "verified" : "unknown",diagnostics);
+                boolean unstarted="not_completed".equals(result.optString("status"))
+                    && result.optBoolean("inventoryUnchanged", false)
+                    && result.has("reviewRequired") && !result.optBoolean("reviewRequired")
+                    && OperationJournal.networkStoppedBeforeCard(diagnostics);
+                record.finish(verified && !uncertain ? "verified" : unstarted ? "not_completed" : "unknown", diagnostics);
                 return result.toString();
             } catch (Throwable e) {
                 try { record.finish("unknown"); } catch (Exception persistenceFailure) { CardTransactionLock.quarantine(); }
@@ -317,16 +321,52 @@ public final class ProfileUserService extends IProfileService.Stub {
         try {
             ServiceCaller.requireApp();
             JSONObject inventory = new JSONObject(listProfiles());
-            if (inventory.has("error") || !inventory.has("profiles")) return inventory.toString();
-            // An inventory alone cannot prove the intent of a lost transaction.
-            // Never clear the execution block just because a fresh card is readable;
-            // retain an explicit unknown outcome, never retry the previous action.
+            if (inventory.has("error") || !inventory.has("profiles")) {
+                Log.i("EightberShell", "reconcileOperation stopped inventory ok="+inventory.optBoolean("ok")
+                    +" error="+inventory.optString("error")+" stage="+inventory.optString("stage")
+                    +" recoveryError="+inventory.optString("recoveryError")
+                    +" capabilityError="+inventory.optString("capabilityError"));
+                return inventory.toString();
+            }
+            // A readable card does not clear an unknown write. A download that never
+            // reached the server can be closed when this card's inventory still matches
+            // the snapshot taken before that download.
             OperationJournal record = journal();
             String status = record.statusAfterReadOnlyReconciliation();
             boolean review = record.requiresReconciliation();
-            return new JSONObject().put("ok", true).put("status", status)
+            java.util.Properties current = record.read();
+            String closed = "";
+            if (review && OperationJournal.unstartedDownload(current)) {
+                boolean acquired = false;
+                try {
+                    CardTransactionLock.acquire();
+                    acquired = true;
+                    FiveberReaderSelector.Target card = FiveberReaderSelector.discover();
+                    String now = inventoryFingerprint(CardProfileInventory.list());
+                    if (card.identityHash.equals(current.getProperty("card")) && now.equals(current.getProperty("before"))) {
+                        record.closeUnstartedDownload(card.identityHash, now);
+                        status = record.statusAfterReadOnlyReconciliation();
+                        review = record.requiresReconciliation();
+                        if (!review) closed = "unstarted_download";
+                    }
+                } catch (Throwable failure) {
+                    Log.w("EightberShell", "reconcile close-unstarted failed cause="+failure.getClass().getSimpleName());
+                } finally { if (acquired) CardTransactionLock.release(); }
+            }
+            Log.i("EightberShell", "reconcileOperation status="+status+" review="+review
+                +" closed="+closed
+                +" operation="+current.getProperty("operation","")
+                +" downloadPhase="+current.getProperty("downloadPhase","")
+                +" downloadFailure="+current.getProperty("downloadFailure","")
+                +" workerStopped="+current.getProperty("downloadWorkerStopped","")
+                +" nativeStopped="+current.getProperty("downloadNativeStopped","")
+                +" profileCount="+inventory.optInt("count",-1));
+            return new JSONObject().put("ok", true).put("status", status).put("closed", closed)
                 .put("readOnly", true).put("reviewRequired", review).put("inventory", inventory).toString();
-        } catch (Throwable e) { return safeOperationError("reconcile", e); }
+        } catch (Throwable e) {
+            Log.w("EightberShell", "reconcileOperation failed cause="+e.getClass().getSimpleName());
+            return safeOperationError("reconcile", e);
+        }
     }
     @Override public synchronized String getCardInfo() {
         boolean acquired = false;

@@ -103,11 +103,12 @@ public final class PortableProfileDownload {
             } catch(Exception ignored) {
                 // Cannot conclude failure, absence or installation from a failed reconciliation.
             }
-            JSONObject response = new JSONObject().put("ok",exact).put("status",exact?"installed_disabled":"unknown")
+            boolean unstarted=unchanged && OperationJournal.networkStoppedBeforeCard(attempt.diagnostics);
+            JSONObject response = new JSONObject().put("ok",exact).put("status",exact?"installed_disabled":unstarted?"not_completed":"unknown")
                 .put("verified",exact).put("installed",exact?Boolean.TRUE:JSONObject.NULL)
                 .put("enabled",exact?Boolean.FALSE:JSONObject.NULL).put("nativeSuccess",nativeSuccess)
-                .put("reviewRequired",!exact).put("inventoryUnchanged",unchanged)
-                .put("cardReadRequired",!exact).put("workerStopped",true).put("retryAllowed",false)
+                .put("reviewRequired",!exact && !unstarted).put("inventoryUnchanged",unchanged)
+                .put("cardReadRequired",!exact).put("workerStopped",true).put("retryAllowed",unstarted)
                 .put("downloadDiagnostics",new JSONObject(attempt.diagnostics));
             if(exact) {
                 JSONObject delivery=PhoneNotificationDelivery.afterInstall(plan.reader,plan.hash,plan.activation.host,

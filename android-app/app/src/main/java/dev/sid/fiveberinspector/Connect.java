@@ -80,8 +80,12 @@ public final class Connect {
         log.delete(); throw new SecurityException("Private bootstrap log unavailable");
       }
       try {
-        ProcessBuilder launch = new ProcessBuilder("/system/bin/nohup", "/system/bin/app_process", "/",
-            "--nice-name=8bercue-management-v1", "dev.sid.fiveberinspector.CompanionManagementStarter", "--connect-management");
+        boolean detach=new File("/system/bin/setsid").isFile();
+        ProcessBuilder launch = detach
+            ? new ProcessBuilder("/system/bin/setsid", "/system/bin/nohup", "/system/bin/app_process", "/",
+                "--nice-name=8bercue-management-v1", "dev.sid.fiveberinspector.CompanionManagementStarter", "--connect-management")
+            : new ProcessBuilder("/system/bin/nohup", "/system/bin/app_process", "/",
+                "--nice-name=8bercue-management-v1", "dev.sid.fiveberinspector.CompanionManagementStarter", "--connect-management");
         launch.environment().put("CLASSPATH", apk);
         launch.redirectInput(new File("/dev/null")).redirectErrorStream(true).redirectOutput(log);
         Process child = launch.start();
@@ -92,6 +96,8 @@ public final class Connect {
             System.out.println("No profiles were changed by this command."); return 0;
           }
           if (!child.isAlive()) {
+            // setsid returns after detaching. Exit 0 means the service left the USB session.
+            if (child.exitValue()==0) { Thread.sleep(200); continue; }
             String output = new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
             String code = "START_FAILED";
             for (String line : output.split("\\R")) if (line.startsWith("8BERCUE_ERROR:")) {

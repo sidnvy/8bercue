@@ -1,1 +1,1 @@
-package android.content; public class Context {public static class AppInfo{public String sourceDir="base.apk";}public AppInfo getApplicationInfo(){return new AppInfo();}}
+package android.content; public class Context {public static class AppInfo{public String sourceDir="base.apk";}public AppInfo getApplicationInfo(){return new AppInfo();}public java.io.File getFilesDir(){java.io.File dir=new java.io.File(System.getProperty("java.io.tmpdir"),"eightber-shell-pid");dir.mkdirs();return dir;}}

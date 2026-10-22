@@ -11,7 +11,7 @@
     <string name="ui_tap_start_connection_again_then_rerun_the_same_command" formatted="false">"点按“重新连接”，然后再次运行同一条命令。"</string>
     <string name="ui_starting_local_service" formatted="false">"正在启动本地服务"</string>
     <string name="ui_connection_not_completed" formatted="false">"连接未完成"</string>
-    <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">"卡片和操作状态需要核验。请打开“设置 → 核验卡片与恢复状态”。不要再次提交激活码。"</string>
+    <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">"有一项操作还没确认。点此核验卡片。不要再次提交激活码。"</string>
     <string name="ui_connection_lost" formatted="false">"连接已断开"</string>
     <string name="ui_start_the_computer_connection_again_pending_operations_will_not" formatted="false">"请重新通过电脑连接。待确认的操作不会自动重试。"</string>
     <string name="ui_connected" formatted="false">"已连接"</string>
@@ -57,11 +57,12 @@
     <string name="ui_changes_are_blocked_until_the_safety_record_can_be_checked_do_no" formatted="false">"安全记录核验完成前，更改操作已暂停。不要清除应用数据，也不要重复上一项操作。"</string>
     <string name="ui_changes_remain_blocked_until_card_and_recovery_verification_can" formatted="false">" 卡片与恢复状态核验完成前，仍无法更改。"</string>
     <string name="ui_recovery_check" formatted="false">"恢复检查："</string>
-    <string name="ui_use_verify_card_and_recovery_before_making_more_changes" formatted="false">"。继续更改前，请先执行“核验卡片与恢复状态”。"</string>
+    <string name="ui_use_verify_card_and_recovery_before_making_more_changes" formatted="false">"。点此核验后再继续。"</string>
     <string name="ui_verifying_card_and_recovery" formatted="false">"正在核验卡片与恢复状态"</string>
     <string name="ui_card_read_completed_the_previous_operation_still_requires_review" formatted="false">"卡片读取已完成，但上一项操作仍需检查。不要重复下载或执行删除等操作。"</string>
     <string name="ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve" formatted="false">"已核查并放弃结果未知的下载，配置清单未变化。其激活码可能已消耗，请勿重复使用。现在可进行新操作。"</string>
     <string name="ui_read_only_reconciliation_completed_check_the_current_profile_inv" formatted="false">"只读恢复核验已完成。请检查当前配置清单。"</string>
+    <string name="ui_download_stopped_before_the_server_the_card_is_unchanged" formatted="false">"下载在连上服务器之前失败了，卡片没有变化，可以重新尝试。"</string>
     <string name="ui_the_card_safety_policy_did_not_allow_this_action_refresh_the_inv" formatted="false">"卡片安全策略未允许此操作。请刷新配置清单，并检查恢复状态。"</string>
     <string name="ui_management_is_unavailable_for_this_card_identity_or_local_test_s" formatted="false">"当前卡片身份或本地测试范围不允许管理。请重新连接并刷新。"</string>
     <string name="ui_no_valid_confirmation_token_was_returned" formatted="false">"未返回有效的一次性确认凭据。"</string>
@@ -139,6 +140,8 @@
     <string name="ui_eid" formatted="false">"EID "</string>
     <string name="ui_not_checked" formatted="false">"尚未检查"</string>
     <string name="ui_card_connected_read_verified" formatted="false">"卡片已连接 · 读取已核验"</string>
+    <string name="ui_connected_check_before_changes" formatted="false">"已连接。添加或更改前，先点上方提示完成核验。"</string>
+    <string name="ui_add_unlocks_after_check" formatted="false">"核验通过后才能添加 eSIM。"</string>
     <string name="ui_connect_to_check_this_card" formatted="false">"连接后检查此卡"</string>
     <string name="ui_your_esims" formatted="false">"我的 eSIM"</string>
     <string name="ui_refresh" formatted="false">"刷新"</string>
@@ -319,7 +322,7 @@
     <string name="ui_review_the_code_then_validate_it_before_installation" formatted="false">"请核对激活码，安装前会再次校验。"</string>
     <string name="ui_requires_verification" formatted="false">"需要核验"</string>
     <string name="ui_update" formatted="false">"提示"</string>
-    <string name="ui_safety_verification_is_required_use_settings_verify_card_and_rec" formatted="false">"\n继续更改前，请执行“设置 → 核验卡片与恢复状态”。"</string>
+    <string name="ui_safety_verification_is_required_use_settings_verify_card_and_rec" formatted="false">"\n点此核验。确认卡片没有变化后即可继续。"</string>
     <string name="ui_please_wait_for_the_current_operation_to_finish" formatted="false">"请等待当前操作完成。"</string>
     <string name="ui_scan_qr_code" formatted="false">"扫描二维码"</string>
     <string name="ui_back_to_add_esim" formatted="false">"返回添加 eSIM"</string>

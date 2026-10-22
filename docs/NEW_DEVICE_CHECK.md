@@ -26,6 +26,20 @@ The computer starts a local authenticated Shell service. It is not a permanent p
 - **Card/profile read verified:** Home shows a selected card channel and a freshly read profile list. Confirm those profiles belong to the intended card, not another built-in eUICC.
 - **Write operations:** not established by compatibility checks or results from a different phone/APK. Obtain device/card-specific authorization and protect the baseline before testing a disposable inactive profile. Do not consume activation codes, switch a live subscription or delete anything just to test discovery.
 
+## Disposable profile for a live-CI card
+
+A consumer eUICC uses GSMA live certificates. For an owner-authorized write cycle on that card, use the public Truphone Speedtest entry: matching id `QRF-SPEEDTEST` on `rsp.truphone.com`. The profile name read back from the card is **Speedtest Travel**. The same entry may be downloaded again. It is a real Truphone profile used as the public install sample; it is not an AOSP or GSMA laboratory profile, and its keys are not published.
+
+Do not substitute the AOSP profiles on `prod.smdp-plus.rsp.goog` or the sysmocom SGP.26 server. This build trusts only the GSMA live RSP2 root, and a live-CI card rejects those test certificates. A TLS failure there does not test the download path.
+
+Run these steps in the normal app UI, one confirmation each. Record the journal `operation` and `status`, the HTTP result, and the profile count. Mask every EID and ICCID.
+
+1. **Install once.** The new profile must appear disabled. Pass is journal `download` / `verified`, HTTP 200 / `Executed-Success`, worker and native stopped, and an independent read of the same card.
+2. **Enable** with **Use this eSIM**. Pass is journal `enable` / `verified` and Home showing that profile enabled. Card-enabled is not network registration. The app records `networkRegistrationChecked=false`.
+3. **Signal**, read from Android for that slot only. Voice `IN_SERVICE` on a cellular RAT (for example LTE) means it registered. Write down the visited operator, whether it is roaming, and the voice and data radio technologies. `IWLAN` is Wi-Fi, not a tower. Out of service means the enable succeeded and registration did not.
+
+Delete only this disposable profile when the cycle is finished, and only while it is disabled. An Android 12 Telephony qualification on a removable card is [recorded separately](ANDROID12_OPPO_SPEEDTEST.md).
+
 Open **Compatibility check** from Home or Settings. The app tries Secure Element AIDL/HIDL HAL first, then Telephony, then OMAPI if needed. It records service discovery/binding, card presence, fixed ISD-R opening, full GetEID verification and owned-channel cleanup. **Run read-only check** repeats only reads.
 
 The report distinguishes absent/inaccessible services, unavailable interface classes/methods, denied access, no reported card, unavailable management applet/channel, invalid identity response, unreachable service, invalid reader inventory and multiple readable cards. An API may not distinguish an unregistered service from blocked lookup; that uncertainty is shown. Multiple readable cards, invalid inventory or uncertain cleanup stop automatic selection.

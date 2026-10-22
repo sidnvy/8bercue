@@ -190,6 +190,49 @@ public final class OperationJournal {
             throw new IOException("Recovery evidence does not match original transaction");
         return true;
     }
+    /** Network failure before any server response. Card-touching phases stay unknown. */
+    public static boolean networkStoppedBeforeCard(Properties fields) {
+        return fields.getProperty("downloadPhase","").matches("LAUNCH|INITIATE_AUTHENTICATION")
+            && fields.getProperty("downloadFailure","").matches("TLS|DNS|NETWORK_TIMEOUT")
+            && "true".equals(fields.getProperty("downloadWorkerStopped"))
+            && "true".equals(fields.getProperty("downloadNativeStopped"))
+            && "0".equals(fields.getProperty("downloadHttpStatus"))
+            && "not_reported".equals(fields.getProperty("downloadServerStatus"));
+    }
+    public static boolean unstartedDownload(Properties record) {
+        return "download".equals(record.getProperty("operation"))
+            && record.getProperty("status","").matches("unknown|observed_unknown")
+            && networkStoppedBeforeCard(record);
+    }
+    /** Close a download that never reached the server once the same card's inventory still matches the pre-download snapshot. */
+    public synchronized void closeUnstartedDownload(String card, String snapshot) throws IOException {
+        checkRecoveryFiles();
+        Properties current=read();
+        if(!unstartedDownload(current) || reviewed(current)
+            || card==null || !card.equals(current.getProperty("card"))
+            || snapshot==null || !snapshot.equals(current.getProperty("before")))
+            throw new IOException("Unstarted download cannot be closed");
+        Path history=file.toPath().getParent().resolve("history");
+        if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("Missing original transaction history");
+        boolean found=false;int count=0;
+        try(DirectoryStream<Path> entries=Files.newDirectoryStream(history)) {
+            for(Path entry:entries) {
+                if(++count>256)throw new IOException("History exceeds review budget");
+                Properties prior=readRecord(entry,false);
+                if(!entry.getFileName().toString().equals(prior.getProperty("txId")+".properties"))
+                    throw new IOException("Interrupted history or identity mismatch");
+                if(current.getProperty("txId").equals(prior.getProperty("txId"))) {
+                    if(!prior.equals(current))throw new IOException("Current/history disagreement");
+                    found=true;
+                } else if(uncertain(prior.getProperty("status"))&&!reviewed(prior))
+                    throw new IOException("Another unresolved transaction");
+            }
+        }
+        if(!found)throw new IOException("Original history missing");
+        current.setProperty("status","not_completed");
+        save(current);
+    }
     /** Caller must hold exclusive card lock, confirm worker quiescence and explicitly authorize
      * abandonment after independent same-card readback. This never declares download success
      * or that a remote activation code is unused. Original current/history records stay intact. */

@@ -19,6 +19,7 @@ public final class CompanionBinderProvider extends ContentProvider {
     private static volatile IBinder current;
 
     static final String MANAGEMENT_METHOD="publishManagementBinder";
+    static final String REBIND_METHOD="republishManagementBinder";
     static final String CHALLENGE_METHOD="getManagementChallenge";
     static final String STATE_METHOD="getManagementConnectionState";
     static final String FEEDBACK_METHOD="reportManagementConnection";
@@ -52,6 +53,7 @@ public final class CompanionBinderProvider extends ContentProvider {
             result.putInt("protocol",MANAGEMENT_VERSION);result.putInt("versionCode",BuildConfig.VERSION_CODE);
             return result;
         }
+        if(REBIND_METHOD.equals(method))return rebind(extras);
         if(pendingNonce==null||android.os.SystemClock.elapsedRealtime()>=pendingUntil)
             throw new SecurityException("Start connection from the app first");
         if(CHALLENGE_METHOD.equals(method)){
@@ -76,9 +78,54 @@ public final class CompanionBinderProvider extends ContentProvider {
             if(management!=null&&management.pingBinder())throw new SecurityException("Existing management session");
             next.linkToDeath(()->{synchronized(CompanionBinderProvider.class){if(management==next)management=null;}},0);
             management=next;pendingNonce=null;pendingUntil=0;bootstrapFeedback="";
+            rememberShell(Binder.getCallingPid());
             Bundle result=new Bundle();result.putBoolean("accepted",true);return result;
         }catch(Exception failure){throw new SecurityException("Management handoff rejected",failure);}
     }
+    }
+    private static int trustedShellPid=-1;
+    private java.io.File shellPidFile(){
+        android.content.Context context=getContext();
+        return context==null?null:new java.io.File(context.getFilesDir(),"management-shell.pid");
+    }
+    private void rememberShell(int pid){
+        if(pid<2)return;
+        trustedShellPid=pid;
+        java.io.File file=shellPidFile();if(file==null)return;
+        try{java.nio.file.Files.write(file.toPath(),Integer.toString(pid).getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+        catch(Exception ignored){}
+    }
+    private int trustedShell(){
+        if(trustedShellPid>1)return trustedShellPid;
+        java.io.File file=shellPidFile();if(file==null||!file.isFile())return -1;
+        try{trustedShellPid=Integer.parseInt(new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8).trim());}
+        catch(Exception ignored){trustedShellPid=-1;}
+        return trustedShellPid;
+    }
+    static boolean sameShellProcess(int pid,int trusted,String command){
+        if(pid<2||pid!=trusted)return false;
+        if(command==null||command.isEmpty())return true;
+        return command.contains("8bercue-management-v1")||command.contains("CompanionManagementStarter");
+    }
+    private static String commandLine(int pid){
+        try{return new String(java.nio.file.Files.readAllBytes(new java.io.File("/proc/"+pid+"/cmdline").toPath()),java.nio.charset.StandardCharsets.UTF_8).replace('\0',' ');}
+        catch(Exception missing){return "";}
+    }
+    private Bundle rebind(Bundle extras){
+        if(management()!=null)throw new SecurityException("Existing management session");
+        int pid=Binder.getCallingPid();
+        if(!sameShellProcess(pid,trustedShell(),commandLine(pid)))throw new SecurityException("Untrusted shell process");
+        IBinder next=extras==null?null:extras.getBinder("managementBinder");
+        try{
+            String expected=NativeLpacBundle.digest(new java.io.File(getContext().getApplicationInfo().sourceDir));
+            if(!expected.equals(extras==null?null:extras.getString("apkSha256")))throw new SecurityException("Stale companion");
+            if(next==null||!next.pingBinder()||!IProfileService.Stub.DESCRIPTOR.equals(next.getInterfaceDescriptor()))
+                throw new SecurityException("Invalid management interface");
+            next.linkToDeath(()->{synchronized(CompanionBinderProvider.class){if(management==next)management=null;}},0);
+            management=next;pendingNonce=null;pendingUntil=0;bootstrapFeedback="";
+            Bundle result=new Bundle();result.putBoolean("accepted",true);result.putBinder("clientLifetime",clientLifetime);return result;
+        }catch(SecurityException failure){throw failure;}
+        catch(Throwable failure){throw new SecurityException("Management handoff rejected",failure);}
     }
     static ICompanionProbe service() {
         IBinder b = current;
@@ -93,7 +140,7 @@ public final class CompanionBinderProvider extends ContentProvider {
     @Override public Bundle call(String method, String arg, Bundle extras) {
         android.util.Log.i("EightberBinderPilot", "provider_call_arrived shellUid="+(Binder.getCallingUid()==Process.SHELL_UID));
         if(Binder.getCallingUid()==Process.SHELL_UID
-                &&(MANAGEMENT_METHOD.equals(method)||CHALLENGE_METHOD.equals(method)||STATE_METHOD.equals(method)||FEEDBACK_METHOD.equals(method)))return managementCall(method,extras);
+                &&(MANAGEMENT_METHOD.equals(method)||REBIND_METHOD.equals(method)||CHALLENGE_METHOD.equals(method)||STATE_METHOD.equals(method)||FEEDBACK_METHOD.equals(method)))return managementCall(method,extras);
         if (Binder.getCallingUid() != Process.SHELL_UID || !METHOD.equals(method)
                 || extras == null) throw new SecurityException("Shell Binder ingress only");
         IBinder b = extras.getBinder(KEY);

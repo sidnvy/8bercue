@@ -57,6 +57,26 @@ public final class ReadOnlyRecoveryOfflineTest {
   CardTransactionLock.acquire(file,true);check(journal.requiresReconciliation(),"unknown transaction remains blocked during read");CardTransactionLock.release();
   check(Arrays.equals(before,Files.readAllBytes(dir.resolve("journal/operation.properties"))),"observation preserves original transaction bytes");
   denied(()->journal.begin(new OperationJournal.Binding("delete",hash,hash,hash,hash)),"read cannot authorize new delete");
+  denied(()->journal.closeUnstartedDownload(hash,hash),"an unknown enable is not an unstarted download");
+  OperationJournal download=new OperationJournal(dir.resolve("download-journal").toFile());
+  download.begin(new OperationJournal.Binding("download",hash,hash,hash,hash));
+  Properties tls=new Properties();
+  tls.setProperty("downloadPhase","INITIATE_AUTHENTICATION");tls.setProperty("downloadFailure","TLS");
+  tls.setProperty("downloadWorkerStopped","true");tls.setProperty("downloadNativeStopped","true");
+  tls.setProperty("downloadHttpStatus","0");tls.setProperty("downloadServerStatus","not_reported");
+  tls.setProperty("downloadSubjectCode","not_reported");tls.setProperty("downloadReasonCode","not_reported");
+  tls.setProperty("downloadNativeCode","not_reported");
+  download.finish("unknown",tls);
+  check(download.requiresReconciliation(),"tls download stays blocked until the same inventory is confirmed");
+  denied(()->download.closeUnstartedDownload(hash,String.join("",Collections.nCopies(64,"b"))),"different inventory stays blocked");
+  download.closeUnstartedDownload(hash,hash);
+  check(!download.requiresReconciliation() && "not_completed".equals(download.statusAfterReadOnlyReconciliation()),"unstarted tls download closes");
+  OperationJournal loaded=new OperationJournal(dir.resolve("loaded-journal").toFile());
+  loaded.begin(new OperationJournal.Binding("download",hash,hash,hash,hash));
+  Properties cardWrite=new Properties();cardWrite.putAll(tls);cardWrite.setProperty("downloadPhase","CARD_LOAD_PACKAGE");
+  loaded.finish("unknown",cardWrite);
+  denied(()->loaded.closeUnstartedDownload(hash,hash),"a download that reached the card stays unknown");
+  check(loaded.requiresReconciliation(),"card-touching download remains blocked");
   System.out.println("PASS "+checks+" read-only recovery, worker identity, process exclusion and unknown-outcome assertions");
  }
 }

@@ -7,6 +7,7 @@ import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.text.InputType;
+import android.util.Log;
 import android.view.*;
 import android.widget.*;
 import java.util.concurrent.*;
@@ -475,16 +476,28 @@ public final class MainActivity extends Activity {
   private void reconcile() {
     final IProfileService s = backend;
     if (s == null) {
+      Log.i("EightberUi", "reconcile stopped no-backend");
       connect();
       return;
     }
+    Log.i("EightberUi", "reconcile started");
     run(s(R.string.ui_verifying_card_and_recovery), false, () -> new JSONObject(s.reconcileOperation()), r -> {
       if(!r.optBoolean("ok",false)){
         getPreferences(0).edit().putBoolean("pending",true).commit();
+        Log.i("EightberUi", "reconcile stopped ok=false status="+r.optString("status")
+            +" recoveryError="+r.optString("recoveryError")+" error="+r.optString("error")
+            +" stage="+r.optString("stage"));
         status(s(R.string.recovery_access_paused),recoveryFailure(r.optString("recoveryError")));render();return;
       }
       boolean review = RecoveryUiPolicy.blocks(r.optBoolean("ok", false), r.optBoolean("requiresReconciliation", false), r.optBoolean("reviewRequired", true), r.optString("status", "unknown"));
+      Log.i("EightberUi", "reconcile decision status="+r.optString("status")
+          +" reviewRequired="+r.optBoolean("reviewRequired")
+          +" requiresReconciliation="+r.optBoolean("requiresReconciliation")
+          +" closed="+r.optString("closed")
+          +" blocks="+review+" pendingCleared="+!review);
       notice = review ? s(R.string.ui_card_read_completed_the_previous_operation_still_requires_review)
+                      : "unstarted_download".equals(r.optString("closed"))
+                          ? s(R.string.ui_download_stopped_before_the_server_the_card_is_unchanged)
                       : "reviewed_abandoned".equals(r.optString("status"))
                           ? s(R.string.ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve)
                           : s(R.string.ui_read_only_reconciliation_completed_check_the_current_profile_inv);
@@ -565,14 +578,19 @@ public final class MainActivity extends Activity {
               || (r.optBoolean("installed", false)
                   && "installed_disabled".equals(r.optString("status")));
           boolean review = r.optBoolean("reviewRequired", !verified);
-          if (op.equals("download")) {
+          boolean unstarted = op.equals("download") && "not_completed".equals(r.optString("status"))
+              && r.optBoolean("inventoryUnchanged", false) && !r.optBoolean("reviewRequired", true);
+          if (op.equals("download") && !unstarted) {
             verified = InstallResultPolicy.verified(r.optString("status"),
                 r.isNull("installed") ? null : r.optBoolean("installed", false),
                 r.isNull("enabled") ? null : r.optBoolean("enabled", true),
                 r.optBoolean("reviewRequired", true));
             review = review || !verified;
           }
-          notice = verified && !review
+          if (unstarted) { verified = false; review = false; }
+          notice = unstarted
+              ? s(R.string.ui_download_stopped_before_the_server_the_card_is_unchanged)
+              : verified && !review
               ? (op.equals("download")
                         ? s(R.string.ui_esim_installed_and_independently_verified_it_remains_disabled_yo)
                         : s(R.string.ui_operation_verified_by_a_fresh_card_read_review_the_updated_inven))
@@ -588,7 +606,7 @@ public final class MainActivity extends Activity {
           }
           if (r.has("notificationStatus") && verified && !review)
             notice += "\n" + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
-          if (verified && !review)
+          if ((verified && !review) || unstarted)
             getPreferences(0).edit().remove("pending").commit();
           if (r.optBoolean("restartRequired", false) || !r.optBoolean("notificationWorkerStopped", true)) {
             getPreferences(0).edit().putBoolean("pending", true).commit();
@@ -728,9 +746,9 @@ public final class MainActivity extends Activity {
     FrameLayout workspace=new FrameLayout(this);
     workspace.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
     root.addView(workspace,new LinearLayout.LayoutParams(-1,0,1));
-    if(screen==0&&inventory.has("profiles")&&!binderReadOnlyInventory){
+    if(screen==0&&inventory.has("profiles")&&!binderReadOnlyInventory&&!getPreferences(0).getBoolean("pending",false)){
       Button fab=action(s(R.string.ui_add_esim_134),false,()->navigate(1));fab.setTextColor(ON_TONAL);fab.setBackground(rounded(TONAL,16));fab.setElevation(dp(2));
-      FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(-2,dp(56),Gravity.BOTTOM|Gravity.END);placement.setMargins(dp(24),dp(16),dp(24),dp(16));workspace.addView(fab,placement);availability(fab,!getPreferences(0).getBoolean("pending",false));
+      FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(-2,dp(56),Gravity.BOTTOM|Gravity.END);placement.setMargins(dp(24),dp(16),dp(24),dp(16));workspace.addView(fab,placement);
       content.setPadding(dp(24),0,dp(24),dp(100));
     }
     setContentView(root);
@@ -772,7 +790,8 @@ public final class MainActivity extends Activity {
     choice.setOnClickListener(v->{if(backend!=null)chooseCard();else beginDirectBootstrap();});
     taskControls.add(choice);card.addView(choice,new LinearLayout.LayoutParams(-1,-2));
     card.addView(text(s(R.string.ui_eid)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),margin(4));
-    card.addView(text(inventory.has("profiles")?s(R.string.ui_card_connected_read_verified):s(R.string.ui_connect_to_check_this_card),12,MUTED,false),margin(14));
+    boolean pending=getPreferences(0).getBoolean("pending",false);
+    card.addView(text(!inventory.has("profiles")?s(R.string.ui_connect_to_check_this_card):pending?s(R.string.ui_connected_check_before_changes):s(R.string.ui_card_connected_read_verified),12,MUTED,false),margin(14));
     add(card,18);
     LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
     heading.addView(text(s(R.string.ui_your_esims),22,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
@@ -789,7 +808,7 @@ public final class MainActivity extends Activity {
       boolean on="enabled".equalsIgnoreCase(profile.optString("state"));TextView state=text(on?s(R.string.ui_enabled):"disabled".equalsIgnoreCase(profile.optString("state"))?s(R.string.ui_disabled):s(R.string.ui_unknown),11,on?ACCENT:MUTED,false);state.setPadding(dp(8),dp(4),dp(8),dp(4));state.setBackground(rounded(SURFACE,8));row.addView(state);
       row.setContentDescription(s(R.string.profile_accessibility,profileName(profile),state.getText()));row.setFocusable(true);ripple(row);row.setOnClickListener(v->{if(!OPERATIONS.running())showProfile(index,profile,row);});taskControls.add(row);add(row,0);addDivider();
     }
-    if(profiles.length()==0)add(text(s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
+    if(profiles.length()==0)add(text(getPreferences(0).getBoolean("pending",false)?s(R.string.ui_add_unlocks_after_check):s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
     add(text(s(R.string.ui_enabled_describes_the_card_state_network_service_has_not_been_ch),12,MUTED,false),20);
 
   }
@@ -1401,7 +1420,21 @@ public final class MainActivity extends Activity {
     if (busyProgress != null) busyProgress.setVisibility(running ? View.VISIBLE : View.GONE);
     statusBox.setVisibility(UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
     statusBox.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    statusTitle.setText(running ? OPERATIONS.title() : !notice.isEmpty() ? pending ? s(R.string.ui_needs_verification) : s(R.string.ui_update) : title);
+    boolean canVerify = pending && !running;
+    statusBox.setClickable(canVerify);
+    statusBox.setFocusable(canVerify);
+    if (canVerify) {
+      android.util.TypedValue ripple = new android.util.TypedValue();
+      getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
+      statusBox.setForeground(getDrawable(ripple.resourceId));
+      statusBox.setOnClickListener(v -> reconcile());
+      statusBox.setContentDescription(s(R.string.ui_verify_card_and_recovery));
+    } else {
+      statusBox.setForeground(null);
+      statusBox.setOnClickListener(null);
+      statusBox.setContentDescription(null);
+    }
+    statusTitle.setText(running ? OPERATIONS.title() : canVerify ? s(R.string.ui_verify_card_and_recovery) : !notice.isEmpty() ? s(R.string.ui_update) : title);
     statusDetail.setText(running ? detail : !notice.isEmpty() ? notice : detail + (pending ? s(R.string.ui_safety_verification_is_required_use_settings_verify_card_and_rec) : ""));
   }
   private void status(String a, String b) {
