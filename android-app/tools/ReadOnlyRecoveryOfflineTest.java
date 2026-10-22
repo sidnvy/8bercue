@@ -69,6 +69,12 @@ public final class ReadOnlyRecoveryOfflineTest {
   download.finish("unknown",tls);
   check(download.requiresReconciliation(),"tls download stays blocked until the same inventory is confirmed");
   denied(()->download.closeUnstartedDownload(hash,String.join("",Collections.nCopies(64,"b"))),"different inventory stays blocked");
+  denied(()->download.closeUnstartedDownload(String.join("",Collections.nCopies(64,"b")),hash),"wrong card identity stays blocked");
+  OperationJournal httpSeen=new OperationJournal(dir.resolve("http-journal").toFile());
+  httpSeen.begin(new OperationJournal.Binding("download",hash,hash,hash,hash));
+  Properties httpTls=new Properties();httpTls.putAll(tls);httpTls.setProperty("downloadHttpStatus","502");
+  httpSeen.finish("unknown",httpTls);
+  denied(()->httpSeen.closeUnstartedDownload(hash,hash),"server response blocks unstarted close");
   download.closeUnstartedDownload(hash,hash);
   check(!download.requiresReconciliation() && "not_completed".equals(download.statusAfterReadOnlyReconciliation()),"unstarted tls download closes");
   OperationJournal loaded=new OperationJournal(dir.resolve("loaded-journal").toFile());

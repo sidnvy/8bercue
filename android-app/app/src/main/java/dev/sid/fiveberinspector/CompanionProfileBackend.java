@@ -46,6 +46,9 @@ final class CompanionProfileBackend extends IProfileService.Stub {
     }
     @Override public String listProfiles() { return result("listProfiles"); }
     @Override public String getCardInfo() { return result("getCardInfo"); }
+    @Override public String getProfileIccid(int index) {
+        return result("getProfileIccid", index, null, null, null, null, false);
+    }
     @Override public String getOperationStatus() { return result("getOperationStatus"); }
     @Override public String reconcileOperation() { return result("reconcileOperation"); }
     @Override public String prepareSwitch(int index) {

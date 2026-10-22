@@ -111,7 +111,6 @@ public final class ProfileUserService extends IProfileService.Stub {
                 profiles.put(new JSONObject().put("selectionId",ProfileUiIdentity.key(uiSession,target.identityHash,id)).put("provider", safeLabel(entry.provider))
                     .put("name", safeLabel(entry.name)).put("nickname", safeLabel(entry.nickname))
                     .put("state", entry.enabled ? "enabled" : "disabled")
-                    .put("iccid", id)
                     .put("iccidMasked", id.substring(0,4) + "..." + id.substring(id.length()-4))
                     .put("canRename",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.RENAME,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.RENAME))
                     .put("canEnable",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.ENABLE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.ENABLE))
@@ -128,7 +127,7 @@ public final class ProfileUserService extends IProfileService.Stub {
             try { displayedLifecycleFingerprint = ProfileLifecycleGuard.selectionFingerprint(PortableProfileLifecycle.rows(entries)); }
             catch (SecurityException unsupportedMutationState) { /* Still display an empty/inactive card for recovery. */ }
             reply.put("profiles", profiles).put("count", profiles.length()).put("writeQualified",writeQualified)
-                .put("reader",target.reader).put("eidMasked",target.eidMasked).put("eid",target.eidDecimal)
+                .put("reader",target.reader).put("eidMasked",target.eidMasked)
                 .put("description",SystemHalAdapter.describeReader(target.reader));
             reply.put("connectionMethod","adb_shell");
             reply.put("transport",transport+" UID2000 / "+target.reader);
@@ -369,6 +368,19 @@ public final class ProfileUserService extends IProfileService.Stub {
             Log.w("EightberShell", "reconcileOperation failed cause="+e.getClass().getSimpleName());
             return safeOperationError("reconcile", e);
         }
+    }
+    @Override public synchronized String getProfileIccid(int profileIndex) {
+        try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            requireSelectionCurrent();
+            CardTransactionLock.acquire();
+            try {
+                java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.list();
+                if (profileIndex < 0 || profileIndex >= entries.size())
+                    throw new SecurityException("Invalid profile");
+                return new JSONObject().put("ok", true).put("iccid", entries.get(profileIndex).iccid).toString();
+            } finally { CardTransactionLock.release(); }
+        } catch (Throwable e) { return safeOperationError("profile-iccid", e); }
     }
     @Override public synchronized String getCardInfo() {
         boolean acquired = false;

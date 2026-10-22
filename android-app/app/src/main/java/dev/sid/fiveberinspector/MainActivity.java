@@ -174,8 +174,7 @@ public final class MainActivity extends Activity {
   };}
   private String countdown(long millis){long seconds=Math.max(0,(millis+999)/1000);return seconds==0?s(R.string.ui_connection_window_expired):s(R.string.connection_countdown,String.format(java.util.Locale.ROOT,"%d:%02d",seconds/60,seconds%60));}
   private String verifiedEid(){
-    String eid=inventory.optString("eid","");
-    if(!eid.matches("\\d{32}"))eid=cardInfo.optString("eid","");
+    String eid=cardInfo.optString("eid","");
     return eid.matches("\\d{32}")?eid:null;
   }
   private void copyPlain(String label,String value){
@@ -188,22 +187,18 @@ public final class MainActivity extends Activity {
     }
     clipboard.setPrimaryClip(clip);
   }
-  private String profileIccid(JSONObject profile) {
-    if (profile == null) return null;
-    String iccid = profile.optString("iccid", "");
-    return iccid.matches("[0-9]{19,20}") ? iccid : null;
-  }
   private void copyIccid() {
-    if (OPERATIONS.running()) return;
-    String iccid = profileIccid(detailProfile);
-    if (iccid != null) {
-      copyPlain(s(R.string.iccid_clipboard_label), iccid);
-      statusPreservingOutcome(s(R.string.ui_iccid_copied), s(R.string.ui_iccid_paste_for_operator));
+    if (OPERATIONS.running() || backend == null || selectedProfile < 0) return;
+    final IProfileService service = backend;
+    final int index = selectedProfile;
+    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getProfileIccid(index)), r -> {
+      String iccid = r.optBoolean("ok", false) ? r.optString("iccid", "") : null;
+      if (iccid != null && iccid.matches("[0-9]{19,20}")) {
+        copyPlain(s(R.string.iccid_clipboard_label), iccid);
+        statusPreservingOutcome(s(R.string.ui_iccid_copied), s(R.string.ui_iccid_paste_for_operator));
+      } else status(s(R.string.ui_iccid_copy_unavailable), s(R.string.ui_refresh_the_card_and_select_a_profile));
       render();
-      return;
-    }
-    status(s(R.string.ui_iccid_copy_unavailable), s(R.string.ui_refresh_the_card_and_select_a_profile));
-    render();
+    });
   }
   private void copyEid(){
     if(OPERATIONS.running())return;
@@ -882,7 +877,7 @@ public final class MainActivity extends Activity {
     JSONObject p=detailProfile;if(p==null){add(text(s(R.string.ui_refresh_the_card_and_select_a_profile)),24);return;}
     add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),16);
     add(text(profileName(p),28,TEXT,false),28);
-    add(identifierRow(s(R.string.ui_iccid).trim(),selectedIccid,profileIccid(detailProfile)!=null?s(R.string.ui_copy_iccid):null,this::copyIccid),12);
+    add(identifierRow(s(R.string.ui_iccid).trim(),selectedIccid,backend!=null?s(R.string.ui_copy_iccid):null,this::copyIccid),12);
     boolean enabled="enabled".equalsIgnoreCase(p.optString("state"));boolean disabled="disabled".equalsIgnoreCase(p.optString("state"));
     Switch toggle=new Switch(this);toggle.setText(s(R.string.ui_use_this_esim));toggle.setTextSize(20);toggle.setTextColor(ON_TONAL);toggle.setPadding(dp(20),dp(18),dp(20),dp(18));toggle.setMinHeight(dp(80));toggle.setBackground(rounded(TONAL,24));toggle.setChecked(enabled);toggle.setContentDescription(s(R.string.ui_use_this_esim));
     toggle.setThumbTintList(android.content.res.ColorStateList.valueOf(darkTheme?0xffffdbcC:Color.WHITE));toggle.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{ACCENT,MUTED}));
