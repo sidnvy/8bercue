@@ -29,3 +29,10 @@
 - Preserve both existing Pixel ADB control planes (no reboot, adbd restart, TCP-port change, Wi-Fi debugging toggle, disconnect, or re-pair).
 - No eUICC writes; do not use the phone lock screen as a target for bypasses.
 - Run actual App UI self-bootstrap only after legitimate screen unlock; if security consent is requested, the device owner must verify it.
+
+## Follow-up after manual unlock
+- Android trust service reported `deviceLocked=0`; experimental 8bercue process remained alive and its activity could be launched.
+- Android 17 UI hierarchy extraction returned `UI_UNAVAILABLE` (no UI dump acknowledgement). A screenshot of the actual 8bercue home screen confirmed the test build starts, but the local recovery entry is nested in Settings → Advanced recovery.
+- Another foreground workflow (`gr.nikolasspyr.integritycheck`, Play Integrity API Checker) took focus immediately after relaunch and remained resumed across three observations. Stop UI testing rather than sending coordinate taps into an unrelated app.
+- No application-originated ADB RSA handshake/consent was triggered; no successful Companion startup evidence. This is a foreground-contention blocker, NOT a failure of local ADB transport.
+- Both Pixel ADB control-plane connections remained online throughout; no profile management commands were issued.
