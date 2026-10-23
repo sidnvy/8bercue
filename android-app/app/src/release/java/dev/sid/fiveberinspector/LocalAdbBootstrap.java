@@ -14,7 +14,7 @@ import java.net.Socket;
 import java.util.concurrent.TimeUnit;
 
 /**
- * One-time Shell companion bootstrap via the existing localhost TCP ADB daemon.
+ * One-time authenticated Binder management bootstrap via an existing localhost ADB daemon.
  *
  * Only connects to an already-running 127.0.0.1:5555 classic ADB listener.
  * Never changes wireless debugging, the adbd process, the TCP port, or the
@@ -22,8 +22,9 @@ import java.util.concurrent.TimeUnit;
  * Generates a dedicated, persisted ADB RSA keypair in private no-backup storage.
  * User must approve the Android "Allow USB debugging?" RSA prompt once.
  *
- * This is NOT intended to be a general-purpose ADB console. Only starts the
- * fixed, read-only ShellCompanion class from this very APK.
+ * This is NOT a general-purpose ADB console. Executes only the official,
+ * bounded Connect entrypoint from the exact installed APK. Connect performs
+ * version, nonce, Binder interface, and signed APK hash verification.
  */
 public final class LocalAdbBootstrap {
     public static final String HOST = "127.0.0.1";
@@ -79,20 +80,14 @@ public final class LocalAdbBootstrap {
     }
 
     private static String oneFixedCommand(Context ctx) {
-        int appUid = ctx.getApplicationInfo().uid;
-        if (appUid < 10000 || appUid > 199999)
-            throw new SecurityException("Unexpected installed app UID");
         String apk = quote(ctx.getApplicationInfo().sourceDir);
-        String cmd =
-            "CLASSPATH=" + apk + " " +
-            "/system/bin/app_process /system/bin " +
-            "dev.sid.fiveberinspector.ShellCompanion " +
-            "--app-uid " + appUid;
-        // The helper is detached from the ADB session and logs only non-secret
-        // diagnostics. No Android profile action is performed during bootstrap.
-        return "/system/bin/setsid /system/bin/sh -c " +
-            "'" + cmd + " </dev/null >/data/local/tmp/fiveber-inspector-helper.log 2>&1'" +
-            " </dev/null >/dev/null 2>&1 & /system/bin/sleep 1; /system/bin/echo FIVEBER_LAUNCH_SENT";
+        // Fixed production bootstrap entrypoint: no arbitrary user commands.
+        return "CLASSPATH=" + apk + " /system/bin/app_process / " +
+            "dev.sid.fiveberinspector.Connect";
+    }
+
+    private static boolean managementReady() {
+        return CompanionBinderProvider.management() != null;
     }
 
     /**
@@ -101,13 +96,9 @@ public final class LocalAdbBootstrap {
      */
     public static Result start(Context context) throws Exception {
         Context app = context.getApplicationContext();
-        // Avoid touching ADB entirely when the authenticated companion already runs.
-        try {
-            String status = ShellCompanionClient.status();
-            return new Result(true, false, "Shell Companion already active: " + status);
-        } catch (Exception unavailable) {
-            // Only an absent/unreachable companion needs a one-shot ADB bootstrap.
-        }
+        // Existing authenticated Binder must be reused, without touching adbd.
+        if (managementReady())
+            return new Result(true, false, "Authenticated management Binder already active");
         Socket socket = new Socket();
         AdbConnection connection = null;
         try {
@@ -119,29 +110,23 @@ public final class LocalAdbBootstrap {
                 return new Result(false, true,
                     "等待 Pixel 的 ADB RSA 授权。请选择 Always allow，然后重试。");
             }
-            // Do not launch a second daemon while the socket is already bound.
+            if (managementReady())
+                return new Result(true, false, "Authenticated management Binder already active");
+            // Opens the same limited, expiring challenge as the official
+            // computer-based bootstrap. Required before Connect can publish.
+            CompanionBinderProvider.beginManagementBootstrap();
+            AdbStream stream = connection.open("shell:" + oneFixedCommand(app));
             try {
-                String status = ShellCompanionClient.status();
-                return new Result(true, false,
-                    "本机 ADB 已授权；当前 Shell Companion 已在运行：" + status);
-            } catch (Exception ignored) {
-                // Companion is absent: proceed with the one fixed launch command.
-            }
-            String shell = oneFixedCommand(app);
-            AdbStream stream = connection.open("shell:" + shell);
-            // The ADB shell launches the helper in a detached session.
-            // Avoid waiting on a long-running user service in this stream.
-            try {
-                Thread.sleep(1800);
+                long deadline = android.os.SystemClock.elapsedRealtime() + 32000;
+                while (android.os.SystemClock.elapsedRealtime() < deadline) {
+                    if (managementReady())
+                        return new Result(true, false, "Authenticated management Binder connected");
+                    Thread.sleep(200);
+                }
+                return new Result(false, false,
+                    "ADB authorized but Binder handoff unconfirmed; review connection status before retrying");
             } finally {
                 stream.close();
-            }
-            try {
-                String status = ShellCompanionClient.status();
-                return new Result(true, false, status);
-            } catch (Exception ignored) {
-                return new Result(false, false,
-                    "ADB 授权成功，但 Shell Companion 尚未就绪，请稍后重试。");
             }
         } catch (java.net.ConnectException error) {
             return new Result(false, false,

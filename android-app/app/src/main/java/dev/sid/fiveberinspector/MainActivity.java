@@ -1188,7 +1188,10 @@ public final class MainActivity extends Activity {
       recovery.dialog.dismiss();run(s(R.string.ui_recovering_local_companion), false, () -> {
         LocalAdbBootstrap.Result r = LocalAdbBootstrap.start(getApplicationContext());
         return new JSONObject().put("ready", r.ready).put("authorization", r.needsAuthorization).put("description", r.description);
-      }, r -> { if (r.optBoolean("ready")) probeFallback();else status(s(R.string.ui_recovery_not_complete), r.optString("description", s(R.string.ui_check_the_supported_adb_setup_and_reconnect))); });
+      }, r -> { if (r.optBoolean("ready")) {
+        connectDirect();
+        if (backend == null) status(s(R.string.ui_recovery_not_complete), "Binder connected, but the app has not attached the management service yet.");
+      } else status(s(R.string.ui_recovery_not_complete), r.optString("description", s(R.string.ui_check_the_supported_adb_setup_and_reconnect))); });
     });
     recovery.button(s(R.string.ui_cancel), false, recovery.dialog::dismiss);recovery.show();
   }

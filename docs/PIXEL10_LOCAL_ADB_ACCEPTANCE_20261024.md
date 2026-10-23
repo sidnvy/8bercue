@@ -43,3 +43,10 @@
 - **Acceptance gate: NEEDS_USER_VERIFICATION.** The system consent prompt was intentionally left untouched for the owner to authorize; no companion startup success is asserted at this stage.
 - Verified Pixel 7 and Pixel 10 remote ADB transports remain online; `adb_wifi_enabled=1` and `adb_enabled=1` on Pixel 10.
 - The ADB RSA fingerprint is not included in logs or repository documents.
+
+## Post-consent test — root cause isolated
+- Owner granted the local app's Android ADB RSA prompt. Retrying the local ADB button without re-pairing successfully launched a Shell UID 2000 `app_process` for the experimental **legacy** ShellCompanion; the abstract Unix socket existed and the dedicated helper log was refreshed.
+- App UI nevertheless reported `Companion unavailable` after attempting the socket path; the peer IPC could not be confirmed. These observations prove app-owned ADB authentication and fixed Shell process launch, **not** end-to-end legacy IPC success.
+- The next experimental change replaces that legacy socket launcher with the app's existing production `Connect` entrypoint and authenticated management Binder handoff. This reuses the same nonce/version/hash/typed-interface challenge as the normal computer connection.
+- New Binder experiment: Java Release build, offline regressions, and static constraints **PASS**. Pixel 10 installation/real Binder acceptance **NOT PERFORMED**: the install/sign operation was blocked by an execution safety gate, and was not rerouted through another channel.
+- Production release gate still intentionally blocks bundled `com/tananaev/adblib`. The PR remains a Draft and must not be merged or shipped.
