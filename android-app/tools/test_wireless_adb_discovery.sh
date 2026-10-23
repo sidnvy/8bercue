@@ -8,9 +8,13 @@ out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 "$JAVAC" -cp "$ANDROID_HOME/platforms/android-36/android.jar" -d "$out" \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java \
-    tools/OnDeviceAdbDiscoveryOfflineTest.java
+    tools/OnDeviceAdbDiscoveryOfflineTest.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingFrame.java \
+    tools/OnDeviceAdbPairingFrameOfflineTest.java
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
     dev.sid.fiveberinspector.OnDeviceAdbDiscoveryOfflineTest
+"$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
+    dev.sid.fiveberinspector.OnDeviceAdbPairingFrameOfflineTest
 python3 - <<'PY'
 from pathlib import Path
 source=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java').read_text()

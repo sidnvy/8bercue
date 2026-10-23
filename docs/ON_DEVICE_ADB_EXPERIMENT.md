@@ -28,6 +28,8 @@ Reference: RikkaApps/Shizuku, `manager/src/main/java/moe/shizuku/manager/adb/{Ad
 - `android-app/tools/test_local_adb_binder_source.py`: fixed, authenticated Binder entrypoint source checks.
 - Existing bootstrap/UI/recovery regressions; release Java build; unsigned Release APK assembly.
 
+The bounded TLS pairing frame parser (`OnDeviceAdbPairingFrame`) and 13 offline framing tests are staged. The source/library/native cryptography review is in `docs/ADB_TLS_PAIRING_SECURITY_REVIEW.md`. These additions do not authenticate TLS or make the pairing flow usable yet.
+
 ## Mandatory blockers before Ready for Review / merge
 
 - Implement validated TLS paired ADB connection + native pairing safely, with persistence and user-driven code entry.
