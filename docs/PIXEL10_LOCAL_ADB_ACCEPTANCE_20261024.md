@@ -36,3 +36,10 @@
 - Another foreground workflow (`gr.nikolasspyr.integritycheck`, Play Integrity API Checker) took focus immediately after relaunch and remained resumed across three observations. Stop UI testing rather than sending coordinate taps into an unrelated app.
 - No application-originated ADB RSA handshake/consent was triggered; no successful Companion startup evidence. This is a foreground-contention blocker, NOT a failure of local ADB transport.
 - Both Pixel ADB control-plane connections remained online throughout; no profile management commands were issued.
+
+## Retry after foreground-contention cleared
+- Experimental 8bercue stayed in the foreground and the Recovery & advanced → Recover local companion → Continue flow was successfully invoked on Pixel 10 Pro XL.
+- Android presented its native **Allow USB debugging?** RSA-key consent prompt for the app-originated local ADB client. This is direct evidence that the local client reached the active adbd authorization handshake without any TCP/ADB settings mutation.
+- **Acceptance gate: NEEDS_USER_VERIFICATION.** The system consent prompt was intentionally left untouched for the owner to authorize; no companion startup success is asserted at this stage.
+- Verified Pixel 7 and Pixel 10 remote ADB transports remain online; `adb_wifi_enabled=1` and `adb_enabled=1` on Pixel 10.
+- The ADB RSA fingerprint is not included in logs or repository documents.
