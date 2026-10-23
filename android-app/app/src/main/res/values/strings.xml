@@ -477,4 +477,15 @@
     <string name="ui_feedback_40">Inspect the ZIP before sharing it with support.</string>
     <string name="ui_feedback_41">Export failed</string>
     <string name="ui_feedback_42">Could not write the selected document.</string>
+    <string name="wireless_adb_preview_entry">"Wireless ADB setup preview"</string>
+    <string name="wireless_adb_preview_title">"Wireless debugging · discovery preview"</string>
+    <string name="wireless_adb_preview_help">"Android 11+: Enable Developer options → Wireless debugging, then choose Pair device with pairing code. 8bercue discovers this phone&#x27;s pairing and connection ports automatically. Pairing and TLS login are not yet available in this experimental build."</string>
+    <string name="wireless_adb_preview_scan">"Discover this phone&#x27;s endpoints"</string>
+    <string name="wireless_adb_preview_searching">"Searching for the local service…"</string>
+    <string name="wireless_adb_preview_pair">"Pairing port: %1$d · detected on this device"</string>
+    <string name="wireless_adb_preview_connect">"Connection port: %1$d · detected on this device"</string>
+    <string name="wireless_adb_preview_lost">"Service disappeared. Reopen the system wireless debugging screen."</string>
+    <string name="wireless_adb_preview_error">"Discovery unavailable. Check that wireless debugging is enabled; no settings were changed."</string>
+    <string name="wireless_adb_preview_settings">"Open Developer options"</string>
+    <string name="wireless_adb_preview_not_auth">"Discovery does not authorize ADB; the secure pairing step is still required."</string>
 </resources>

@@ -477,4 +477,15 @@
     <string name="ui_feedback_40">向支持团队分享前，请检查 ZIP 内容。</string>
     <string name="ui_feedback_41">导出失败</string>
     <string name="ui_feedback_42">无法写入所选文档。</string>
+    <string name="wireless_adb_preview_entry">"无线 ADB 设置预览"</string>
+    <string name="wireless_adb_preview_title">"无线调试 · 服务发现预览"</string>
+    <string name="wireless_adb_preview_help">"Android 11+：开启开发者选项 → 无线调试，然后选择“使用配对码配对设备”。8bercue 将自动发现本机的配对端口与连接端口。本实验版本暂未实现 TLS 配对与登录。"</string>
+    <string name="wireless_adb_preview_scan">"发现本机调试服务"</string>
+    <string name="wireless_adb_preview_searching">"正在发现本机服务…"</string>
+    <string name="wireless_adb_preview_pair">"配对端口：%1$d · 已确认为本机"</string>
+    <string name="wireless_adb_preview_connect">"连接端口：%1$d · 已确认为本机"</string>
+    <string name="wireless_adb_preview_lost">"服务已消失，请重新打开系统无线调试页面。"</string>
+    <string name="wireless_adb_preview_error">"无法发现服务，请确认无线调试已开启；未更改任何系统设置。"</string>
+    <string name="wireless_adb_preview_settings">"打开开发者选项"</string>
+    <string name="wireless_adb_preview_not_auth">"发现端口不代表 ADB 已授权，仍需完成安全配对。"</string>
 </resources>

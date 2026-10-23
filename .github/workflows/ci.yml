@@ -86,6 +86,8 @@ jobs:
       - name: Install verified Android SDK components
         run: |
           "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0"
+      - name: Test on-device wireless ADB discovery contracts
+        run: bash android-app/tools/test_wireless_adb_discovery.sh
       - name: Build unsigned APK and run lint
         run: |
           set -euo pipefail

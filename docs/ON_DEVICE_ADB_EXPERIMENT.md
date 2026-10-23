@@ -1,25 +1,39 @@
-# On-device ADB bootstrap — experimental, not releasable
+# On-device ADB — next milestone / Draft PR #17
 
-Baseline: `440592c`, branch `feat/on-device-adb-bootstrap`.
+Baseline: upstream `main` merged at `91564e7`. This document tracks experimental code, **not an approved release**.
 
-## Scope
+## Acceptance layers (do not conflate)
 
-A deliberately limited compatibility experiment: connect to a **pre-existing** classic ADB TCP listener at `127.0.0.1:5555`, persist an app-owned RSA key in no-backup storage, and launch only the fixed Shell Companion command after user consent. The client checks for an already-running authenticated companion before attempting any ADB connection. It never toggles USB/wireless debugging, restarts adbd, changes ports, or mutates profiles during bootstrap.
+1. **Classic ADB proof:** Pixel 10 Pro XL, Android 17, existing TCP listener on `127.0.0.1:5555`. The app generated an RSA identity, prompted Android's normal debugging authorization, then successfully opened an authenticated ADB session and launched a UID 2000 worker. No adbd configuration changes. The first-generation *legacy socket* IPC was unavailable on this Pixel.
+2. **Production Binder transition:** `LocalAdbBootstrap` now launches the official, fixed `Connect` entrypoint, rather than the legacy ShellCompanion. The normal version/nonce/APK-digest/typed-Binder checks still apply. Java compile and existing offline regressions pass; real Binder handoff using this new build has **not** been verified.
+3. **Android 11+ Wireless Debugging:** Dynamic pairing and connection ports are advertised independently as `_adb-tls-pairing._tcp` and `_adb-tls-connect._tcp`. The new `OnDeviceAdbDiscovery` uses Android NSD to discover these DNS-SD services, accepting only addresses of the device's own active interfaces. It does not scan ranges, change developer settings, authenticate or pair.
+4. **Actual TLS pairing:** **NOT YET IMPLEMENTED.** Requires the Android ADB pairing protocol (TLS exporter + SPAKE2), a persisted app-specific TLS identity and verified mutual-authenticated `STLS` ADB connection. A classic RSA-only connection must never be attempted against a modern TLS port. Do not imply that finding a port means that ADB is authorized.
 
-This is **not** modern Android TLS pairing (dynamic ports, mDNS, pairing code). It is not P2 boot restoration and does not implement `WRITE_SECURE_SETTINGS`.
+## Experimental onboarding preview
 
-## Automated acceptance
+Settings → **Wireless ADB setup preview** (only the experimental socket-eligible build, Android 11+):
 
-- Release Java compile and unsigned APK assembly: PASS.
-- Existing bootstrap (39), UI/command (68), recovery (35) regressions: PASS.
-- Release surface verifier: **EXPECTED BLOCK**, because it explicitly forbids `com/tananaev/adblib/` in production DEX. Never modify the release verifier merely to silence this error.
-- Pixel 7 Pro: only non-mutating existing-transport checks. Do not toggle debugging, restart adbd, change TCP port, reboot, disconnect transport or install this unsigned experiment.
+- Explain the one-time Android Developer options → Wireless debugging → Pair device with pairing code step.
+- Discover the separate pairing and connection endpoints via `NsdManager` and show only locally resolved ports; no network port scan.
+- Optionally open Developer options when the user requests it. The user controls wireless debugging.
+- Explicitly label TLS pairing as pending and stop discovery on dismissal.
 
-## Remaining work before merge or release
+The final UX should use a foreground pairing notification with `RemoteInput`, analogous to Shizuku, so a user can copy the pairing code from Android Settings without jumping between apps. That behavior remains an acceptance item, not a completed feature.
 
-1. Replace the legacy/general adblib implementation with a reviewed, narrowly scoped transport or a vetted library that meets the release threat model, with license attribution and regression tests.
-2. Implement Android 11+ TLS paired local ADB discovery and pairing where supported; test error/timeout and network changes without disturbing other sessions.
-3. Exercise the actual app-owned key and Shell Companion bootstrap on a spare/noncritical device, including denial, stale socket and service-already-running cases.
-4. Re-run publication surface, app security, licensing, privacy and signed-upgrade checks before any release.
+Reference: RikkaApps/Shizuku, `manager/src/main/java/moe/shizuku/manager/adb/{AdbMdns,AdbPairingService,AdbClient,AdbKey,AdbPairingClient}.kt` (Apache-2.0). Its native SPAKE2 component depends on BoringSSL and should not be pasted into our signed release without separate dependency, license, and security review.
 
-Fail closed if the only route requires any ADB configuration mutation on the Pixel 7 Pro.
+## Completed automated checks
+
+- `android-app/tools/test_wireless_adb_discovery.sh`: JVM service-type and local-address checks; source guards for discovery cleanup and no adbd mutation.
+- `android-app/tools/test_local_adb_binder_source.py`: fixed, authenticated Binder entrypoint source checks.
+- Existing bootstrap/UI/recovery regressions; release Java build; unsigned Release APK assembly.
+
+## Mandatory blockers before Ready for Review / merge
+
+- Implement validated TLS paired ADB connection + native pairing safely, with persistence and user-driven code entry.
+- On Android 17 Pixel 10, test a clean-install pairing path and a reboot/port-change path **without mutating its existing control connection**. Only this Pixel 10 is the device under test; do not test or inspect Pixel 7.
+- Verify actual Binder handoff and read-only EID/Profile inventory after connection. No profile writes during bootstrap.
+- Release verifier **currently FAILS** because it intentionally rejects the old `com/tananaev/adblib/` package. Replace the legacy general client with audited, narrowly scoped protocol code and license attribution. Do not weaken the verifier just to turn CI green.
+- Validate key handling, pairing code retention, Android local-network permission requirements, negative/timeout/retry cases, safe signed upgrades, and release surface against the actual APK.
+
+Strict policy: no ADB toggle, adbd restart, port change, phone reboot, re-pair of the workstation, or automatic eSIM write as part of experimental tests. A device that has no wireless debugging available must show a user-controlled settings flow, never silently enable debugging.

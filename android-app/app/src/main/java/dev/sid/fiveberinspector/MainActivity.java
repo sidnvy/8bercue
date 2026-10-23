@@ -1082,6 +1082,8 @@ public final class MainActivity extends Activity {
         }
       });
     }), 12);
+    if (LabSupport.socketEligible() && Build.VERSION.SDK_INT >= 30)
+      add(action(s(R.string.wireless_adb_preview_entry), false, this::showWirelessDiscoveryPreview), 12);
     add(action(s(R.string.ui_setup_help), false, () -> {
       Sheet help = new Sheet(s(R.string.ui_connect_your_card));
       help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
@@ -1195,6 +1197,68 @@ public final class MainActivity extends Activity {
     });
     recovery.button(s(R.string.ui_cancel), false, recovery.dialog::dismiss);recovery.show();
   }
+  /** Preview only: discover local TLS ports without pairing or touching adbd. */
+  private void showWirelessDiscoveryPreview() {
+    if (Build.VERSION.SDK_INT < 30 || !LabSupport.socketEligible()) return;
+    Sheet sheet = new Sheet(s(R.string.wireless_adb_preview_title));
+    sheet.copy(s(R.string.wireless_adb_preview_help));
+    final TextView pairing = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
+    final TextView connecting = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
+    sheet.body.addView(pairing, margin(14));
+    sheet.body.addView(connecting, margin(6));
+    sheet.copy(s(R.string.wireless_adb_preview_not_auth));
+    final java.util.ArrayList<OnDeviceAdbDiscovery> searches = new java.util.ArrayList<>();
+    OnDeviceAdbDiscovery.Observer observer = new OnDeviceAdbDiscovery.Observer() {
+      @Override public void found(OnDeviceAdbDiscovery.Endpoint e) {
+        handler.post(() -> {
+          if (!sheet.dialog.isShowing() || destroyed) return;
+          TextView label = e.purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting;
+          label.setText(s(e.purpose == OnDeviceAdbDiscovery.Purpose.PAIRING
+              ? R.string.wireless_adb_preview_pair : R.string.wireless_adb_preview_connect, e.port));
+        });
+      }
+      @Override public void lost(OnDeviceAdbDiscovery.Purpose purpose) {
+        handler.post(() -> {
+          if (sheet.dialog.isShowing() && !destroyed)
+            (purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting)
+                .setText(s(R.string.wireless_adb_preview_lost));
+        });
+      }
+      @Override public void failed(OnDeviceAdbDiscovery.Purpose purpose) {
+        handler.post(() -> {
+          if (sheet.dialog.isShowing() && !destroyed)
+            (purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting)
+                .setText(s(R.string.wireless_adb_preview_error));
+        });
+      }
+    };
+    sheet.button(s(R.string.wireless_adb_preview_scan), true, () -> {
+      for (OnDeviceAdbDiscovery search : searches) search.close();
+      searches.clear();
+      pairing.setText(s(R.string.wireless_adb_preview_searching));
+      connecting.setText(s(R.string.wireless_adb_preview_searching));
+      for (OnDeviceAdbDiscovery.Purpose purpose : OnDeviceAdbDiscovery.Purpose.values()) {
+        OnDeviceAdbDiscovery discovery = new OnDeviceAdbDiscovery(this, purpose, observer);
+        searches.add(discovery);
+        discovery.start();
+      }
+    });
+    sheet.button(s(R.string.wireless_adb_preview_settings), false, () -> {
+      sheet.dialog.dismiss();
+      Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+      try { startActivity(intent); }
+      catch (android.content.ActivityNotFoundException unavailable) {
+        status(s(R.string.ui_check_unavailable), s(R.string.wireless_adb_preview_error));
+      }
+    });
+    sheet.button(s(R.string.ui_done), false, sheet.dialog::dismiss);
+    sheet.dialog.setOnDismissListener(ignored -> {
+      for (OnDeviceAdbDiscovery search : searches) search.close();
+      searches.clear();
+    });
+    sheet.show();
+  }
+
   private String capabilitySummary() {
     StringBuilder result = new StringBuilder();
     String[][] fields = {{"profileVersion", s(R.string.ui_profile_spec)}, {"gsmaVersion", s(R.string.ui_gsma_spec)},
