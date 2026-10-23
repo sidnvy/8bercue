@@ -1,0 +1,103 @@
+name: Android CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-regressions:
+    name: Offline regression suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Java and Python offline tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android-app/tools/run_bootstrap_tests.sh
+          bash android-app/tools/run_ui_tests.sh
+          bash android-app/tools/run_compatibility_tests.sh
+          bash android-app/tools/run_recovery_tests.sh
+          python3 android-app/tools/test_localization.py
+          python3 android-app/tools/test_reconcile_identity.py
+          python3 android-app/tools/test_feedback_privacy_contract.py
+      - name: Verify tracked ARM64 native payload
+        run: python3 android-app/tools/verify_native_release.py --require-page-size 16384
+
+  native-source-build:
+    name: Native ARM64 source rebuild
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Select preinstalled SDK Manager (do not request removed legacy tools package)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          manager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$manager"
+          echo "SDKMANAGER=$manager" >> "$GITHUB_ENV"
+      - name: Install pinned native toolchain
+        run: |
+          "$SDKMANAGER" --install "ndk;27.3.13750724"
+      - name: Rebuild bundled native sources and check ELF payloads
+        run: bash android-app/tools/build_android_lpac.sh
+
+  android-build:
+    name: Unsigned Android build and lint
+    needs: offline-regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Select preinstalled SDK Manager (do not request removed legacy tools package)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          manager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$manager"
+          echo "SDKMANAGER=$manager" >> "$GITHUB_ENV"
+      - name: Install verified Android SDK components
+        run: |
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0"
+      - name: Build unsigned APK and run lint
+        run: |
+          set -euo pipefail
+          bash android-app/gradlew -p android-app :app:assembleRelease :app:lintRelease --console=plain --no-daemon
+          python3 android-app/tools/verify_artifact.py \
+            android-app/app/build/outputs/apk/release/app-release-unsigned.apk \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" --allow-unsigned
+      - name: Keep main-branch engineering APK (never a production release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-engineering-apk-not-for-distribution
+          path: android-app/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 7
