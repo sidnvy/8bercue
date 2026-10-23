@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * peer pairing, or user secret storage are performed by this component.
  */
 public final class OnDeviceAdbDiscovery implements AutoCloseable {
-    public static final String PAIRING_TYPE = "_adb-tls-pairing._tcp.";
-    public static final String CONNECT_TYPE = "_adb-tls-connect._tcp.";
+    public static final String PAIRING_TYPE = "_adb-tls-pairing._tcp";
+    public static final String CONNECT_TYPE = "_adb-tls-connect._tcp";
 
     public enum Purpose { PAIRING, CONNECTION }
 
@@ -96,7 +96,9 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
 
     public static boolean matchesServiceType(String type, Purpose purpose) {
         if (type == null || purpose == null) return false;
-        String normalized = type.endsWith(".") ? type : type + ".";
+        // Android's discoverServices API expects an unqualified service type;
+        // resolver callbacks may return that type with a trailing DNS dot.
+        String normalized = type.endsWith(".") ? type.substring(0, type.length() - 1) : type;
         return (purpose == Purpose.PAIRING ? PAIRING_TYPE : CONNECT_TYPE).equalsIgnoreCase(normalized);
     }
 
