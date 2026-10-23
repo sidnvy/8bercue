@@ -477,4 +477,13 @@
     <string name="ui_feedback_40">Inspect the ZIP before sharing it with support.</string>
     <string name="ui_feedback_41">Export failed</string>
     <string name="ui_feedback_42">Could not write the selected document.</string>
+    <string name="recovery_review_button">Review the unknown operation</string>
+    <string name="recovery_review_title">Accept the current card state?</string>
+    <string name="recovery_review_warning">The previous enable, disable or rename result cannot be proven. Check the visible eSIM list first. This will NOT repeat the previous operation. If verification succeeds, an audit record will preserve its unknown outcome and allow new actions from the current card state. Do not continue if the card is unexpected.</string>
+    <string name="recovery_review_changed">The current card profile inventory differs from the snapshot before that operation. Review each profile and enabled state before confirming.</string>
+    <string name="recovery_review_unchanged">The current profile inventory matches the snapshot before that operation. This still does not prove whether the operation was attempted.</string>
+    <string name="recovery_review_confirm">I checked the card; accept its current state</string>
+    <string name="recovery_review_failed">Recovery was not authorized or the card, worker or safety record could not be verified. Changes remain blocked. Keep app data and export diagnostics if this persists.</string>
+    <string name="recovery_review_completed">The previous result remains unknown, but its original evidence and your review are preserved. Future actions will use the newly verified card state.</string>
+    <string name="recovery_review_checking">Verifying the card and safety records</string>
 </resources>

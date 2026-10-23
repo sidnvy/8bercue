@@ -19,5 +19,8 @@ interface IProfileService {
     String executeNotificationCleanup(String opaqueToken) = 15;
     String prepareCardSelection() = 16;
     String selectCard(String opaqueChoice) = 17;
+    // Explicit, single-use read-only review of an uncertain lifecycle operation.
+    String prepareRecoveryReview() = 18;
+    String confirmRecoveryReview(String opaqueToken) = 19;
     void destroy() = 16777114;
 }

@@ -25,7 +25,7 @@ public final class MainActivity extends Activity {
   private TextView connectionCountdown;
   private String connectionFeedback = "";
   private boolean restoreDetailAfterRead;
-  private boolean recoveryReconnectNeeded,recoveryBootstrap;
+  private boolean recoveryReconnectNeeded,recoveryBootstrap,recoveryReviewEligible;
   private final java.util.ArrayList<String> recentResults = new java.util.ArrayList<>();
   private static final int QR = 40, IMAGE = 41, DIAGNOSTIC_EXPORT = 42;
   private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
@@ -456,6 +456,9 @@ public final class MainActivity extends Activity {
         render();return;
       }
       recoveryReconnectNeeded="SAFETY_PAUSED".equals(r.optString("recoveryState"));
+      recoveryReviewEligible=r.optString("operation","").matches("enable|disable|rename|switch")
+          &&r.optString("originalOutcome","").matches("running|unknown|observed_unknown")
+          &&r.optBoolean("requiresReconciliation",false);
       String priorNotificationMessage = UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       notificationStatus = r.optString("notificationStatus", "");
       if ("none".equals(notificationStatus)) notificationStatus = "";
@@ -463,10 +466,15 @@ public final class MainActivity extends Activity {
       notificationCleanupAvailable = r.optBoolean("notificationCleanupAvailable", false);
       String phase = r.optString("status", r.optString("stage", "unknown"));
       boolean recoveryBlocked = RecoveryUiPolicy.blocks(true, r.optBoolean("requiresReconciliation", true), r.optBoolean("reviewRequired", true), phase);
-      if (recoveryBlocked) getPreferences(0).edit().putBoolean("pending", true).commit();
-      if (recoveryBlocked || getPreferences(0).getBoolean("pending", false))
-        notice = s(R.string.ui_recovery_check) + safeState(phase)
-            + s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
+      if(recoveryBlocked){
+        getPreferences(0).edit().putBoolean("pending",true).commit();
+        notice=s(R.string.ui_recovery_check)+safeState(phase)
+            +s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
+      }else{
+        // A verified non-pending durable journal state ends a stale local pending flag.
+        // This does not enable writes without the independent read-only inventory gate.
+        getPreferences(0).edit().remove("pending").commit();
+      }
       if (r.optBoolean("notificationReviewRequired", false))
         notice += (notice.isEmpty() ? "" : "\n") + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       refresh();
@@ -491,6 +499,47 @@ public final class MainActivity extends Activity {
       if (!review)
         getPreferences(0).edit().remove("pending").commit();
       refresh();
+    });
+  }
+  /**
+   * Separate from read-only verification: a one-use, explicit consent to accept
+   * the currently observed inventory without claiming the previous write succeeded.
+   */
+  private void reviewUnknownLifecycle() {
+    final IProfileService service=backend;
+    if(service==null||OPERATIONS.running())return;
+    final long reviewNavigation=navigationSession;
+    run(s(R.string.recovery_review_checking),false,
+        ()->new JSONObject(service.prepareRecoveryReview()),proposal->{
+      if(backend!=service||navigationSession!=reviewNavigation)return;
+      if(!proposal.optBoolean("ok",false)){
+        notice=s(R.string.recovery_review_failed);render();return;
+      }
+      String token=proposal.optString("token","");
+      if(!OperationTokens.isValid(token)){
+        notice=s(R.string.recovery_review_failed);render();return;
+      }
+      Sheet review=new Sheet(s(R.string.recovery_review_title));
+      review.copy(s(R.string.recovery_review_warning));
+      review.copy(proposal.optBoolean("inventoryChanged",true)
+          ?s(R.string.recovery_review_changed):s(R.string.recovery_review_unchanged));
+      review.button(s(R.string.recovery_review_confirm),true,()->{
+        review.dialog.dismiss();
+        if(backend!=service||navigationSession!=reviewNavigation)return;
+        run(s(R.string.recovery_review_checking),false,
+            ()->new JSONObject(service.confirmRecoveryReview(token)),result->{
+          if(!result.optBoolean("ok",false)||!"reviewed_observed".equals(result.optString("status"))){
+            getPreferences(0).edit().putBoolean("pending",true).commit();
+            notice=s(R.string.recovery_review_failed);render();return;
+          }
+          recoveryReviewEligible=false;
+          getPreferences(0).edit().remove("pending").commit();
+          notice=s(R.string.recovery_review_completed);
+          checkRecovery();
+        });
+      });
+      review.button(s(R.string.ui_cancel),false,review.dialog::dismiss);
+      review.show();
     });
   }
   private String recoveryFailure(String code){
@@ -818,7 +867,7 @@ public final class MainActivity extends Activity {
   }
   private void detailFact(String label,String value){LinearLayout row=new LinearLayout(this);row.setPadding(0,dp(14),0,dp(14));row.addView(text(label,13,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));TextView v=text(mask(value),13,TEXT,false);v.setGravity(Gravity.END);row.addView(v,new LinearLayout.LayoutParams(0,-2,2));add(row,0);addDivider();}
   private void renameScreen(){if(detailProfile==null)return;add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),18);add(text(profileName(detailProfile)+" · "+selectedIccid),22);EditText name=input(s(R.string.ui_nickname),false);name.setText(detailProfile.optString("nickname",""));add(name,22);add(text(s(R.string.ui_leave_blank_to_use_the_operator_name),12,MUTED,false),10);add(action(s(R.string.ui_save),true,()->{if(!detailCurrent())return;String value=name.getText().toString().trim();if(value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>64||value.matches("(?s).*[\\p{Cntrl}].*")){name.setError(s(R.string.ui_use_at_most_64_utf_8_bytes_without_control_characters));return;}hideKeyboard();prepare("rename",selectedProfile,value);}),28);add(action(s(R.string.ui_cancel),false,()->{screen=3;navigationSession++;render();}),8);}
-  private void recordsScreen(){add(text(s(R.string.ui_operation_results),22,TEXT,false),24);add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);for(String value:recentResults)add(text(value,16,TEXT,false),18);if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);add(action(s(R.string.ui_verify_card_and_recovery),false,this::reconcile),24);add(action(s(R.string.ui_export_safe_diagnostics),false,this::exportDiagnostics),12);}
+  private void recordsScreen(){add(text(s(R.string.ui_operation_results),22,TEXT,false),24);add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);for(String value:recentResults)add(text(value,16,TEXT,false),18);if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);add(action(s(R.string.ui_verify_card_and_recovery),false,this::reconcile),24);if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);add(action(s(R.string.ui_export_safe_diagnostics),false,this::exportDiagnostics),12); }
   private void connectionScreen(){
     add(text(s(R.string.ui_connect_with_adb),28,TEXT,false),28);
     add(text(s(R.string.ui_one_command_no_extra_script_shizuku_or_root)),12);
@@ -1117,10 +1166,13 @@ public final class MainActivity extends Activity {
       if (notificationCleanupAvailable) add(action(s(R.string.ui_review_notification_cleanup), false, this::prepareNotificationCleanup), 12);
     }
     if (getPreferences(0).getBoolean("pending", false)) add(action(s(R.string.ui_verify_card_and_recovery), true, this::reconcile), 24);
+    if(recoveryReviewEligible&&getPreferences(0).getBoolean("pending",false))
+      add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
     add(action(s(R.string.ui_recovery_advanced), false, () -> {
       Sheet advanced = new Sheet(s(R.string.ui_recovery_advanced_285));
       advanced.copy(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a));
       advanced.button(s(R.string.ui_verify_card_and_recovery), false, () -> { advanced.dialog.dismiss();reconcile(); });
+      if(recoveryReviewEligible)advanced.button(s(R.string.recovery_review_button),false,()->{advanced.dialog.dismiss();reviewUnknownLifecycle();});
       if (LabSupport.socketEligible()) advanced.button(s(R.string.ui_recover_local_companion), false, () -> { advanced.dialog.dismiss();recoverFallback(); });
       advanced.button(s(R.string.ui_export_safe_diagnostics), false, this::exportDiagnostics);
       advanced.copy(s(R.string.ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a));

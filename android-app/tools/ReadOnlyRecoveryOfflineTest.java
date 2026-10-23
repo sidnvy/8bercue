@@ -57,6 +57,83 @@ public final class ReadOnlyRecoveryOfflineTest {
   CardTransactionLock.acquire(file,true);check(journal.requiresReconciliation(),"unknown transaction remains blocked during read");CardTransactionLock.release();
   check(Arrays.equals(before,Files.readAllBytes(dir.resolve("journal/operation.properties"))),"observation preserves original transaction bytes");
   denied(()->journal.begin(new OperationJournal.Binding("delete",hash,hash,hash,hash)),"read cannot authorize new delete");
+  // A confirmed card read is NEVER sufficient to unlock a previous unknown enable.
+  String tx=journal.read().getProperty("txId"),digest=OperationJournal.recordDigest(journal.read());
+  String alternate="b".repeat(64),authorization="c".repeat(64);
+  denied(()->journal.reviewObservedLifecycle(tx,alternate,hash,digest,authorization),"different card cannot be reviewed");
+  denied(()->journal.reviewObservedLifecycle(tx,hash,hash,alternate,authorization),"stale record digest refused");
+  denied(()->journal.reviewObservedLifecycle(tx,hash,hash,digest,"bad"),"missing explicit consent refused");
+  denied(()->QuarantineReview.archive(file.toPath(),hash,digest,hash,authorization,hash),"no lock cannot archive quarantine");
+  check(journal.requiresReconciliation(),"refused reviews keep write block");
+  journal.reviewObservedLifecycle(tx,hash,hash,digest,authorization);
+  check("reviewed_observed".equals(journal.statusAfterReadOnlyReconciliation()),"review is durable before marker archival");
+  check(hash.equals(journal.reviewedLifecycleSnapshot()),"snapshot bound to immutable review receipt");
+  denied(()->CardTransactionLock.acquire(file),"worker quarantine still blocks writes after durable review");
+  // Simulate a crash between disposition fsync and quarantine retirement:
+  // a restarted caller can finish the marker archival without touching the unknown journal.
+  CardTransactionLock.acquire(file,true);
+  check(CardTransactionLock.ownedByCurrentThread(),"review holds the original kernel lock");
+  check(QuarantineReview.archive(file.toPath(),hash,digest,hash,authorization,hash),"explicit review archives marker under lock");
+  CardTransactionLock.release();
+  check(!Files.exists(marker),"active quarantine path cleared only after archival");
+  File[] archives=dir.toFile().listFiles((d,n)->n.startsWith("card-transaction.lock.quarantine.reviewed."));
+  check(archives!=null&&archives.length==1&&Arrays.equals(original,Files.readAllBytes(archives[0].toPath())),"quarantine evidence bytes preserved");
+  check(Files.list(dir.resolve("reviewed-quarantines")).count()==1,"durable authorization receipt retained");
+  check(Arrays.equals(before,Files.readAllBytes(dir.resolve("journal/operation.properties"))),"original uncertain transaction unchanged after review and archival");
+  check(!journal.requiresReconciliation(),"explicit review resolves only that lifecycle block");
+  check("reviewed_observed".equals(journal.statusAfterReadOnlyReconciliation()),"outcome represented as reviewed, not verified");
+  check("unknown".equals(journal.read().getProperty("status")),"original unknown outcome never rewritten");
+  check(Arrays.equals(before,Files.readAllBytes(dir.resolve("journal/operation.properties"))),"original journal bytes retained after review");
+  denied(()->journal.reviewObservedLifecycle(tx,hash,hash,digest,authorization),"review receipt immutable and not replayable");
+  // New writes must still acquire normal exclusion and write a NEW journal.
+  CardTransactionLock.acquire(file);
+  try{journal.begin(new OperationJournal.Binding("disable",hash,hash,hash,hash));journal.finish("verified");}
+  finally{CardTransactionLock.release();}
+  check("verified".equals(journal.read().getProperty("status")),"subsequent independent operation starts normally");
+  // Issue #14 reproduction: no quarantine marker exists but unknown enable history
+  // alone deadlocks further writes, even though the kernel card lock is free.
+  Path noMarker=dir.resolve("no-marker");
+  Files.createDirectories(noMarker);
+  OperationJournal noMarkerJournal=new OperationJournal(noMarker.resolve("journal").toFile());
+  noMarkerJournal.begin(new OperationJournal.Binding("enable",hash,hash,hash,hash));
+  noMarkerJournal.finish("unknown");
+  File cleanLock=noMarker.resolve("card-transaction.lock").toFile();
+  CardTransactionLock.acquire(cleanLock);
+  CardTransactionLock.release();
+  check(!Files.exists(noMarker.resolve("card-transaction.lock.quarantine")),"issue 14 has no marker");
+  denied(()->noMarkerJournal.begin(new OperationJournal.Binding("enable",hash,hash,hash,hash)),
+      "unknown journal alone blocks writes even without marker");
+  String ntx=noMarkerJournal.read().getProperty("txId");
+  String ndig=OperationJournal.recordDigest(noMarkerJournal.read());
+  denied(()->noMarkerJournal.reviewObservedLifecycle(ntx,alternate,hash,ndig,authorization),
+      "issue 14 still requires same card and cannot use another identity");
+  // RecoveryProcessGuard rejects a stray native card worker in this marker-free case.
+  denied(()->RecoveryProcessGuard.quiescent(Arrays.asList(worker(44,2000,1,"lpac",
+      "/data/local/tmp/fiveber-lpac-lab/lpac","","")) ,99),
+      "no marker does not excuse a running native worker");
+  RecoveryProcessGuard.quiescent(Collections.emptyList(),99);
+  CardTransactionLock.acquire(cleanLock,true);
+  try{
+    noMarkerJournal.reviewObservedLifecycle(ntx,hash,hash,ndig,authorization);
+  }finally{CardTransactionLock.release();}
+  check(!noMarkerJournal.requiresReconciliation(),"issue 14 explicit reviewed history restores write authorization");
+  check("unknown".equals(noMarkerJournal.read().getProperty("status")),
+      "issue 14 recovery does not rewrite the unknown result");
+  check(hash.equals(noMarkerJournal.reviewedLifecycleSnapshot()),"reviewed inventory is durably bound");
+  // Uncertain remote downloads and irreversible deletion cannot use this lifecycle shortcut.
+  OperationJournal download=new OperationJournal(dir.resolve("download").toFile());
+  download.begin(new OperationJournal.Binding("download",hash,hash,hash,hash));download.finish("unknown");
+  String dt=download.read().getProperty("txId");
+  denied(()->download.reviewObservedLifecycle(dt,hash,hash,OperationJournal.recordDigest(download.read()),authorization),"download cannot be accepted as lifecycle");
+  OperationJournal deletion=new OperationJournal(dir.resolve("deletion").toFile());
+  deletion.begin(new OperationJournal.Binding("delete",hash,hash,hash,hash));deletion.finish("unknown");
+  String dtx=deletion.read().getProperty("txId");
+  denied(()->deletion.reviewObservedLifecycle(dtx,hash,hash,OperationJournal.recordDigest(deletion.read()),authorization),"delete cannot be accepted as lifecycle");
+  byte[] valid=Files.readAllBytes(dir.resolve("journal/resolutions").resolve(tx+".properties"));
+  Files.writeString(dir.resolve("journal/resolutions").resolve(tx+".properties"),"not an authenticated receipt");
+  denied(()->journal.requiresReconciliation(),"tampered receipt fails closed");
+  Files.write(dir.resolve("journal/resolutions").resolve(tx+".properties"),valid);
+  check(!journal.requiresReconciliation(),"valid saved review restores status");
   System.out.println("PASS "+checks+" read-only recovery, worker identity, process exclusion and unknown-outcome assertions");
  }
 }
