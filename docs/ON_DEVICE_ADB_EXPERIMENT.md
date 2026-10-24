@@ -73,3 +73,7 @@ Real BoringSSL native SPAKE2/AES-GCM agreement now passes a bounded synthetic-da
 - Digit actions use explicit immutable `PendingIntent.getService` targeting the app's **non-exported foreground service**. The code is accumulated only in a private six-character in-memory buffer; the notification displays only masked progress, and submit/cancel/service destruction clears the buffer. It is never logged or persisted.
 - `OnDeviceAdbCodeBufferOfflineTest` covers valid length, removal, incomplete-entry rejection, masking, and clearing. Release/Lab compilation and the unmodified Release verifier passed locally.
 - **Actual notification keypad press-and-submit on Pixel 10 remains to be verified** after unlocking the phone and reopening the pairing screen; no user secret was read, submitted, or recorded for this change. App update itself completed successfully; a direct external shell attempt to start the non-exported service was correctly denied and was not bypassed.
+
+## Physical pairing acceptance update after user-entered code
+
+On Pixel 10, Android's paired devices UI listed `8bercue@android`; the app still had no persisted `pairedGuid`. Investigation found and corrected an AOSP PeerInfo type mismatch (client public key type `0`, server GUID type `1`). New offline negative tests and Release/Lab compile pass, but this build has not yet been verified on-device. It is not evidence of completed STLS/Binder or clean-install eUICC acceptance. See `docs/ADB_TLS_PAIRING_SECURITY_REVIEW.md`.

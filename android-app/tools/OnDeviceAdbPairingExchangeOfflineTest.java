@@ -14,7 +14,11 @@ public final class OnDeviceAdbPairingExchangeOfflineTest {
     static final class FakeCrypto implements OnDeviceAdbPairingExchange.Crypto {
         boolean closed;
         boolean wrongPeer;
+        boolean incorrectPeerType;
         FakeCrypto(boolean reject) {wrongPeer = reject;}
+        FakeCrypto(boolean reject, boolean incorrectType) {
+            wrongPeer=reject;incorrectPeerType=incorrectType;
+        }
         public byte[] firstMessage() {return new byte[32];}
         public boolean acceptPeerMessage(byte[] peer) {return !wrongPeer && peer.length == 32;}
         public byte[] seal(byte[] plaintext) {
@@ -24,6 +28,9 @@ public final class OnDeviceAdbPairingExchangeOfflineTest {
         }
         public byte[] open(byte[] ciphertext) {
             byte[] peer=Arrays.copyOf(ciphertext,ciphertext.length-16);
+            peer[0]=(byte)(incorrectPeerType
+                ? OnDeviceAdbPairingExchange.CLIENT_PUBLIC_KEY_TYPE
+                : OnDeviceAdbPairingExchange.SERVER_DEVICE_GUID_TYPE);
             peer[1]='l';peer[2]='a';peer[3]='b';peer[4]=0;
             return peer;
         }
@@ -67,6 +74,16 @@ public final class OnDeviceAdbPairingExchangeOfflineTest {
                 return success;
             });
         verify("lab".equals(guid),"AEAD-authenticated device GUID");
+        verify(OnDeviceAdbPairingExchange.CLIENT_PUBLIC_KEY_TYPE==0,
+                "AOSP outgoing RSA public key must be type 0");
+        verify(OnDeviceAdbPairingExchange.SERVER_DEVICE_GUID_TYPE==1,
+                "AOSP incoming Android device GUID must be type 1");
+        try {
+            OnDeviceAdbPairingExchange.exchange(new ByteArrayInputStream(input),new ByteArrayOutputStream(),
+                    "123456".toCharArray(),new byte[64],new byte[]{'x',0},
+                    pwd -> new FakeCrypto(false,true));
+            throw new AssertionError("Client RSA public-key type incorrectly accepted as remote device GUID");
+        } catch(IOException expected) {assertions++;}
         verify(success.closed,"crypto closes on success");
         verify(passwordWasScrubbed[0],"factory received bounded password");
         verify(written.size() == 6+32+6+8208,"both pairing messages emitted");

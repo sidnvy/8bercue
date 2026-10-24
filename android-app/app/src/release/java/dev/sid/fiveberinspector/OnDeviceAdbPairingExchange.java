@@ -20,7 +20,9 @@ final class OnDeviceAdbPairingExchange {
     static final int SPAKE2_MESSAGE_LENGTH = 32;
     static final int PEER_INFO_LENGTH = OnDeviceAdbPairingFrame.MAX_PEER_INFO_BYTES;
     static final int PEER_INFO_CIPHERTEXT_LENGTH = PEER_INFO_LENGTH + 16; // AES-GCM tag
-    static final int CLIENT_PEER_TYPE = 0; // ADB RSA public key
+    // AOSP PeerInfoType: client ADB_RSA_PUB_KEY=0; server ADB_DEVICE_GUID=1.
+    static final int CLIENT_PUBLIC_KEY_TYPE = 0;
+    static final int SERVER_DEVICE_GUID_TYPE = 1;
 
     interface Crypto extends AutoCloseable {
         byte[] firstMessage() throws GeneralSecurityException;
@@ -60,6 +62,7 @@ final class OnDeviceAdbPairingExchange {
                 || adbPublicKey[adbPublicKey.length - 1] != 0)
             throw new IOException("Invalid ADB public identity");
         byte[] data = new byte[PEER_INFO_LENGTH];
+        data[0] = (byte) CLIENT_PUBLIC_KEY_TYPE;
         System.arraycopy(adbPublicKey, 0, data, 1, adbPublicKey.length);
         // Must contain a NUL-terminated ADB public key, never a private key.
         return data;
@@ -116,7 +119,7 @@ final class OnDeviceAdbPairingExchange {
                 byte[] remote = session.open(received.payload);
                 try {
                     if (remote == null || remote.length != PEER_INFO_LENGTH
-                            || (remote[0] & 0xff) != CLIENT_PEER_TYPE)
+                            || (remote[0] & 0xff) != SERVER_DEVICE_GUID_TYPE)
                         throw new IOException("ADB pairing peer identity invalid");
                     int end=1;
                     while(end<remote.length && remote[end]!=0)end++;
