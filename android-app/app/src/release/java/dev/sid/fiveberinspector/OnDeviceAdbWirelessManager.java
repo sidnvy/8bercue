@@ -7,7 +7,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
-import java.security.cert.Certificate;
 import javax.net.ssl.SSLSocket;
 
 /** Wireless TLS pairing and restricted authenticated management bootstrap. */
@@ -48,12 +47,10 @@ final class OnDeviceAdbWirelessManager {
                 .getString("pairedGuid","").isEmpty())
             throw new IOException("Wireless ADB pairing has not completed in this app");
         OnDeviceAdbIdentity identity;
-        try {identity=OnDeviceAdbIdentity.getOrCreate(context);}
+        try {identity=OnDeviceAdbIdentity.getExisting(context);}
         catch(Exception failure){throw new GeneralSecurityException("Wireless debugging identity unavailable",failure);}
-        OnDeviceAdbTlsContext tlsContext=OnDeviceAdbTlsContext.create(identity);
+        OnDeviceAdbTlsContext tlsContext=OnDeviceAdbTlsContext.createManagement(identity);
         android.content.SharedPreferences pairPrefs=context.getSharedPreferences("wireless_adb_identity",Context.MODE_PRIVATE);
-        String trustedFingerprint=pairPrefs.getString("serverFingerprint","");
-        final java.util.concurrent.atomic.AtomicReference<String> seenFingerprint=new java.util.concurrent.atomic.AtomicReference<>();
         try(Socket plain=new Socket()) {
             plain.connect(new InetSocketAddress(local,endpoint.port),5000);
             plain.setSoTimeout(18000);
@@ -64,23 +61,27 @@ final class OnDeviceAdbWirelessManager {
                 SSLSocket tls=tlsContext.openOver(plain,local,endpoint.port);
                 try {
                     tls.startHandshake();
-                    Certificate[] certs=tls.getSession().getPeerCertificates();
+                    OnDeviceAdbConnectionPolicy.verify(tls.getSession().getProtocol(),
+                            tls.getSession().getPeerCertificates(),
+                            tls.getSession().getLocalCertificates(),identity.publicKey);
+                    android.util.Log.i("EightberAdbTls", "tls13_client_identity_presented");
+                    if (pairPrefs.contains("serverFingerprint")) {
+                        byte[] digest=java.security.MessageDigest.getInstance("SHA-256")
+                                .digest(tls.getSession().getPeerCertificates()[0].getEncoded());
+                        try {
+                            String current=android.util.Base64.encodeToString(digest,android.util.Base64.NO_WRAP);
+                            android.util.Log.i("EightberAdbTls", "legacy_der_changed="
+                                    + !current.equals(pairPrefs.getString("serverFingerprint","")));
+                        } finally {java.util.Arrays.fill(digest,(byte)0);}
+                    }
                     tls.setSoTimeout(35000); // Connect's bounded 25-second Binder startup.
-                    if(certs.length!=1 || !(certs[0] instanceof java.security.cert.X509Certificate))
-                        throw new IOException("Wireless debugging peer certificate invalid");
-                    byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(certs[0].getEncoded());
-                    String encoded=android.util.Base64.encodeToString(digest,android.util.Base64.NO_WRAP);
-                    java.util.Arrays.fill(digest,(byte)0);
-                    if(!trustedFingerprint.isEmpty() && !trustedFingerprint.equals(encoded))
-                        throw new IOException("Wireless debugging peer certificate changed; pair again explicitly");
-                    seenFingerprint.set(encoded);
                     return new OnDeviceAdbRestrictedClient.AuthenticatedStream() {
                         @Override public java.io.InputStream input() throws IOException {return tls.getInputStream();}
                         @Override public java.io.OutputStream output() throws IOException {return tls.getOutputStream();}
-                        // The endpoint is proven local, the TLS client identity is
-                        // the paired app-owned key, and the server must accept it.
-                        @Override public boolean verifiedPairedIdentity() {
-                            return seenFingerprint.get()!=null;
+                        // Presentation is not acceptance. The restricted client must
+                        // read valid post-TLS CNXN before opening Connect.
+                        @Override public boolean clientIdentityPresented() {
+                            return true;
                         }
                         @Override public void close() throws IOException {tls.close();}
                     };
@@ -98,10 +99,11 @@ final class OnDeviceAdbWirelessManager {
         }
         if(CompanionBinderProvider.management()==null)
             throw new IOException("Command returned without authenticated management Binder");
-        // Only pin the on-device TLS server certificate AFTER the signed Connect
-        // command completes the app's authenticated Binder challenge.
-        if(trustedFingerprint.isEmpty() && seenFingerprint.get()!=null
-                && !pairPrefs.edit().putString("serverFingerprint",seenFingerprint.get()).commit())
-            throw new IOException("Wireless debugging peer pin not persisted");
+        android.util.Log.i("EightberAdbTls", "authenticated_management_binder_ready");
+        // Legacy DER pins are not AOSP identities. Migrate only after the normal
+        // authenticated Binder handoff; retain the paired GUID and Keystore key.
+        if(pairPrefs.contains("serverFingerprint")
+                && !pairPrefs.edit().remove("serverFingerprint").commit())
+            throw new IOException("Legacy wireless debugging pin migration failed");
     }
 }

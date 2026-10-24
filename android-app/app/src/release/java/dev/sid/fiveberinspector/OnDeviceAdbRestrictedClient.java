@@ -8,8 +8,8 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Fixed-entrypoint ADB transport state machine. Does not implement TLS crypto.
- * It must be supplied a mutually authenticated STLS upgrader bound to the
- * app's previously paired certificate. No classic RSA fallback, no arbitrary
+ * It must be supplied a TLS 1.3 STLS upgrader presenting the
+ * app's previously paired client certificate. No classic RSA fallback, no arbitrary
  * shell services, no ADB daemon lifecycle control, no profile write operations.
  */
 final class OnDeviceAdbRestrictedClient {
@@ -21,13 +21,13 @@ final class OnDeviceAdbRestrictedClient {
     interface AuthenticatedStream extends AutoCloseable {
         InputStream input() throws IOException;
         OutputStream output() throws IOException;
-        /** Must validate the previously paired host certificate, not trust all. */
-        boolean verifiedPairedIdentity();
+        /** Confirms TLS 1.3 presented the stored client key; does NOT claim server authorization. */
+        boolean clientIdentityPresented();
         @Override void close() throws IOException;
     }
 
     interface TlsUpgrade {
-        /** TLS handshake and peer-identity validation run on this SAME wire. */
+        /** TLS handshake and client-identity checks run on this SAME wire. */
         AuthenticatedStream upgrade() throws IOException;
     }
 
@@ -57,6 +57,7 @@ final class OnDeviceAdbRestrictedClient {
             // Android 11+ TLS-only path. An A_AUTH reply indicates classic RSA;
             // rejecting it prevents accidental downgrade.
             if (start.command != OnDeviceAdbWirePacket.A_STLS
+                    || start.arg1 != 0
                     || start.arg0 != OnDeviceAdbWirePacket.A_STLS_VERSION
                     || start.payload.length != 0)
                 throw new IOException("ADB TLS required; insecure/unsupported handshake rejected");
@@ -65,14 +66,19 @@ final class OnDeviceAdbRestrictedClient {
                 OnDeviceAdbWirePacket.A_STLS_VERSION,0,EMPTY);
 
         try (AuthenticatedStream tls = upgrade.upgrade()) {
-            if (!tls.verifiedPairedIdentity())
-                throw new IOException("ADB paired device certificate not verified");
+            if (!tls.clientIdentityPresented())
+                throw new IOException("ADB paired client identity not presented");
             InputStream in=tls.input();OutputStream out=tls.output();
             int negotiatedVersion;
             // The first post-TLS CNXN can use checksum=0 if the server supports
-            // Android ADB v1.1. The peer is already mutually TLS-authenticated.
+            // Android ADB v1.1. The server must speak first: TLS 1.3 may reject the client
+            // certificate only on this read, after startHandshake() returned.
             try (OnDeviceAdbWirePacket connected = OnDeviceAdbWirePacket.read(in, true)) {
                 if (connected.command != OnDeviceAdbWirePacket.A_CNXN
+                        || connected.payload.length < 9
+                        || connected.payload[connected.payload.length-1] != 0
+                        || !new String(connected.payload,0,8,StandardCharsets.US_ASCII).equals("device::")
+                        || connected.arg1 < 4096 || connected.arg1 > 1024 * 1024
                         || connected.arg0 < OnDeviceAdbWirePacket.A_VERSION_MIN
                         || connected.arg0 > OnDeviceAdbWirePacket.A_VERSION)
                     throw new IOException("TLS ADB connection not established");

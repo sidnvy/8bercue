@@ -12,7 +12,7 @@ public final class OnDeviceAdbRestrictedClientOfflineTest {
         FakeTls(byte[] bytes){input=new ByteArrayInputStream(bytes);}
         public InputStream input(){return input;}
         public OutputStream output(){return output;}
-        public boolean verifiedPairedIdentity(){return verified;}
+        public boolean clientIdentityPresented(){return verified;}
         public void close(){closed=true;}
     }
     static byte[] concat(byte[]... parts){
@@ -26,13 +26,14 @@ public final class OnDeviceAdbRestrictedClientOfflineTest {
         OnDeviceAdbWirePacket.write(out,cmd,arg0,arg1,bytes);return out.toByteArray();
     }
     static final byte[] ZERO=new byte[0];
+    static final byte[] DEVICE="device::\u0000".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     static final String APK="/data/app/~~abc_123/dev.sid.fiveberinspector-XyZ/base.apk";
     static byte[] greeting() throws IOException {
         return frame(OnDeviceAdbWirePacket.A_STLS,OnDeviceAdbWirePacket.A_STLS_VERSION,0,ZERO);
     }
     static byte[] goodTls() throws IOException {
         return concat(
-          frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,ZERO),
+          frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,DEVICE),
           frame(OnDeviceAdbWirePacket.A_OKAY,2,1,ZERO),
           frame(OnDeviceAdbWirePacket.A_WRTE,2,1,new byte[]{1,2}),
           frame(OnDeviceAdbWirePacket.A_CLSE,2,1,ZERO));
@@ -67,9 +68,25 @@ public final class OnDeviceAdbRestrictedClientOfflineTest {
         FakeTls unauth=new FakeTls(goodTls());unauth.verified=false;fails(greeting(),unauth);
         ok(unauth.closed,"TLS closed after untrusted paired identity");
         fails(greeting(),new FakeTls(frame(OnDeviceAdbWirePacket.A_AUTH,1,0,ZERO)));
+        fails(greeting(),new FakeTls(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,DEVICE)));
+        fails(greeting(),new FakeTls(concat(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,DEVICE),frame(OnDeviceAdbWirePacket.A_OKAY,2,9,ZERO))));
+        fails(greeting(),new FakeTls(concat(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,DEVICE),frame(OnDeviceAdbWirePacket.A_OKAY,2,1,ZERO),frame(OnDeviceAdbWirePacket.A_CLSE,3,1,ZERO))));
+        for (byte[] rejected : new byte[][]{ZERO,
+                frame(OnDeviceAdbWirePacket.A_AUTH,1,0,ZERO),
+                frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,0,ZERO),
+                frame(OnDeviceAdbWirePacket.A_CNXN,0,4096,ZERO)}) {
+            FakeTls denied=new FakeTls(rejected);
+            fails(greeting(),denied);
+            ok(denied.output.size()==0,"No OPEN before valid post-handshake CNXN");
+        }
         fails(greeting(),new FakeTls(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,ZERO)));
-        fails(greeting(),new FakeTls(concat(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,ZERO),frame(OnDeviceAdbWirePacket.A_OKAY,2,9,ZERO))));
-        fails(greeting(),new FakeTls(concat(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,ZERO),frame(OnDeviceAdbWirePacket.A_OKAY,2,1,ZERO),frame(OnDeviceAdbWirePacket.A_CLSE,3,1,ZERO))));
+        fails(greeting(),new FakeTls(frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,"host::\u0000".getBytes(java.nio.charset.StandardCharsets.US_ASCII))));
+        fails(frame(OnDeviceAdbWirePacket.A_STLS,OnDeviceAdbWirePacket.A_STLS_VERSION,1,ZERO),new FakeTls(goodTls()));
+        try {
+            OnDeviceAdbRestrictedClient.run(new ByteArrayInputStream(greeting()),new ByteArrayOutputStream(),
+                ()->{throw new javax.net.ssl.SSLHandshakeException("client rejected");},APK);
+            throw new AssertionError("TLS rejection accepted");
+        } catch(javax.net.ssl.SSLHandshakeException expected){checks++;}
         System.out.println("PASS "+checks+" restricted ADB STLS protocol-state assertions (mock TLS only)");
     }
 }

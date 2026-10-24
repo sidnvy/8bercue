@@ -2,8 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export STAGE_ADB_PAIRING_LAB=1
-bash tools/run_adb_crypto_contract.sh
+bash tools/build_adb_crypto_source.sh
 ./gradlew -p . :app:assembleLab --console=plain
+python3 tools/verify_lab_artifact.py app/build/outputs/apk/lab/app-lab.apk --sdk "$ANDROID_HOME" \
+  --output app/build/lab-artifact-inventory.json
 python3 - <<'PYLAB'
 from pathlib import Path
 from zipfile import ZipFile

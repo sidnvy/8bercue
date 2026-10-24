@@ -47,6 +47,8 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile boolean discoveryStarted;
     private volatile String discoveredService;
+    private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.ConcurrentMap<String,Long> resolutions = new java.util.concurrent.ConcurrentHashMap<>();
     private final NsdManager.DiscoveryListener listener = new NsdManager.DiscoveryListener() {
         @Override public void onDiscoveryStarted(String type) {
             android.util.Log.i("EightberAdbNsd", "started type=" + type);
@@ -59,12 +61,15 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
             android.util.Log.i("EightberAdbNsd", "found type=" + info.getServiceType());
             // Resolve only matching ADB DNS-SD services; never scan port ranges.
             if (!matchesServiceType(info.getServiceType(), purpose)) return;
+            final Long ticket = generation.incrementAndGet();
+            resolutions.put(info.getServiceName(),ticket);
             try {
                 manager.resolveService(info, new NsdManager.ResolveListener() {
                     @Override public void onResolveFailed(NsdServiceInfo service, int code) { }
                     @Override public void onServiceResolved(NsdServiceInfo service) {
                         android.util.Log.i("EightberAdbNsd", "resolved type=" + service.getServiceType());
-                        if (!running.get() || !matchesServiceType(service.getServiceType(), purpose)) return;
+                        if (!running.get() || !matchesServiceType(service.getServiceType(), purpose)
+                                || !ticket.equals(resolutions.get(service.getServiceName()))) return;
                         InetAddress host = service.getHost();
                         int port = service.getPort();
                         android.util.Log.i("EightberAdbNsd", "resolved local=" +
@@ -80,6 +85,7 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
             }
         }
         @Override public void onServiceLost(NsdServiceInfo info) {
+            resolutions.remove(info.getServiceName());
             if (running.get() && Objects.equals(discoveredService, info.getServiceName())) {
                 discoveredService = null;
                 observer.lost(purpose);
@@ -148,6 +154,7 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
     @Override public void close() {
         if (!running.getAndSet(false)) return;
         discoveredService = null;
+        resolutions.clear();
         stopRegisteredDiscovery();
     }
 }

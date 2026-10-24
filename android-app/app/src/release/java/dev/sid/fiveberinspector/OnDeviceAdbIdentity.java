@@ -39,10 +39,19 @@ final class OnDeviceAdbIdentity {
     }
 
     static OnDeviceAdbIdentity getOrCreate(Context context) throws Exception {
+        return load(true);
+    }
+
+    static OnDeviceAdbIdentity getExisting(Context context) throws Exception {
+        return load(false);
+    }
+
+    private static OnDeviceAdbIdentity load(boolean mayCreate) throws Exception {
         // Keystore keys are scoped to the app UID, not accessible from the Shell.
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
         store.load(null);
         if (!store.containsAlias(KEY_ALIAS)) {
+            if (!mayCreate) throw new IOException("Paired ADB key missing; explicit pairing required");
             KeyPairGenerator generator = KeyPairGenerator.getInstance(
                     KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore");
             Calendar years = Calendar.getInstance();

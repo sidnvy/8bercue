@@ -23,6 +23,14 @@ final class OnDeviceAdbTlsContext {
     private OnDeviceAdbTlsContext(SSLContext context) {tls=context;}
 
     static OnDeviceAdbTlsContext create(OnDeviceAdbIdentity id) throws GeneralSecurityException {
+        return create(id,false);
+    }
+
+    static OnDeviceAdbTlsContext createManagement(OnDeviceAdbIdentity id) throws GeneralSecurityException {
+        return create(id,true);
+    }
+
+    private static OnDeviceAdbTlsContext create(OnDeviceAdbIdentity id,boolean management) throws GeneralSecurityException {
         if (Build.VERSION.SDK_INT < 31) throw new GeneralSecurityException("Public TLS exporter unavailable");
         X509ExtendedKeyManager km = new X509ExtendedKeyManager() {
             @Override public String chooseClientAlias(String[] types,Principal[] issuers,Socket socket) {
@@ -54,19 +62,22 @@ final class OnDeviceAdbTlsContext {
         // Pairing protocol is authenticated *after* TLS using password-authenticated
         // SPAKE2 plus TLS exporter. Do not interpret this pairing-only provisional
         // trust manager as verification of the remote cert identity.
-        X509TrustManager pairingProvisionalTrust = new X509TrustManager() {
+        X509TrustManager purposeBoundTrust = new X509TrustManager() {
             @Override public void checkClientTrusted(X509Certificate[] chain,String authType) throws CertificateException {
                 throw new CertificateException("Client certificate validation not applicable");
             }
             @Override public void checkServerTrusted(X509Certificate[] chain,String authType) throws CertificateException {
                 if(chain==null||chain.length!=1||chain[0]==null)
                     throw new CertificateException("Unusable pairing server certificate");
-                // The certificate is provisionally accepted; binding is via SPAKE2.
+                if (management) OnDeviceAdbConnectionPolicy.checkServerCertificate(chain);
+                // Pairing: SPAKE2/exporter binds the provisional TLS stream.
+                // Management: local endpoint + client-key presentation + post-TLS
+                // CNXN + Shell Binder challenge. No durable server pin exists.
             }
             @Override public X509Certificate[] getAcceptedIssuers(){return new X509Certificate[0];}
         };
         SSLContext context=SSLContext.getInstance("TLSv1.3");
-        context.init(new KeyManager[]{km},new TrustManager[]{pairingProvisionalTrust},new java.security.SecureRandom());
+        context.init(new KeyManager[]{km},new TrustManager[]{purposeBoundTrust},new java.security.SecureRandom());
         return new OnDeviceAdbTlsContext(context);
     }
 

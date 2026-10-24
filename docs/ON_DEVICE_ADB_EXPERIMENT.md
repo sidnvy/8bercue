@@ -1,5 +1,7 @@
 # On-device ADB — next milestone / Draft PR #17
 
+> Current 2026-10-24 reconnect evidence: [TLS recovery acceptance](PIXEL10_TLS_RECONNECT_ACCEPTANCE_20261024.md), [trust review](ADB_TLS_RECONNECTION_SECURITY.md), and [native delivery assessment](ADB_NATIVE_DELIVERY.md). Historical checkpoints below retain their original status; final production delivery is still blocked.
+
 Baseline: upstream `main` merged at `91564e7`. This document tracks experimental code, **not an approved release**.
 
 ## Acceptance layers (do not conflate)

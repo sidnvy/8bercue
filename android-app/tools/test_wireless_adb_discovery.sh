@@ -15,6 +15,8 @@ trap 'rm -rf "$out"' EXIT
     tools/OnDeviceAdbPairingExchangeOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingTransport.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbTlsContext.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbConnectionPolicy.java \
+    tools/OnDeviceAdbConnectionPolicyOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbIdentity.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbNativeCrypto.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbWirePacket.java \
@@ -36,6 +38,16 @@ trap 'rm -rf "$out"' EXIT
     dev.sid.fiveberinspector.OnDeviceAdbRestrictedClientOfflineTest
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
     dev.sid.fiveberinspector.OnDeviceAdbPublicKeyOfflineTest
+# Generate synthetic keys only in an automatically erased temporary directory.
+for name in server restarted client; do
+    openssl req -x509 -newkey rsa:2048 -nodes -keyout "$out/$name.key" \
+        -out "$out/$name.pem" -subj /CN=Adb -days 1 >/dev/null 2>&1
+done
+openssl req -x509 -key "$out/server.key" -out "$out/renewed.pem" \
+    -subj /CN=Adb -set_serial 2 -days 1 >/dev/null 2>&1
+"$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
+    dev.sid.fiveberinspector.OnDeviceAdbConnectionPolicyOfflineTest \
+    "$out/server.pem" "$out/renewed.pem" "$out/restarted.pem" "$out/client.pem"
 python3 - <<'PY'
 from pathlib import Path
 source=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java').read_text()
@@ -68,9 +80,24 @@ assert 'InputFilter.LengthFilter(6)' in numberActivity
 assert 'getWindow().setSoftInputMode' in numberActivity
 assert "Arrays.fill(code," in pairingService
 restricted=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java').read_text()
-for required in ('verifiedPairedIdentity()', 'ADB TLS required', 'fixedEntrypoint(', 'A_STLS', 'MAX_PACKETS'):
+for required in ('clientIdentityPresented()', 'ADB TLS required', 'fixedEntrypoint(', 'A_STLS', 'MAX_PACKETS'):
     assert required in restricted, f'Missing TLS-only restricted session contract: {required}'
 for forbidden in ('Runtime.getRuntime().exec', 'ProcessBuilder(', 'adb tcpip', 'setprop '):
     assert forbidden not in restricted, f'Forbidden generic ADB execution: {forbidden}'
+wireless=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbWirelessManager.java').read_text()
+assert 'OnDeviceAdbIdentity.getExisting(context)' in wireless
+assert 'trustedFingerprint' not in wireless and 'seenFingerprint' not in wireless
+assert 'peer certificate changed; pair again' not in wireless
+assert wireless.index('Command returned without authenticated management Binder') < wireless.index('pairPrefs.edit().remove("serverFingerprint")')
+assert '.putString("serverFingerprint"' not in wireless
+identity=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbIdentity.java').read_text()
+assert 'if (!mayCreate) throw new IOException' in identity
 print('PASS on-device DNS-SD lifecycle, TLS-only state, and no-adbd-mutation source guards')
 PY
+
+# Run the real NSD implementation with controlled asynchronous callbacks.
+"$JAVAC" -d "$out/nsd" tools/discovery-stubs/android/content/Context.java \
+    tools/discovery-stubs/android/util/Log.java tools/discovery-stubs/android/net/nsd/*.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java \
+    tools/OnDeviceAdbDiscoveryLifecycleTest.java
+"$JAVA" -cp "$out/nsd" dev.sid.fiveberinspector.OnDeviceAdbDiscoveryLifecycleTest
