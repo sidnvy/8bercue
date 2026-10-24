@@ -26,7 +26,7 @@ import javax.security.auth.x500.X500Principal;
  * old Android wireless debugging pairing no longer authenticates.
  */
 final class OnDeviceAdbIdentity {
-    private static final String KEY_ALIAS = "dev.sid.fiveberinspector.adb_tls_v1";
+    private static final String KEY_ALIAS = "dev.sid.fiveberinspector.adb_tls_v3";
     final PrivateKey privateKey;
     final X509Certificate certificate;
     final RSAPublicKey publicKey;
@@ -48,12 +48,16 @@ final class OnDeviceAdbIdentity {
             Calendar years = Calendar.getInstance();
             years.add(Calendar.YEAR, 10);
             KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(KEY_ALIAS,
-                    KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY)
+                    KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY
+                    | KeyProperties.PURPOSE_DECRYPT)
                     .setKeySize(2048)
-                    .setDigests(KeyProperties.DIGEST_SHA256,KeyProperties.DIGEST_SHA384,
-                            KeyProperties.DIGEST_SHA512)
+                    .setDigests(KeyProperties.DIGEST_NONE,KeyProperties.DIGEST_SHA256,
+                            KeyProperties.DIGEST_SHA384,KeyProperties.DIGEST_SHA512)
                     .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1,
                             KeyProperties.SIGNATURE_PADDING_RSA_PSS)
+                    // Android Conscrypt's platform TLS RSA signing delegate can
+                    // use raw private-key RSA via Cipher, not Signature.
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                     .setCertificateSubject(new X500Principal("CN=8bercue Local ADB"))
                     .setCertificateSerialNumber(BigInteger.valueOf(1))
                     .setCertificateNotBefore(new Date(0))

@@ -16,6 +16,8 @@ public final class OnDeviceAdbDiscoveryOfflineTest {
         ok(OnDeviceAdbDiscovery.matchesServiceType("_adb-tls-pairing._tcp", p), "pairing no dot");
         ok(OnDeviceAdbDiscovery.matchesServiceType("_ADB-TLS-PAIRING._TCP.", p), "DNS-SD case insensitive");
         ok(OnDeviceAdbDiscovery.matchesServiceType("_adb-tls-connect._tcp.", c), "connect exact");
+        ok(OnDeviceAdbDiscovery.matchesServiceType("._adb-tls-connect._tcp", c), "Pixel Android 17 resolved leading dot");
+        ok(OnDeviceAdbDiscovery.matchesServiceType("._adb-tls-pairing._tcp", p), "Pixel Android 17 pairing leading dot");
         ok(!OnDeviceAdbDiscovery.matchesServiceType("_adb-tls-connect._tcp.", p), "never mix paired/connect");
         ok(!OnDeviceAdbDiscovery.matchesServiceType("_adb-tls-pairing._tcp.", c), "never connect to pairing port");
         ok(!OnDeviceAdbDiscovery.matchesServiceType("_adb-tls-connect._tcp.evil.example", c), "no suffix ambiguity");

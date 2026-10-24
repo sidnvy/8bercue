@@ -49,21 +49,26 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
     private volatile String discoveredService;
     private final NsdManager.DiscoveryListener listener = new NsdManager.DiscoveryListener() {
         @Override public void onDiscoveryStarted(String type) {
+            android.util.Log.i("EightberAdbNsd", "started type=" + type);
             discoveryStarted = true;
             // A sheet can be closed before this asynchronous callback arrives.
             if (!running.get()) stopRegisteredDiscovery();
         }
         @Override public void onServiceFound(NsdServiceInfo info) {
             if (!running.get()) return;
+            android.util.Log.i("EightberAdbNsd", "found type=" + info.getServiceType());
             // Resolve only matching ADB DNS-SD services; never scan port ranges.
             if (!matchesServiceType(info.getServiceType(), purpose)) return;
             try {
                 manager.resolveService(info, new NsdManager.ResolveListener() {
                     @Override public void onResolveFailed(NsdServiceInfo service, int code) { }
                     @Override public void onServiceResolved(NsdServiceInfo service) {
+                        android.util.Log.i("EightberAdbNsd", "resolved type=" + service.getServiceType());
                         if (!running.get() || !matchesServiceType(service.getServiceType(), purpose)) return;
                         InetAddress host = service.getHost();
                         int port = service.getPort();
+                        android.util.Log.i("EightberAdbNsd", "resolved local=" +
+                                (host != null && isOwnAddress(host)) + " validPort=" + (port > 0 && port <= 65535));
                         if (port <= 0 || port > 65535 || host == null || !isOwnAddress(host)) return;
                         discoveredService = service.getServiceName();
                         observer.found(new Endpoint(purpose, host.getHostAddress(), port));
@@ -82,6 +87,7 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
         }
         @Override public void onDiscoveryStopped(String type) { discoveryStarted = false; }
         @Override public void onStartDiscoveryFailed(String type, int code) {
+            android.util.Log.w("EightberAdbNsd", "discovery failed=" + code);
             discoveryStarted = false;
             if (running.get()) observer.failed(purpose);
         }
@@ -99,6 +105,9 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
         // Android's discoverServices API expects an unqualified service type;
         // resolver callbacks may return that type with a trailing DNS dot.
         String normalized = type.endsWith(".") ? type.substring(0, type.length() - 1) : type;
+        // Pixel Android 17 NSD resolveService() can prefix its service type
+        // with a literal dot, even though discovery uses an unprefixed name.
+        if (normalized.startsWith(".")) normalized = normalized.substring(1);
         return (purpose == Purpose.PAIRING ? PAIRING_TYPE : CONNECT_TYPE).equalsIgnoreCase(normalized);
     }
 

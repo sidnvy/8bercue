@@ -50,3 +50,12 @@ Known remaining dependencies: app-owned RSA/certificate persistence, Android Con
 - Public Android `android.net.ssl.SSLEngines.exportKeyingMaterial` (API 31+) is a promising exporter for a platform-TLS `SSLEngine` implementation with no separately bundled Conscrypt native library. However, the TLS engine wrapping, Android Keystore client authentication, certificate trust policy and validated pairing→STLS transition are still unimplemented. Until then the app explicitly remains preview-only. Android 11/API 30 would need a separately reviewed compatible exporter route.
 
 **Do not declare this milestone paired or mergeable.** The real JNI crypto proof authenticates *synthetic peer messages*, not Android Wireless Debugging's actual pairing server. Also preserve the existing release verifier's prohibition against the old `com/tananaev/adblib` and unreviewed native payloads.
+
+
+## Real Android 17 platform finding, 2026-10-24
+
+A Pixel 10 Pro XL (Android API 37) app-UID TLS 1.3 loopback test failed initially with `AndroidKeyStore` `INCOMPATIBLE_PADDING_MODE`, then `INCOMPATIBLE_DIGEST`. Platform Conscrypt uses private RSA via `Cipher(RSA/ECB/NoPadding)` for certain TLS private-key operations. The dedicated ADB TLS identity has to allow `PURPOSE_DECRYPT`, `ENCRYPTION_PADDING_NONE`, and `DIGEST_NONE`, besides SHA256/384/512 and standard RSA signature paddings. The new versioned v3 identity passed a **real, synthetic loopback Keystore TLS + exporter** check. No existing ADB computer identity or Android paired-device record was removed or rotated.
+
+Real ADB pairing is intentionally gated on a user-visible six-digit system code; native SPAKE2 has only been proven against synthetic local clients, and app Binder with classic ADB has been proven separately. **These separate successes cannot substitute for the combined TLS onboarding test.**
+
+Production `verify_release_surface.py` now returns PASS after removal of the old broad adblib class set; the forbidden markers were left intact. The Release artifact still omits native SPAKE2 by design. Before shipping a real TLS-paired release, audit and pin native library inclusion, pass 16 KiB page tests, verify license notices, and run signed upgrades and a real Pixel10 paired-session test. The current provisional pairing-only trust manager must never be treated as a trusted remote TLS server certificate before SPAKE2 + bound TLS exporter succeed.

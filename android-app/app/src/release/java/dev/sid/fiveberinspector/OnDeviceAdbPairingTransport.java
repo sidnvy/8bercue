@@ -33,9 +33,17 @@ final class OnDeviceAdbPairingTransport {
         byte[] export(SSLSocket socket) throws GeneralSecurityException;
     }
 
+    /** Real Android API 31+ pairing implementation; peer is verified via SPAKE2. */
+    static String pair(OnDeviceAdbDiscovery.Endpoint endpoint, char[] code,
+                     OnDeviceAdbIdentity identity) throws IOException, GeneralSecurityException {
+        OnDeviceAdbTlsContext tls = OnDeviceAdbTlsContext.create(identity);
+        return pair(endpoint, code, identity.pairingPublicKey(), tls::open,
+                OnDeviceAdbTlsContext::export, OnDeviceAdbNativeCrypto::create);
+    }
+
     private OnDeviceAdbPairingTransport() {}
 
-    static void pair(OnDeviceAdbDiscovery.Endpoint endpoint, char[] code, byte[] publicKey,
+    static String pair(OnDeviceAdbDiscovery.Endpoint endpoint, char[] code, byte[] publicKey,
                      TlsSocketFactory sockets, Exporter exporter,
                      OnDeviceAdbPairingExchange.CryptoFactory crypto)
             throws IOException, GeneralSecurityException {
@@ -72,7 +80,7 @@ final class OnDeviceAdbPairingTransport {
             exported = exporter.export(socket);
             if (exported == null || exported.length != OnDeviceAdbPairingExchange.TLS_EXPORTER_LENGTH)
                 throw new SSLException("Invalid ADB pairing TLS exporter");
-            OnDeviceAdbPairingExchange.exchange(socket.getInputStream(),socket.getOutputStream(),
+            return OnDeviceAdbPairingExchange.exchange(socket.getInputStream(),socket.getOutputStream(),
                     code,exported,publicKey,crypto);
         } finally {
             if (exported != null) Arrays.fill(exported,(byte) 0);

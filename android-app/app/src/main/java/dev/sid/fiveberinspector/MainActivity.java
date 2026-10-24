@@ -1083,7 +1083,9 @@ public final class MainActivity extends Activity {
       });
     }), 12);
     if (LabSupport.socketEligible() && Build.VERSION.SDK_INT >= 30)
-      add(action(s(R.string.wireless_adb_preview_entry), false, this::showWirelessDiscoveryPreview), 12);
+      add(action(s(OnDeviceAdbNativeCrypto.available()
+              ? R.string.wireless_adb_live_entry : R.string.wireless_adb_preview_entry),
+              false, this::showWirelessDiscoveryPreview), 12);
     add(action(s(R.string.ui_setup_help), false, () -> {
       Sheet help = new Sheet(s(R.string.ui_connect_your_card));
       help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
@@ -1197,11 +1199,32 @@ public final class MainActivity extends Activity {
     });
     recovery.button(s(R.string.ui_cancel), false, recovery.dialog::dismiss);recovery.show();
   }
+  private void launchUserApprovedPairingFlow() {
+    try {
+      startForegroundService(OnDeviceAdbPairingService.startIntent(this));
+      startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+    } catch (Exception unavailable) {
+      status(s(R.string.ui_check_unavailable), "Wireless ADB foreground pairing could not start");
+    }
+  }
+
+  @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants) {
+    super.onRequestPermissionsResult(requestCode,permissions,grants);
+    if(requestCode==7312) {
+      if(grants.length>0 && grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)
+        launchUserApprovedPairingFlow();
+      else status(s(R.string.ui_check_unavailable),
+              "Enable notifications for 8bercue to enter the system pairing code without leaving Settings");
+    }
+  }
+
   /** Preview only: discover local TLS ports without pairing or touching adbd. */
   private void showWirelessDiscoveryPreview() {
     if (Build.VERSION.SDK_INT < 30 || !LabSupport.socketEligible()) return;
-    Sheet sheet = new Sheet(s(R.string.wireless_adb_preview_title));
-    sheet.copy(s(R.string.wireless_adb_preview_help));
+    Sheet sheet = new Sheet(s(OnDeviceAdbNativeCrypto.available()
+            ? R.string.wireless_adb_live_title : R.string.wireless_adb_preview_title));
+    boolean realPairing=Build.VERSION.SDK_INT>=31 && OnDeviceAdbNativeCrypto.available();
+    sheet.copy(s(realPairing ? R.string.wireless_adb_live_help : R.string.wireless_adb_preview_help));
     final TextView pairing = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
     final TextView connecting = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
     sheet.body.addView(pairing, margin(14));
@@ -1232,6 +1255,45 @@ public final class MainActivity extends Activity {
         });
       }
     };
+    if (realPairing) {
+      sheet.button(s(R.string.wireless_adb_identity_prepare), false, () -> {
+        sheet.dialog.dismiss();
+        run(s(R.string.wireless_adb_identity_prepare), false, () -> {
+          OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
+          if(identity.pairingPublicKey().length < 600)
+            throw new java.security.GeneralSecurityException("Invalid ADB public-key format");
+          return new JSONObject().put("ready",true);
+        }, result -> status(s(R.string.wireless_adb_identity_ready),s(R.string.ui_no_changes_were_made)));
+      });
+      sheet.button("Verify local TLS 1.3 exporter", false, () -> {
+        sheet.dialog.dismiss();
+        run("Checking local TLS exporter", false, () -> {
+          try {
+            OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
+            return new JSONObject().put("ok",OnDeviceAdbTlsContext.syntheticTlsSelfTest(identity));
+          } catch (Exception problem) {
+            if (BuildConfig.DEBUG)
+              android.util.Log.w("EightberTlsSmoke","Synthetic TLS exporter failed",problem);
+            return new JSONObject().put("ok",false)
+                    .put("stage",problem.getClass().getSimpleName());
+          }
+        }, reply -> status(reply.optBoolean("ok")
+                ? "Keystore TLS exporter verified" : "TLS exporter unavailable",
+                reply.optBoolean("ok") ? "Synthetic loopback only; actual ADB pairing still required"
+                    : "Stage: " + reply.optString("stage","Unknown")));
+      });
+      sheet.button("Start wireless pairing (experimental)", true, () -> {
+        if (Build.VERSION.SDK_INT >= 33
+            && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+          sheet.dialog.dismiss();
+          requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 7312);
+          return;
+        }
+        sheet.dialog.dismiss();
+        launchUserApprovedPairingFlow();
+      });
+    }
     sheet.button(s(R.string.wireless_adb_preview_scan), true, () -> {
       for (OnDeviceAdbDiscovery search : searches) search.close();
       searches.clear();

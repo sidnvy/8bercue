@@ -44,3 +44,23 @@ Strict policy: no ADB toggle, adbd restart, port change, phone reboot, re-pair o
 ## Cryptographic implementation checkpoint
 
 Real BoringSSL native SPAKE2/AES-GCM agreement now passes a bounded synthetic-data execution on Pixel 10. A separate JNI wrapper also passed an on-device lifecycle smoke test. The source-only native bridge is not in the APK release payload. A non-exportable Android Keystore identity and ADB public-key encoder are staged, with Java encoding tests passing. Platform TLS exporter + user-controlled pairing-code input and genuine dynamic-port TLS pairing remain open and must not be claimed complete. See `docs/ADB_TLS_PAIRING_SECURITY_REVIEW.md`.
+
+
+## Pixel 10 Android 17 lab acceptance — 2026-10-24
+
+- A signed **lab-only** variant packages `lib8bercue_adb_pairing.so` compiled against SHA-256-pinned BoringSSL; normal unsigned **Release** includes no additional JNI payload. Both Gradle variants compile. Test device upgrades only preserve app data/signature; no eUICC changes.
+- **App-owned classic ADB → production Binder → physical removable eUICC read-only profile list PASS.** Pixel 10 App started `8bercue-management-v1` as Shell UID2000; the UI reported `Card connected · Read verified` for its removable eUICC on telephony slot 1 port 0; three profiles read (povo enabled, SMC and USIMSA disabled). This demonstrates Binder and card access, **not first-time TLS onboarding**.
+- **Actual Pixel Android 17 NSD dynamic-port discovery PASS.** Android `resolveService` returned `._adb-tls-connect._tcp` (unexpected leading dot). Discovery now accepts that exact form; lab UI found the connection port `46737` independently, matching Android Developer options, without scans or settings writes. See test regression.
+- **Android Keystore App UID identity PASS.** A dedicated app-private KeyStore RSA key is created/read in the running app. Its TLS 1.3 Conscrypt private-key operations required a KeyStore `PURPOSE_DECRYPT`, `ENCRYPTION_PADDING_NONE`, and `DIGEST_NONE` permission in addition to normal RSA signature authorizations. Identity test alias moved to v3; no existing workstation/ADB keys were rotated.
+- **TLS 1.3 exporter integration PASS on synthetic localhost connection on Pixel 10.** Real Android Keystore private key performs TLS handshake and the platform `SSLSockets.exportKeyingMaterial` returned matching 64-byte exporter material on two ends. This is a *local cryptographic interop*, not Android adbd TLS authentication.
+- Foreground `connectedDevice` pairing service starts successfully when the user requests it. Its notification permission was explicitly granted and system Developer Options opens. Android-generated **six-digit pairing code has not been entered yet**; no successful `_adb-tls-pairing` / `_adb-tls-connect` real-device STLS/Binder test can be claimed.
+- Production Release artifact gate, previously blocked on `com.tananaev.adblib`, now returns **PASS** after deleting the six legacy generic-client source files and replacing local recovery with authenticated TLS-only discovery; the forbidden classes list was **not modified**. The native pairing library is not in the Release APK yet, so this is a verified engineering release *surface*, **not a shippable complete feature**.
+- A `lab` build type (debug-signed, source-only native JNI staged in `app/build/labJniLibs`) separates experimental pairing UI from ordinary Release. Production UI remains discover-only until native linking, audited provenance and real user pairing succeed.
+
+### Remaining delivery gate
+
+1. Human on Pixel 10: Android Developer Options → Wireless debugging → **Pair device with pairing code**; enter the six-digit code in the 8bercue foreground notification. Never collect/store code in app logs, ADB logs or GitHub. This action is the only necessary human step; do not programmatically scrape it.
+2. Confirm the pairing service mDNS resolves dynamic pairing service, SPAKE2/TLS exporter authentically exchanges GUID, and the Android paired devices list contains 8bercue.
+3. Confirm actual TLS-authenticated connection to the separate dynamic CONNECT endpoint, constrained Connect command, Binder handshake, and read-only EID/Profile inventory. Validate timeout and correct user-visible failure messages.
+4. Pin and audit native build artifact and notices; include it in a new audited Release artifact contract without weakening the existing mandatory resource inventory, and perform signed-upgrade tests. Android 11/API30 requires additional TLS-exporter support; current verified platform implementation is API31+ only.
+5. CI green, review completed, and only then mark Draft PR #17 ready.

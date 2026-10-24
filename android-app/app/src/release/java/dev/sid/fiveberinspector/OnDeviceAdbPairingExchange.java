@@ -72,7 +72,7 @@ final class OnDeviceAdbPairingExchange {
      * certificate / identity policy belong to the TLS transport provider.
      * This method does not retain the pairing code or exporter.
      */
-    static void exchange(InputStream inbound, OutputStream outbound, char[] code,
+    static String exchange(InputStream inbound, OutputStream outbound, char[] code,
                          byte[] tlsExporter, byte[] adbPublicKey, CryptoFactory factory)
             throws IOException, GeneralSecurityException {
         Objects.requireNonNull(inbound);
@@ -118,6 +118,15 @@ final class OnDeviceAdbPairingExchange {
                     if (remote == null || remote.length != PEER_INFO_LENGTH
                             || (remote[0] & 0xff) != CLIENT_PEER_TYPE)
                         throw new IOException("ADB pairing peer identity invalid");
+                    int end=1;
+                    while(end<remote.length && remote[end]!=0)end++;
+                    if(end<=1 || end>256 || end==remote.length)
+                        throw new IOException("ADB pairing device identity invalid");
+                    for(int i=1;i<end;i++) {
+                        int c=remote[i]&0xff;
+                        if(c<33 || c>126) throw new IOException("Invalid ADB pairing device identity");
+                    }
+                    return new String(remote,1,end-1,java.nio.charset.StandardCharsets.US_ASCII);
                 } finally { if (remote != null) Arrays.fill(remote, (byte) 0); }
             }
         }

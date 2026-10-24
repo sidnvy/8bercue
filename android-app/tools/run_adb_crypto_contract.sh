@@ -40,5 +40,12 @@ for file in sys.argv[2:]:
   raise SystemExit('16 KiB ELF PT_LOAD alignment failed: '+file)
  print('PASS 16 KiB ELF alignment: '+file.split('/')[-1])
 PY
-# ART test requires an Android device, intentionally not run from CI.
-echo 'PASS ARM64 BoringSSL SPAKE2 test executable and JNI library compile (not bundled in APK)'
+# Optional explicit lab staging, never a Release source set or CI artifact.
+if [[ "${STAGE_ADB_PAIRING_LAB:-0}" == "1" ]]; then
+  mkdir -p app/build/labJniLibs/arm64-v8a
+  install -m 0644 "$work/build/lib8bercue_adb_pairing.so" \
+    app/build/labJniLibs/arm64-v8a/lib8bercue_adb_pairing.so
+  echo 'PASS pinned experimental JNI staged only in app/build/labJniLibs'
+fi
+# ART synthetic test requires an Android device, intentionally not run from CI.
+echo 'PASS ARM64 BoringSSL SPAKE2 test executable and JNI library compile'

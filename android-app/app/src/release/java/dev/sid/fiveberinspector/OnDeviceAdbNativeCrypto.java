@@ -4,12 +4,18 @@ import java.security.GeneralSecurityException;
 
 /** Native SPAKE2 + AES-GCM provider (pending APK native-library security gate). */
 final class OnDeviceAdbNativeCrypto implements OnDeviceAdbPairingExchange.Crypto {
-    static { System.loadLibrary("8bercue_adb_pairing"); }
+    private static final boolean AVAILABLE = loadNative();
+    private static boolean loadNative() {
+        try {System.loadLibrary("8bercue_adb_pairing");return true;}
+        catch(UnsatisfiedLinkError unavailable){return false;}
+    }
+    static boolean available(){return AVAILABLE;}
 
     private long handle;
     private OnDeviceAdbNativeCrypto(long handle) {this.handle = handle;}
 
     static OnDeviceAdbPairingExchange.Crypto create(byte[] password) throws GeneralSecurityException {
+        if (!AVAILABLE) throw new GeneralSecurityException("ADB pairing native provider unavailable");
         if (password == null || password.length != 70)
             throw new GeneralSecurityException("Invalid ADB pairing key material");
         long ptr = nativeCreate(password);

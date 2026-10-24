@@ -14,6 +14,9 @@ trap 'rm -rf "$out"' EXIT
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingExchange.java \
     tools/OnDeviceAdbPairingExchangeOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingTransport.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbTlsContext.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbIdentity.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbNativeCrypto.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbWirePacket.java \
     tools/OnDeviceAdbWirePacketOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java \

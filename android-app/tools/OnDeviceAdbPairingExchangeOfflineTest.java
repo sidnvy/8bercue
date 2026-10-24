@@ -22,7 +22,11 @@ public final class OnDeviceAdbPairingExchangeOfflineTest {
             System.arraycopy(plaintext, 0, out, 0, plaintext.length);
             return out;
         }
-        public byte[] open(byte[] ciphertext) {return Arrays.copyOf(ciphertext, ciphertext.length - 16);}
+        public byte[] open(byte[] ciphertext) {
+            byte[] peer=Arrays.copyOf(ciphertext,ciphertext.length-16);
+            peer[1]='l';peer[2]='a';peer[3]='b';peer[4]=0;
+            return peer;
+        }
         public void close() {closed = true;}
     }
     static byte[] packet(int type, int size) throws IOException {
@@ -57,11 +61,12 @@ public final class OnDeviceAdbPairingExchangeOfflineTest {
         FakeCrypto success = new FakeCrypto(false);
         ByteArrayOutputStream written = new ByteArrayOutputStream();
         final boolean[] passwordWasScrubbed = {false};
-        OnDeviceAdbPairingExchange.exchange(new ByteArrayInputStream(input),written,"123456".toCharArray(),
+        String guid=OnDeviceAdbPairingExchange.exchange(new ByteArrayInputStream(input),written,"123456".toCharArray(),
             new byte[64],new byte[]{'x',0},pwd -> {
                 passwordWasScrubbed[0] = pwd.length == 70;
                 return success;
             });
+        verify("lab".equals(guid),"AEAD-authenticated device GUID");
         verify(success.closed,"crypto closes on success");
         verify(passwordWasScrubbed[0],"factory received bounded password");
         verify(written.size() == 6+32+6+8208,"both pairing messages emitted");
