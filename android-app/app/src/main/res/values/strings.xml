@@ -477,6 +477,29 @@
     <string name="ui_feedback_40">Inspect the ZIP before sharing it with support.</string>
     <string name="ui_feedback_41">Export failed</string>
     <string name="ui_feedback_42">Could not write the selected document.</string>
+
+    <string name="wireless_adb_preview_entry">"Wireless ADB setup preview"</string>
+    <string name="wireless_adb_preview_title">"Wireless debugging · discovery preview"</string>
+    <string name="wireless_adb_preview_help">"Android 11+: Enable Developer options → Wireless debugging, then choose Pair device with pairing code. 8bercue discovers this phone&#x27;s pairing and connection ports automatically. Pairing and TLS login are not yet available in this experimental build."</string>
+    <string name="wireless_adb_preview_scan">"Discover this phone&#x27;s endpoints"</string>
+    <string name="wireless_adb_preview_searching">"Searching for the local service…"</string>
+    <string name="wireless_adb_preview_pair">"Pairing port: %1$d · detected on this device"</string>
+    <string name="wireless_adb_preview_connect">"Connection port: %1$d · detected on this device"</string>
+    <string name="wireless_adb_preview_lost">"Service disappeared. Reopen the system wireless debugging screen."</string>
+    <string name="wireless_adb_preview_error">"Discovery unavailable. Check that wireless debugging is enabled; no settings were changed."</string>
+    <string name="wireless_adb_preview_settings">"Open Developer options"</string>
+    <string name="wireless_adb_preview_not_auth">"Discovery does not authorize ADB; the secure pairing step is still required."</string>
+    <string name="wireless_adb_live_help">"Android 11+: Enable Developer options → Wireless debugging → Pair device with pairing code. Keep the Android pairing screen open and reply with the six-digit code from the 8bercue notification. No computer is required."</string>
+    <string name="wireless_adb_identity_prepare">"Prepare local ADB pairing identity"</string>
+    <string name="wireless_adb_identity_ready">"Local ADB identity ready"</string>
+    <string name="wireless_adb_identity_error">"Unable to prepare the local pairing identity. No debugging setting was changed."</string>
+    <string name="wireless_adb_live_title">"Wireless debugging · setup"</string>
+    <string name="wireless_adb_live_entry">"Set up wireless ADB"</string>
+    <string name="wireless_adb_live_connect">"Connect on this phone"</string>
+    <string name="wireless_adb_live_reconnecting">"Starting secure local connection"</string>
+    <string name="wireless_adb_live_unavailable">"Secure connection not ready; open Wireless ADB setup to verify pairing"</string>
+
+
     <string name="recovery_review_button">Review the unknown operation</string>
     <string name="recovery_review_title">Accept the current card state?</string>
     <string name="recovery_review_warning">The previous enable, disable or rename result cannot be proven. Check the visible eSIM list first. This will NOT repeat the previous operation. If verification succeeds, an audit record will preserve its unknown outcome and allow new actions from the current card state. Do not continue if the card is unexpected.</string>
@@ -486,4 +509,5 @@
     <string name="recovery_review_failed">Recovery was not authorized or the card, worker or safety record could not be verified. Changes remain blocked. Keep app data and export diagnostics if this persists.</string>
     <string name="recovery_review_completed">The previous result remains unknown, but its original evidence and your review are preserved. Future actions will use the newly verified card state.</string>
     <string name="recovery_review_checking">Verifying the card and safety records</string>
+
 </resources>

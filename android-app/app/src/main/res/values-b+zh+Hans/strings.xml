@@ -477,6 +477,28 @@
     <string name="ui_feedback_40">向支持团队分享前，请检查 ZIP 内容。</string>
     <string name="ui_feedback_41">导出失败</string>
     <string name="ui_feedback_42">无法写入所选文档。</string>
+
+    <string name="wireless_adb_preview_entry">"无线 ADB 设置预览"</string>
+    <string name="wireless_adb_preview_title">"无线调试 · 服务发现预览"</string>
+    <string name="wireless_adb_preview_help">"Android 11+：开启开发者选项 → 无线调试，然后选择“使用配对码配对设备”。8bercue 将自动发现本机的配对端口与连接端口。本实验版本暂未实现 TLS 配对与登录。"</string>
+    <string name="wireless_adb_preview_scan">"发现本机调试服务"</string>
+    <string name="wireless_adb_preview_searching">"正在发现本机服务…"</string>
+    <string name="wireless_adb_preview_pair">"配对端口：%1$d · 已确认为本机"</string>
+    <string name="wireless_adb_preview_connect">"连接端口：%1$d · 已确认为本机"</string>
+    <string name="wireless_adb_preview_lost">"服务已消失，请重新打开系统无线调试页面。"</string>
+    <string name="wireless_adb_preview_error">"无法发现服务，请确认无线调试已开启；未更改任何系统设置。"</string>
+    <string name="wireless_adb_preview_settings">"打开开发者选项"</string>
+    <string name="wireless_adb_preview_not_auth">"发现端口不代表 ADB 已授权，仍需完成安全配对。"</string>
+    <string name="wireless_adb_live_help">"Android 11+：开启开发者选项 → 无线调试 → 使用配对码配对设备。请保持 Android 配对码窗口打开，并在 8bercue 通知中输入六位代码，无需电脑。"</string>
+    <string name="wireless_adb_identity_prepare">"准备本机 ADB 配对身份"</string>
+    <string name="wireless_adb_identity_ready">"本机 ADB 身份已就绪"</string>
+    <string name="wireless_adb_identity_error">"无法创建本机配对身份；未修改任何调试设置。"</string>
+    <string name="wireless_adb_live_title">"无线调试 · 首次设置"</string>
+    <string name="wireless_adb_live_entry">"设置无线 ADB"</string>
+    <string name="wireless_adb_live_connect">"在本机连接"</string>
+    <string name="wireless_adb_live_reconnecting">"正在建立安全本机连接"</string>
+    <string name="wireless_adb_live_unavailable">"安全连接尚未就绪，请打开无线 ADB 设置核对配对状态"</string>
+
     <string name="recovery_review_button">审核上次未确认的操作</string>
     <string name="recovery_review_title">确认接受当前卡片状态？</string>
     <string name="recovery_review_warning">无法证明上次启用、停用或重命名是否成功。请先检查当前 eSIM 列表。此操作不会重试之前的写入；只有安全核验通过，才会保留原始未知结果和审核记录，并允许从当前卡片状态开始新操作。如果卡片或内容不符合预期，请勿继续。</string>
@@ -486,4 +508,7 @@
     <string name="recovery_review_failed">未能完成授权，或卡片、后台进程、安全记录核验失败。写操作继续禁止。请保留应用数据，必要时导出诊断。</string>
     <string name="recovery_review_completed">上次操作结果仍未知；原始证据和你的审核记录均已保留。后续操作将以新核验的卡片状态为起点。</string>
     <string name="recovery_review_checking">正在核验卡片及安全记录</string>
+
+
+
 </resources>

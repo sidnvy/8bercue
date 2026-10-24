@@ -816,6 +816,29 @@ public final class MainActivity extends Activity {
     else settings();
     updateStatusRegion();
   }
+  private boolean wirelessOnboardingAvailable() {
+    return Build.VERSION.SDK_INT >= 31 && LabSupport.socketEligible()
+        && OnDeviceAdbNativeCrypto.available();
+  }
+  private String primaryConnectionLabel() {
+    if (!wirelessOnboardingAvailable()) return s(R.string.ui_connect_using_computer);
+    return OnDeviceAdbWirelessManager.hasPaired(this)
+        ? s(R.string.wireless_adb_live_connect) : s(R.string.wireless_adb_live_entry);
+  }
+  private void primaryConnect() {
+    if (!wirelessOnboardingAvailable()) { beginDirectBootstrap();return; }
+    if (!OnDeviceAdbWirelessManager.hasPaired(this)) {showWirelessDiscoveryPreview();return;}
+    run(s(R.string.wireless_adb_live_reconnecting),false,()->{
+      LocalAdbBootstrap.Result attempt=LocalAdbBootstrap.start(this);
+      return new JSONObject().put("ready",attempt.ready)
+          .put("description",attempt.description);
+    },r->{
+      if(r.optBoolean("ready")) connectDirect();
+      else status(s(R.string.wireless_adb_live_unavailable),
+                  r.optString("description",s(R.string.wireless_adb_live_unavailable)));
+    });
+  }
+
   private void home() {
     if (!managementUnavailable().isEmpty()) {
       add(text(s(R.string.ui_installation_supported_management_unavailable),20,TEXT,true),24);
@@ -826,7 +849,7 @@ public final class MainActivity extends Activity {
     choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
     choice.setTextSize(18);choice.setTextColor(TEXT);
     choice.setBackgroundColor(Color.TRANSPARENT);
-    choice.setOnClickListener(v->{if(backend!=null)chooseCard();else beginDirectBootstrap();});
+    choice.setOnClickListener(v->{if(backend!=null)chooseCard();else primaryConnect();});
     taskControls.add(choice);card.addView(choice,new LinearLayout.LayoutParams(-1,-2));
     card.addView(text(s(R.string.ui_eid)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),margin(4));
     card.addView(text(inventory.has("profiles")?s(R.string.ui_card_connected_read_verified):s(R.string.ui_connect_to_check_this_card),12,MUTED,false),margin(14));
@@ -836,7 +859,7 @@ public final class MainActivity extends Activity {
     Button refresh=action(s(R.string.ui_refresh),false,this::refresh);refresh.setTextSize(13);refresh.setBackgroundColor(Color.TRANSPARENT);
     heading.addView(refresh,new LinearLayout.LayoutParams(dp(88),dp(48)));add(heading,22);
     JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_check_compatibility_in_settings)),16);add(action(backend==null?s(R.string.ui_connect_using_computer):s(R.string.ui_choose_card),true,backend==null?this::beginDirectBootstrap:this::chooseCard),20);return;}
+    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_check_compatibility_in_settings)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));
@@ -1139,6 +1162,10 @@ public final class MainActivity extends Activity {
         }
       });
     }), 12);
+    if (LabSupport.socketEligible() && Build.VERSION.SDK_INT >= 30)
+      add(action(s(OnDeviceAdbNativeCrypto.available()
+              ? R.string.wireless_adb_live_entry : R.string.wireless_adb_preview_entry),
+              false, this::showWirelessDiscoveryPreview), 12);
     add(action(s(R.string.ui_setup_help), false, () -> {
       Sheet help = new Sheet(s(R.string.ui_connect_your_card));
       help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
@@ -1247,11 +1274,136 @@ public final class MainActivity extends Activity {
     recovery.button(s(R.string.ui_continue), true, () -> {
       recovery.dialog.dismiss();run(s(R.string.ui_recovering_local_companion), false, () -> {
         LocalAdbBootstrap.Result r = LocalAdbBootstrap.start(getApplicationContext());
-        return new JSONObject().put("ready", r.ready).put("authorization", r.needsAuthorization);
-      }, r -> { if (r.optBoolean("ready")) probeFallback();else status(s(R.string.ui_recovery_not_complete), r.optBoolean("authorization") ? s(R.string.ui_approve_android_s_rsa_prompt_then_try_recovery_again) : s(R.string.ui_check_the_supported_adb_setup_and_reconnect)); });
+        return new JSONObject().put("ready", r.ready).put("authorization", r.needsAuthorization).put("description", r.description);
+      }, r -> { if (r.optBoolean("ready")) {
+        connectDirect();
+        if (backend == null) status(s(R.string.ui_recovery_not_complete), "Binder connected, but the app has not attached the management service yet.");
+      } else status(s(R.string.ui_recovery_not_complete), r.optString("description", s(R.string.ui_check_the_supported_adb_setup_and_reconnect))); });
     });
     recovery.button(s(R.string.ui_cancel), false, recovery.dialog::dismiss);recovery.show();
   }
+  private void launchUserApprovedPairingFlow() {
+    try {
+      startForegroundService(OnDeviceAdbPairingService.startIntent(this));
+      startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+    } catch (Exception unavailable) {
+      status(s(R.string.ui_check_unavailable), "Wireless ADB foreground pairing could not start");
+    }
+  }
+
+  @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants) {
+    super.onRequestPermissionsResult(requestCode,permissions,grants);
+    if(requestCode==7312) {
+      if(grants.length>0 && grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)
+        launchUserApprovedPairingFlow();
+      else status(s(R.string.ui_check_unavailable),
+              "Enable notifications for 8bercue to enter the system pairing code without leaving Settings");
+    }
+  }
+
+  /** Preview only: discover local TLS ports without pairing or touching adbd. */
+  private void showWirelessDiscoveryPreview() {
+    if (Build.VERSION.SDK_INT < 30 || !LabSupport.socketEligible()) return;
+    Sheet sheet = new Sheet(s(OnDeviceAdbNativeCrypto.available()
+            ? R.string.wireless_adb_live_title : R.string.wireless_adb_preview_title));
+    boolean realPairing=Build.VERSION.SDK_INT>=31 && OnDeviceAdbNativeCrypto.available();
+    sheet.copy(s(realPairing ? R.string.wireless_adb_live_help : R.string.wireless_adb_preview_help));
+    final TextView pairing = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
+    final TextView connecting = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
+    sheet.body.addView(pairing, margin(14));
+    sheet.body.addView(connecting, margin(6));
+    sheet.copy(s(R.string.wireless_adb_preview_not_auth));
+    final java.util.ArrayList<OnDeviceAdbDiscovery> searches = new java.util.ArrayList<>();
+    OnDeviceAdbDiscovery.Observer observer = new OnDeviceAdbDiscovery.Observer() {
+      @Override public void found(OnDeviceAdbDiscovery.Endpoint e) {
+        handler.post(() -> {
+          if (!sheet.dialog.isShowing() || destroyed) return;
+          TextView label = e.purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting;
+          label.setText(s(e.purpose == OnDeviceAdbDiscovery.Purpose.PAIRING
+              ? R.string.wireless_adb_preview_pair : R.string.wireless_adb_preview_connect, e.port));
+        });
+      }
+      @Override public void lost(OnDeviceAdbDiscovery.Purpose purpose) {
+        handler.post(() -> {
+          if (sheet.dialog.isShowing() && !destroyed)
+            (purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting)
+                .setText(s(R.string.wireless_adb_preview_lost));
+        });
+      }
+      @Override public void failed(OnDeviceAdbDiscovery.Purpose purpose) {
+        handler.post(() -> {
+          if (sheet.dialog.isShowing() && !destroyed)
+            (purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting)
+                .setText(s(R.string.wireless_adb_preview_error));
+        });
+      }
+    };
+    if (realPairing) {
+      sheet.button(s(R.string.wireless_adb_identity_prepare), false, () -> {
+        sheet.dialog.dismiss();
+        run(s(R.string.wireless_adb_identity_prepare), false, () -> {
+          OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
+          if(identity.pairingPublicKey().length < 600)
+            throw new java.security.GeneralSecurityException("Invalid ADB public-key format");
+          return new JSONObject().put("ready",true);
+        }, result -> status(s(R.string.wireless_adb_identity_ready),s(R.string.ui_no_changes_were_made)));
+      });
+      sheet.button("Verify local TLS 1.3 exporter", false, () -> {
+        sheet.dialog.dismiss();
+        run("Checking local TLS exporter", false, () -> {
+          try {
+            OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
+            return new JSONObject().put("ok",OnDeviceAdbTlsContext.syntheticTlsSelfTest(identity));
+          } catch (Exception problem) {
+            if (BuildConfig.DEBUG)
+              android.util.Log.w("EightberTlsSmoke","Synthetic TLS exporter failed",problem);
+            return new JSONObject().put("ok",false)
+                    .put("stage",problem.getClass().getSimpleName());
+          }
+        }, reply -> status(reply.optBoolean("ok")
+                ? "Keystore TLS exporter verified" : "TLS exporter unavailable",
+                reply.optBoolean("ok") ? "Synthetic loopback only; actual ADB pairing still required"
+                    : "Stage: " + reply.optString("stage","Unknown")));
+      });
+      sheet.button("Start wireless pairing (experimental)", true, () -> {
+        if (Build.VERSION.SDK_INT >= 33
+            && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+          sheet.dialog.dismiss();
+          requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 7312);
+          return;
+        }
+        sheet.dialog.dismiss();
+        launchUserApprovedPairingFlow();
+      });
+    }
+    sheet.button(s(R.string.wireless_adb_preview_scan), true, () -> {
+      for (OnDeviceAdbDiscovery search : searches) search.close();
+      searches.clear();
+      pairing.setText(s(R.string.wireless_adb_preview_searching));
+      connecting.setText(s(R.string.wireless_adb_preview_searching));
+      for (OnDeviceAdbDiscovery.Purpose purpose : OnDeviceAdbDiscovery.Purpose.values()) {
+        OnDeviceAdbDiscovery discovery = new OnDeviceAdbDiscovery(this, purpose, observer);
+        searches.add(discovery);
+        discovery.start();
+      }
+    });
+    sheet.button(s(R.string.wireless_adb_preview_settings), false, () -> {
+      sheet.dialog.dismiss();
+      Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+      try { startActivity(intent); }
+      catch (android.content.ActivityNotFoundException unavailable) {
+        status(s(R.string.ui_check_unavailable), s(R.string.wireless_adb_preview_error));
+      }
+    });
+    sheet.button(s(R.string.ui_done), false, sheet.dialog::dismiss);
+    sheet.dialog.setOnDismissListener(ignored -> {
+      for (OnDeviceAdbDiscovery search : searches) search.close();
+      searches.clear();
+    });
+    sheet.show();
+  }
+
   private String capabilitySummary() {
     StringBuilder result = new StringBuilder();
     String[][] fields = {{"profileVersion", s(R.string.ui_profile_spec)}, {"gsmaVersion", s(R.string.ui_gsma_spec)},
