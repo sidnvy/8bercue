@@ -23,6 +23,8 @@ trap 'rm -rf "$out"' EXIT
     tools/OnDeviceAdbRestrictedClientOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPublicKey.java \
     tools/OnDeviceAdbPublicKeyOfflineTest.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbCodeBuffer.java \
+    tools/OnDeviceAdbCodeBufferOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbTlsExporter.java
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
     dev.sid.fiveberinspector.OnDeviceAdbDiscoveryOfflineTest
@@ -36,6 +38,8 @@ trap 'rm -rf "$out"' EXIT
     dev.sid.fiveberinspector.OnDeviceAdbRestrictedClientOfflineTest
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
     dev.sid.fiveberinspector.OnDeviceAdbPublicKeyOfflineTest
+"$JAVA" -ea -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
+    dev.sid.fiveberinspector.OnDeviceAdbCodeBufferOfflineTest
 python3 - <<'PY'
 from pathlib import Path
 source=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java').read_text()
@@ -56,7 +60,10 @@ pairingService=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPa
 assert 'RemoteInput.getResultsFromIntent' in pairingService
 assert 'OnDeviceAdbPairingExchange.validCode(code)' in pairingService
 assert 'value.toString().toCharArray()' not in pairingService
-assert "Arrays.fill(code,'\\0')" in pairingService
+assert 'setCustomBigContentView(pad)' in pairingService
+assert 'keypad.masked()' in pairingService
+assert 'PendingIntent.FLAG_IMMUTABLE' in pairingService
+assert "Arrays.fill(code," in pairingService
 restricted=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java').read_text()
 for required in ('verifiedPairedIdentity()', 'ADB TLS required', 'fixedEntrypoint(', 'A_STLS', 'MAX_PACKETS'):
     assert required in restricted, f'Missing TLS-only restricted session contract: {required}'

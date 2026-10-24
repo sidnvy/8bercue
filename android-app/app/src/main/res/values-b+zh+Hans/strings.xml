@@ -497,4 +497,7 @@
     <string name="wireless_adb_live_connect">"在本机连接"</string>
     <string name="wireless_adb_live_reconnecting">"正在建立安全本机连接"</string>
     <string name="wireless_adb_live_unavailable">"安全连接尚未就绪，请打开无线 ADB 设置核对配对状态"</string>
+    <string name="wireless_adb_keypad_hint">"点击下方数字输入，无需系统键盘"</string>
+    <string name="wireless_adb_keypad_delete">"删除一位"</string>
+    <string name="wireless_adb_keypad_submit">"配对"</string>
 </resources>

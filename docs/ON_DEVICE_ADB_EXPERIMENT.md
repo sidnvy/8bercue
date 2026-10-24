@@ -64,3 +64,12 @@ Real BoringSSL native SPAKE2/AES-GCM agreement now passes a bounded synthetic-da
 3. Confirm actual TLS-authenticated connection to the separate dynamic CONNECT endpoint, constrained Connect command, Binder handshake, and read-only EID/Profile inventory. Validate timeout and correct user-visible failure messages.
 4. Pin and audit native build artifact and notices; include it in a new audited Release artifact contract without weakening the existing mandatory resource inventory, and perform signed-upgrade tests. Android 11/API30 requires additional TLS-exporter support; current verified platform implementation is API31+ only.
 5. CI green, review completed, and only then mark Draft PR #17 ready.
+
+
+## Android 17 notification-code entry UX issue (2026-10-24)
+
+- On the Pixel 10 Pro XL, a foreground 8bercue `RemoteInput` action displayed its inline six-digit reply field and a cursor, but **Android did not present a software keyboard** when the user attempted to edit it. This is an observed UI/IME behavior; the specific Android framework / keyboard fault is unconfirmed.
+- The lab-only onboarding notification now includes a **keyboard-free 0–9 keypad**, backspace, and a Pair button shown only when six digits have been entered. It is a decorated expanded Android notification, not a privileged overlay or a separate Settings activity. The user remains able to keep Android's system pairing dialog visible.
+- Digit actions use explicit immutable `PendingIntent.getService` targeting the app's **non-exported foreground service**. The code is accumulated only in a private six-character in-memory buffer; the notification displays only masked progress, and submit/cancel/service destruction clears the buffer. It is never logged or persisted.
+- `OnDeviceAdbCodeBufferOfflineTest` covers valid length, removal, incomplete-entry rejection, masking, and clearing. Release/Lab compilation and the unmodified Release verifier passed locally.
+- **Actual notification keypad press-and-submit on Pixel 10 remains to be verified** after unlocking the phone and reopening the pairing screen; no user secret was read, submitted, or recorded for this change. App update itself completed successfully; a direct external shell attempt to start the non-exported service was correctly denied and was not bypassed.
