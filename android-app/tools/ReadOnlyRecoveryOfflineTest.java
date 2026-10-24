@@ -120,6 +120,43 @@ public final class ReadOnlyRecoveryOfflineTest {
   check("unknown".equals(noMarkerJournal.read().getProperty("status")),
       "issue 14 recovery does not rewrite the unknown result");
   check(hash.equals(noMarkerJournal.reviewedLifecycleSnapshot()),"reviewed inventory is durably bound");
+  // Fail-closed journal history edge cases reported in review.
+  for(String mode:new String[]{"pending","other-unknown","history-mismatch","changed-digest","running"}) {
+    Path scenario=Files.createTempDirectory("8bercue-negative-"+mode);
+    OperationJournal subject=new OperationJournal(scenario.toFile());
+    subject.begin(new OperationJournal.Binding("enable",hash,hash,hash,hash));
+    if(!mode.equals("running"))subject.finish("unknown");
+    String tid=subject.read().getProperty("txId");
+    String originalDigest=OperationJournal.recordDigest(subject.read());
+    Path historyFile=scenario.resolve("history").resolve(tid+".properties");
+    switch(mode){
+      case "pending":
+        Files.writeString(scenario.resolve("history").resolve("interrupted.pending"),"incomplete");
+        denied(()->subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization),"pending history cannot be reviewed");
+        break;
+      case "other-unknown":
+        Properties other=subject.read();
+        String otherTx=java.util.UUID.randomUUID().toString();
+        other.setProperty("txId",otherTx);
+        try(OutputStream out=Files.newOutputStream(scenario.resolve("history").resolve(otherTx+".properties"))){other.store(out,"synthetic");}
+        denied(()->subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization),"another unknown transaction blocks review");
+        break;
+      case "history-mismatch":
+        Properties mismatched=subject.read();
+        mismatched.setProperty("startedAt","1");
+        try(OutputStream out=Files.newOutputStream(historyFile)){mismatched.store(out,"synthetic");}
+        denied(()->subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization),"inconsistent history cannot authorize review");
+        break;
+      case "changed-digest":
+        subject.observe(hash,hash);
+        denied(()->subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization),"observe changes digest and invalidates proposal");
+        break;
+      case "running":
+        subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization);
+        check("reviewed_observed".equals(subject.statusAfterReadOnlyReconciliation()),"running transaction requires explicit reviewed disposition");
+        check("running".equals(subject.read().getProperty("status")),"running original status remains unchanged");
+    }
+  }
   // Uncertain remote downloads and irreversible deletion cannot use this lifecycle shortcut.
   OperationJournal download=new OperationJournal(dir.resolve("download").toFile());
   download.begin(new OperationJournal.Binding("download",hash,hash,hash,hash));download.finish("unknown");

@@ -33,6 +33,9 @@ final class QuarantineReview {
         if(Files.isSymbolicLink(directory))throw new IOException("Unsafe review record directory");
         Files.createDirectories(directory);
         Files.setPosixFilePermissions(directory,PosixFilePermissions.fromString("rwx------"));
+        // Persist the new directory entry in its parent BEFORE any quarantine
+        // rename. fsync(directory) alone cannot guarantee its name survives power loss.
+        try(FileChannel parent=FileChannel.open(root,StandardOpenOption.READ)){parent.force(true);}
         Properties evidence=new Properties();
         evidence.setProperty("schema","1");
         evidence.setProperty("disposition","user_reviewed_worker_quarantine");

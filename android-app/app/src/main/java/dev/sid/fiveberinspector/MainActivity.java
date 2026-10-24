@@ -466,16 +466,18 @@ public final class MainActivity extends Activity {
       notificationCleanupAvailable = r.optBoolean("notificationCleanupAvailable", false);
       String phase = r.optString("status", r.optString("stage", "unknown"));
       boolean recoveryBlocked = RecoveryUiPolicy.blocks(true, r.optBoolean("requiresReconciliation", true), r.optBoolean("reviewRequired", true), phase);
-      if(recoveryBlocked){
+      boolean notificationReviewRequired = r.optBoolean("notificationReviewRequired", false);
+      if(RecoveryUiPolicy.keepsPending(recoveryBlocked,notificationReviewRequired)){
         getPreferences(0).edit().putBoolean("pending",true).commit();
-        notice=s(R.string.ui_recovery_check)+safeState(phase)
-            +s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
       }else{
-        // A verified non-pending durable journal state ends a stale local pending flag.
-        // This does not enable writes without the independent read-only inventory gate.
+        // Both durable journal and notification delivery must be reconciled before
+        // dismissing the local pending state. Card-specific write policy still applies.
         getPreferences(0).edit().remove("pending").commit();
       }
-      if (r.optBoolean("notificationReviewRequired", false))
+      if(recoveryBlocked)
+        notice=s(R.string.ui_recovery_check)+safeState(phase)
+            +s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
+      if (notificationReviewRequired)
         notice += (notice.isEmpty() ? "" : "\n") + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       refresh();
     });
