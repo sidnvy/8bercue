@@ -1,6 +1,6 @@
 package android.net.nsd;import java.util.*;
 public class NsdManager {
- public static final int PROTOCOL_DNS_SD=1;public DiscoveryListener listener;
+ public static final int PROTOCOL_DNS_SD=1,FAILURE_ALREADY_ACTIVE=3;public DiscoveryListener listener;
  public List<ResolveListener> resolves=new ArrayList<>();public int stops;
  public interface DiscoveryListener {
  void onDiscoveryStarted(String t);void onServiceFound(NsdServiceInfo i);void onServiceLost(NsdServiceInfo i);

@@ -97,7 +97,10 @@ PY
 
 # Run the real NSD implementation with controlled asynchronous callbacks.
 "$JAVAC" -d "$out/nsd" tools/discovery-stubs/android/content/Context.java \
-    tools/discovery-stubs/android/util/Log.java tools/discovery-stubs/android/net/nsd/*.java \
+    tools/discovery-stubs/android/util/Log.java tools/discovery-stubs/android/os/*.java tools/discovery-stubs/android/net/nsd/*.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java \
     tools/OnDeviceAdbDiscoveryLifecycleTest.java
 "$JAVA" -cp "$out/nsd" dev.sid.fiveberinspector.OnDeviceAdbDiscoveryLifecycleTest
+
+python3 tools/test_lab_artifact_gates.py
+python3 tools/test_local_adb_binder_source.py

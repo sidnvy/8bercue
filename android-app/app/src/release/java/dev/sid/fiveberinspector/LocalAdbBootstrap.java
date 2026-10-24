@@ -49,6 +49,7 @@ public final class LocalAdbBootstrap {
             Thread.currentThread().interrupt();
             return new Result(false,false,"Connection check interrupted");
         } catch(Exception failure) {
+            android.util.Log.w("EightberAdbRecovery", "connection_failed class=" + failure.getClass().getSimpleName());
             return new Result(false,false,"Wireless ADB management connection failed; retry from Settings");
         } finally {discovery.close();}
     }

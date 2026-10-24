@@ -1,5 +1,7 @@
 # Pixel 10 TLS reconnect acceptance — 2026-10-24
 
+> Latest code/review status: [2026-10-25 follow-up](PR17_REVIEW_FOLLOWUP_20261025.md). Historical hardware evidence below remains scoped to its tested APK.
+
 PR #17, issue #18. **Two recovery/read cycles PASS; final source-built candidate acceptance BLOCKED by secure lock screen. Production delivery remains blocked.** This supersedes older provisional status notes; it does not turn their historical NOT TESTED results into passes.
 
 ## Scope and safeguards

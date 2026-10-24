@@ -27,6 +27,8 @@ public final class OnDeviceAdbPairingService extends Service {
     private OnDeviceAdbDiscovery pairingSearch,connectSearch;
     private OnDeviceAdbDiscovery.Endpoint pairing,connection;
     private volatile boolean paired,working;
+    // Main-thread only, consumed before dispatch; discovery cannot retry an uncertain handoff.
+    private boolean managementAttempted;
     private volatile String lastFailureCategory = "";
     private boolean started;
 
@@ -137,8 +139,8 @@ public final class OnDeviceAdbPairingService extends Service {
         connectSearch=new OnDeviceAdbDiscovery(this,OnDeviceAdbDiscovery.Purpose.CONNECTION,
                 new OnDeviceAdbDiscovery.Observer(){
                     @Override public void found(OnDeviceAdbDiscovery.Endpoint e){ui.post(()->{if(!started)return;connection=e;launchIfReady();});}
-                    @Override public void lost(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{connection=null;if(started&&paired)update("Connection port changed","Waiting for this phone's wireless debugging service…");});}
-                    @Override public void failed(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{if(started)update("Connection discovery unavailable","Keep Wireless debugging enabled");});}
+                    @Override public void lost(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{connection=null;if(started&&paired&&!managementAttempted)update("Connection port changed","Waiting for this phone's wireless debugging service…");});}
+                    @Override public void failed(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{if(started&&!managementAttempted)update("Connection discovery unavailable","Keep Wireless debugging enabled");});}
                 });
         pairingSearch.start();connectSearch.start();
     }
@@ -190,7 +192,8 @@ public final class OnDeviceAdbPairingService extends Service {
     }
 
     private void launchIfReady(){
-        if(!paired || connection==null || working || !started)return;
+        if(!paired || connection==null || working || !started || managementAttempted)return;
+        managementAttempted=true;
         working=true;
         OnDeviceAdbDiscovery.Endpoint endpoint=connection;
         io.execute(()->{
@@ -202,7 +205,7 @@ public final class OnDeviceAdbPairingService extends Service {
                     stopSelf();
                 });
             } catch(Exception failure) {
-                ui.post(()->{if(started)update("Management not ready","Open 8bercue to inspect the connection result");});
+                ui.post(()->{if(started)update("Management not ready","Open 8bercue and tap Connect on this phone to retry");});
             } finally {
                 working=false;
                 // A failed Binder handoff must not automatically retry the

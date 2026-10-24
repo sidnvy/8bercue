@@ -46,6 +46,8 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
     private final NsdManager manager;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile boolean discoveryStarted;
+    private final android.os.Handler resolveHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static final int RESOLVE_RETRIES = 2;
     private volatile String discoveredService;
     private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong();
     private final java.util.concurrent.ConcurrentMap<String,Long> resolutions = new java.util.concurrent.ConcurrentHashMap<>();
@@ -63,27 +65,9 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
             if (!matchesServiceType(info.getServiceType(), purpose)) return;
             final Long ticket = generation.incrementAndGet();
             resolutions.put(info.getServiceName(),ticket);
-            try {
-                manager.resolveService(info, new NsdManager.ResolveListener() {
-                    @Override public void onResolveFailed(NsdServiceInfo service, int code) { }
-                    @Override public void onServiceResolved(NsdServiceInfo service) {
-                        android.util.Log.i("EightberAdbNsd", "resolved type=" + service.getServiceType());
-                        if (!running.get() || !matchesServiceType(service.getServiceType(), purpose)
-                                || !ticket.equals(resolutions.get(service.getServiceName()))) return;
-                        InetAddress host = service.getHost();
-                        int port = service.getPort();
-                        android.util.Log.i("EightberAdbNsd", "resolved local=" +
-                                (host != null && isOwnAddress(host)) + " validPort=" + (port > 0 && port <= 65535));
-                        if (port <= 0 || port > 65535 || host == null || !isOwnAddress(host)) return;
-                        discoveredService = service.getServiceName();
-                        observer.found(new Endpoint(purpose, host.getHostAddress(), port));
-                    }
-                });
-            } catch (RuntimeException ignored) {
-                // A concurrent discovery/resolve or disabled Wi-Fi is not a reason
-                // to modify the device's debug settings.
-            }
+            resolve(info,ticket,RESOLVE_RETRIES);
         }
+
         @Override public void onServiceLost(NsdServiceInfo info) {
             resolutions.remove(info.getServiceName());
             if (running.get() && Objects.equals(discoveredService, info.getServiceName())) {
@@ -99,6 +83,55 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
         }
         @Override public void onStopDiscoveryFailed(String type, int code) { discoveryStarted = false; }
     };
+
+    private boolean isCurrent(NsdServiceInfo info,Long ticket) {
+        return running.get() && ticket.equals(resolutions.get(info.getServiceName()));
+    }
+
+    private void resolve(NsdServiceInfo info,Long ticket,int retries) {
+        if (!isCurrent(info,ticket)) return;
+        try {
+            manager.resolveService(info,new NsdManager.ResolveListener() {
+                @Override public void onResolveFailed(NsdServiceInfo service,int code) {
+                    if (!isCurrent(info,ticket)) return;
+                    // Older NSD clients serialize resolutions. Retry only that
+                    // transient condition, preserving this generation and budget.
+                    if (code == NsdManager.FAILURE_ALREADY_ACTIVE && retries > 0) {
+                        resolveHandler.postDelayed(()->resolve(info,ticket,retries-1),300);
+                    } else resolutions.remove(info.getServiceName(),ticket);
+                }
+                @Override public void onServiceResolved(NsdServiceInfo service) {
+                    if (!isCurrent(info,ticket)
+                            || !Objects.equals(info.getServiceName(),service.getServiceName())
+                            || !matchesServiceType(service.getServiceType(),purpose)) return;
+                    // API 34+ can return several addresses. The deprecated
+                    // first-host accessor may choose a foreign/stale address;
+                    // never fall back to it when another resolved address is local.
+                    InetAddress host=null;
+                    int candidates=0;
+                    if (android.os.Build.VERSION.SDK_INT >= 34) {
+                        for (InetAddress candidate:service.getHostAddresses()) {
+                            candidates++;
+                            if (host==null && isOwnAddress(candidate)) host=candidate;
+                        }
+                    } else {
+                        candidates=1;
+                        InetAddress candidate=service.getHost();
+                        if (candidate!=null && isOwnAddress(candidate)) host=candidate;
+                    }
+                    int port=service.getPort();
+                    boolean local=host!=null && isOwnAddress(host);
+                    android.util.Log.i("EightberAdbNsd", "resolved local="+local+" validPort="+(port>0&&port<=65535)+" candidates="+candidates);
+                    if (!local || port<=0 || port>65535) return;
+                    discoveredService=service.getServiceName();
+                    observer.found(new Endpoint(purpose,host.getHostAddress(),port));
+                }
+            });
+        } catch (RuntimeException ignored) {
+            resolutions.remove(info.getServiceName(),ticket);
+            // Failure never changes Android debugging/network configuration.
+        }
+    }
 
     public OnDeviceAdbDiscovery(Context context, Purpose purpose, Observer observer) {
         this.purpose = Objects.requireNonNull(purpose);
@@ -155,6 +188,7 @@ public final class OnDeviceAdbDiscovery implements AutoCloseable {
         if (!running.getAndSet(false)) return;
         discoveredService = null;
         resolutions.clear();
+        resolveHandler.removeCallbacksAndMessages(null);
         stopRegisteredDiscovery();
     }
 }

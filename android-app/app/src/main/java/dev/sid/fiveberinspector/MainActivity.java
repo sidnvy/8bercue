@@ -817,7 +817,7 @@ public final class MainActivity extends Activity {
     updateStatusRegion();
   }
   private boolean wirelessOnboardingAvailable() {
-    return Build.VERSION.SDK_INT >= 31 && LabSupport.socketEligible()
+    return Build.VERSION.SDK_INT >= 31 && LabSupport.wirelessEligible()
         && OnDeviceAdbNativeCrypto.available();
   }
   private String primaryConnectionLabel() {
@@ -1162,7 +1162,7 @@ public final class MainActivity extends Activity {
         }
       });
     }), 12);
-    if (LabSupport.socketEligible() && Build.VERSION.SDK_INT >= 30)
+    if (LabSupport.wirelessEligible() && Build.VERSION.SDK_INT >= 30)
       add(action(s(OnDeviceAdbNativeCrypto.available()
               ? R.string.wireless_adb_live_entry : R.string.wireless_adb_preview_entry),
               false, this::showWirelessDiscoveryPreview), 12);
@@ -1277,7 +1277,7 @@ public final class MainActivity extends Activity {
         return new JSONObject().put("ready", r.ready).put("authorization", r.needsAuthorization).put("description", r.description);
       }, r -> { if (r.optBoolean("ready")) {
         connectDirect();
-        if (backend == null) status(s(R.string.ui_recovery_not_complete), "Binder connected, but the app has not attached the management service yet.");
+        if (backend == null) status(s(R.string.ui_recovery_not_complete), s(R.string.wireless_adb_attach_pending));
       } else status(s(R.string.ui_recovery_not_complete), r.optString("description", s(R.string.ui_check_the_supported_adb_setup_and_reconnect))); });
     });
     recovery.button(s(R.string.ui_cancel), false, recovery.dialog::dismiss);recovery.show();
@@ -1287,7 +1287,7 @@ public final class MainActivity extends Activity {
       startForegroundService(OnDeviceAdbPairingService.startIntent(this));
       startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
     } catch (Exception unavailable) {
-      status(s(R.string.ui_check_unavailable), "Wireless ADB foreground pairing could not start");
+      status(s(R.string.ui_check_unavailable), s(R.string.wireless_adb_start_unavailable));
     }
   }
 
@@ -1297,13 +1297,13 @@ public final class MainActivity extends Activity {
       if(grants.length>0 && grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)
         launchUserApprovedPairingFlow();
       else status(s(R.string.ui_check_unavailable),
-              "Enable notifications for 8bercue to enter the system pairing code without leaving Settings");
+              s(R.string.wireless_adb_notifications_required));
     }
   }
 
   /** Preview only: discover local TLS ports without pairing or touching adbd. */
   private void showWirelessDiscoveryPreview() {
-    if (Build.VERSION.SDK_INT < 30 || !LabSupport.socketEligible()) return;
+    if (Build.VERSION.SDK_INT < 30 || !LabSupport.wirelessEligible()) return;
     Sheet sheet = new Sheet(s(OnDeviceAdbNativeCrypto.available()
             ? R.string.wireless_adb_live_title : R.string.wireless_adb_preview_title));
     boolean realPairing=Build.VERSION.SDK_INT>=31 && OnDeviceAdbNativeCrypto.available();
@@ -1348,9 +1348,9 @@ public final class MainActivity extends Activity {
           return new JSONObject().put("ready",true);
         }, result -> status(s(R.string.wireless_adb_identity_ready),s(R.string.ui_no_changes_were_made)));
       });
-      sheet.button("Verify local TLS 1.3 exporter", false, () -> {
+      sheet.button(s(R.string.wireless_adb_exporter_verify), false, () -> {
         sheet.dialog.dismiss();
-        run("Checking local TLS exporter", false, () -> {
+        run(s(R.string.wireless_adb_exporter_checking), false, () -> {
           try {
             OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
             return new JSONObject().put("ok",OnDeviceAdbTlsContext.syntheticTlsSelfTest(identity));
@@ -1361,11 +1361,11 @@ public final class MainActivity extends Activity {
                     .put("stage",problem.getClass().getSimpleName());
           }
         }, reply -> status(reply.optBoolean("ok")
-                ? "Keystore TLS exporter verified" : "TLS exporter unavailable",
-                reply.optBoolean("ok") ? "Synthetic loopback only; actual ADB pairing still required"
-                    : "Stage: " + reply.optString("stage","Unknown")));
+                ? s(R.string.wireless_adb_exporter_verified) : s(R.string.wireless_adb_exporter_unavailable),
+                reply.optBoolean("ok") ? s(R.string.wireless_adb_exporter_synthetic)
+                    : s(R.string.wireless_adb_failure_stage,reply.optString("stage","Unknown"))));
       });
-      sheet.button("Start wireless pairing (experimental)", true, () -> {
+      sheet.button(s(R.string.wireless_adb_pairing_start), true, () -> {
         if (Build.VERSION.SDK_INT >= 33
             && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {

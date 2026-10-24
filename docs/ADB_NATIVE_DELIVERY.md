@@ -1,5 +1,7 @@
 # ADB native dependency and signed delivery — 2026-10-24
 
+> Latest code/review status: [2026-10-25 follow-up](PR17_REVIEW_FOLLOWUP_20261025.md). Historical hardware evidence below remains scoped to its tested APK.
+
 **Lab only. Production Release excludes the pairing JNI library. The unchanged release verifier is not amended to allow it.**
 
 ## Provenance and build inputs

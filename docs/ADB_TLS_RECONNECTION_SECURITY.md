@@ -1,5 +1,7 @@
 # Wireless ADB reconnection trust review — 2026-10-24
 
+> Latest code/review status: [2026-10-25 follow-up](PR17_REVIEW_FOLLOWUP_20261025.md). Historical hardware evidence below remains scoped to its tested APK.
+
 PR #17 / issue #18. This review describes the implementation and its limits; it is not independent cryptographic certification or production-release approval.
 
 ## Root cause and evidence
