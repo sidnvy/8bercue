@@ -14,6 +14,7 @@ assert production.count(start) == 1 and production.count(end) == 1
 method = production.split(start, 1)[1].split(end, 1)[0]
 assert 'ReadOnlyRecovery.requireReviewQuiescent();' in method
 assert method.index('ReadOnlyRecovery.requireReviewQuiescent();') < method.index('record.reviewObservedLifecycle(')
+assert method.index('record.reviewObservedLifecycle(') < method.index('ReadOnlyRecovery.archiveAfterReview(')
 assert 'ReadOnlyRecovery.acquire()' in method
 source = r'''package dev.sid.fiveberinspector;
 import java.util.*;
@@ -31,6 +32,7 @@ public final class RecoveryReviewEntryTest {
     private static int observations, invalidations;
     private static boolean authorized = true;
     private static List<RecoveryProcessGuard.Worker> workers = Collections.emptyList();
+    private static List<RecoveryProcessGuard.Worker> secondSampleWorkers = Collections.emptyList();
 
     static class ServiceCaller {
         static void requireApp() {
@@ -65,10 +67,12 @@ public final class RecoveryReviewEntryTest {
             // Execute the actual production worker predicate, not a hand-written
             // approximation. The backend process is PID 99 in this hermetic setup.
             RecoveryProcessGuard.quiescent(workers, 99);
+            quiescentChecks++;
+            RecoveryProcessGuard.quiescent(secondSampleWorkers, 99);
             quiescentProven = true;
         }
         static void archiveAfterReview(String card,String digest,String snapshot,String authorization) {
-            if (!quiescentProven || !CardTransactionLock.locked)
+            if (!quiescentProven || !CardTransactionLock.locked || journal.reviews != 1)
                 throw new SecurityException("Unchecked archive");
             archiveCalls++;
         }
@@ -107,8 +111,11 @@ public final class RecoveryReviewEntryTest {
         final String tx,card,reader,snapshot,recordDigest,operation,token;
         final boolean alreadyReviewed;
         RecoveryReviewPlan(String token,String card) {
+            this(token,card,"tx");
+        }
+        RecoveryReviewPlan(String token,String card,String transaction) {
             this.token=token;this.card=card;
-            tx="tx";reader="reader";snapshot="snap";recordDigest="digest";
+            tx=transaction;reader="reader";snapshot="snap";recordDigest="digest";
             operation="enable";alreadyReviewed=false;
         }
         void requireFresh(String candidate) {
@@ -135,6 +142,7 @@ public final class RecoveryReviewEntryTest {
         service.pendingRecoveryReview=new RecoveryReviewPlan("token","original-card");
         actual=new RecoveryReviewPlan("observed-token","original-card");
         workers=Collections.emptyList();
+        secondSampleWorkers=Collections.emptyList();
         authorized=true;
         CardTransactionLock.locked=false;
         CardTransactionLock.quarantine=false;
@@ -159,7 +167,13 @@ public final class RecoveryReviewEntryTest {
         workers=List.of(new RecoveryProcessGuard.Worker(321,2000,1,"lpac",
             "/data/local/tmp/fiveber-lpac-lab/lpac","",""));
         failed(service,"native worker still active");
-        check(ReadOnlyRecovery.quiescentChecks==1,"worker was checked through production entry");
+        check(ReadOnlyRecovery.quiescentChecks==1,"first worker sample rejected before a second read");
+
+        reset(service);
+        secondSampleWorkers=List.of(new RecoveryProcessGuard.Worker(321,2000,1,"lpac",
+            "/data/local/tmp/fiveber-lpac-lab/lpac","",""));
+        failed(service,"native worker appears during second sample");
+        check(ReadOnlyRecovery.quiescentChecks==2,"second worker sample rejected");
 
         reset(service);
         workers=List.of(new RecoveryProcessGuard.Worker(321,2000,1,
@@ -172,6 +186,11 @@ public final class RecoveryReviewEntryTest {
         check(ReadOnlyRecovery.quiescentChecks==0,"mismatched card rejected before worker gate");
 
         reset(service);
+        actual=new RecoveryReviewPlan("observed-token","original-card","different-transaction");
+        failed(service,"different transaction identity");
+        check(ReadOnlyRecovery.quiescentChecks==0,"mismatched transaction rejected before worker gate");
+
+        reset(service);
         authorized=false;
         failed(service,"unauthenticated Binder caller");
         check(observations==0,"unauthorized caller cannot inventory");
@@ -181,7 +200,7 @@ public final class RecoveryReviewEntryTest {
         check(result.optBoolean("ok",false),"stable same-card confirmation passes");
         check("reviewed_observed".equals(result.optString("status")),"review status matches");
         check(journal.reviews==1,"one immutable disposition created");
-        check(ReadOnlyRecovery.quiescentChecks==1,"worker quiescence verified");
+        check(ReadOnlyRecovery.quiescentChecks==2,"two worker snapshots verified before review");
         check(!CardTransactionLock.locked,"lock released after successful review");
         check(invalidations==1,"pending previews invalidated");
         check(service.pendingRecoveryReview==null,"token consumed");
