@@ -152,10 +152,20 @@ public final class ReadOnlyRecoveryOfflineTest {
         denied(()->subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization),"observe changes digest and invalidates proposal");
         break;
       case "running":
-        subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization);
+        // Match the production caller contract: same original kernel lock and
+        // verified absence of native/peer workers BEFORE creating a receipt.
+        File scenarioLock=scenario.resolve("card-transaction.lock").toFile();
+        CardTransactionLock.acquire(scenarioLock,true);
+        try {
+          RecoveryProcessGuard.quiescent(Collections.emptyList(),99);
+          subject.reviewObservedLifecycle(tid,hash,hash,originalDigest,authorization);
+        }finally{CardTransactionLock.release();}
         check("reviewed_observed".equals(subject.statusAfterReadOnlyReconciliation()),"running transaction requires explicit reviewed disposition");
         check("running".equals(subject.read().getProperty("status")),"running original status remains unchanged");
     }
+    if(!mode.equals("running"))
+      check(!Files.exists(scenario.resolve("resolutions").resolve(tid+".properties")),
+          "rejected "+mode+" cannot leave a review authorization receipt");
   }
   // Uncertain remote downloads and irreversible deletion cannot use this lifecycle shortcut.
   OperationJournal download=new OperationJournal(dir.resolve("download").toFile());

@@ -530,6 +530,12 @@ public final class MainActivity extends Activity {
         if(backend!=service||navigationSession!=reviewNavigation)return;
         run(s(R.string.recovery_review_checking),false,
             ()->new JSONObject(service.confirmRecoveryReview(token)),result->{
+          // The asynchronous result belongs only to the session that started it.
+          // A detached Binder or a new navigation must never clear pending.
+          if(backend!=service||navigationSession!=reviewNavigation){
+            getPreferences(0).edit().putBoolean("pending",true).commit();
+            return;
+          }
           if(!result.optBoolean("ok",false)||!"reviewed_observed".equals(result.optString("status"))){
             getPreferences(0).edit().putBoolean("pending",true).commit();
             notice=s(R.string.recovery_review_failed);render();return;
