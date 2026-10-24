@@ -5,7 +5,6 @@ import android.content.*;
 import android.content.pm.ServiceInfo;
 import android.os.*;
 import android.provider.Settings;
-import android.widget.RemoteViews;
 import java.util.concurrent.*;
 import java.util.Arrays;
 
@@ -19,10 +18,8 @@ public final class OnDeviceAdbPairingService extends Service {
     private static final String START="dev.sid.fiveberinspector.action.PAIRING_START";
     private static final String CODE="dev.sid.fiveberinspector.action.PAIRING_CODE";
     private static final String STOP="dev.sid.fiveberinspector.action.PAIRING_STOP";
-    private static final String DIGIT="dev.sid.fiveberinspector.action.PAIRING_DIGIT";
-    private static final String DELETE="dev.sid.fiveberinspector.action.PAIRING_DELETE";
-    private static final String SUBMIT="dev.sid.fiveberinspector.action.PAIRING_SUBMIT";
-    private static final String DIGIT_KEY="digit";
+    static final String ACTION_CODE_FROM_ACTIVITY="dev.sid.fiveberinspector.action.CODE_FROM_ACTIVITY";
+    static final String EXTRA_CODE_FROM_ACTIVITY="private_pairing_code";
     private static final String CODE_KEY="pairing_code";
     private static final int NOTICE_ID=4931;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
@@ -30,7 +27,7 @@ public final class OnDeviceAdbPairingService extends Service {
     private OnDeviceAdbDiscovery pairingSearch,connectSearch;
     private OnDeviceAdbDiscovery.Endpoint pairing,connection;
     private volatile boolean paired,working;
-    private final OnDeviceAdbCodeBuffer keypad = new OnDeviceAdbCodeBuffer();
+    private volatile String lastFailureCategory = "";
     private boolean started;
 
     public static Intent startIntent(Context context) {
@@ -71,24 +68,17 @@ public final class OnDeviceAdbPairingService extends Service {
         if(START.equals(action)){
             foreground();
             beginDiscovery();
-        } else if(DIGIT.equals(action) && started && !paired && !working) {
-            if (pairing != null && keypad.append(intent.getIntExtra(DIGIT_KEY, -1)))
-                pairingNotification();
-        } else if(DELETE.equals(action) && started && !paired && !working) {
-            keypad.delete();
-            pairingNotification();
-        } else if(SUBMIT.equals(action) && started) {
-            char[] code = keypad.take();
+        } else if(ACTION_CODE_FROM_ACTIVITY.equals(action) && started) {
+            char[] code = intent.getCharArrayExtra(EXTRA_CODE_FROM_ACTIVITY);
+            intent.removeExtra(EXTRA_CODE_FROM_ACTIVITY);
             if (code != null) submitCode(code);
         } else if(CODE.equals(action) && started) {
-            // Compatibility with an earlier inline RemoteInput action; keypad
-            // is preferred because some Android 17 devices never display IME.
+            // Android SystemUI owns the direct-reply edit control and IME.
             android.os.Bundle input = RemoteInput.getResultsFromIntent(intent);
             CharSequence value = input == null ? null : input.getCharSequence(CODE_KEY);
             if (value != null) {
                 char[] code = new char[value.length()];
-                for (int i = 0; i < code.length; i++) code[i] = value.charAt(i);
-                keypad.clear();
+                for (int i=0; i<code.length; i++) code[i]=value.charAt(i);
                 submitCode(code);
             }
         }
@@ -98,36 +88,40 @@ public final class OnDeviceAdbPairingService extends Service {
     private void submitCode(char[] code) {
         if (!OnDeviceAdbPairingExchange.validCode(code)) {
             Arrays.fill(code, '\0');
+            lastFailureCategory="Enter exactly six digits";
             pairingNotification();
             return;
         }
         final OnDeviceAdbDiscovery.Endpoint target = pairing;
         if (target == null || working || paired) {
             Arrays.fill(code, '\0');
+            lastFailureCategory="No active pairing service; reopen system pairing";
             pairingNotification();
             return;
         }
         working = true;
+        lastFailureCategory = "";
         update("8bercue · Pairing", "Authenticating to this device…");
         io.execute(() -> {
             try {
                 OnDeviceAdbWirelessManager.pair(this, target, code);
                 paired = true;
+                lastFailureCategory = "";
                 ui.post(() -> {
                     if (!started) return;
                     update("8bercue · Paired", "Launching the verified management service…");
                 });
             } catch (Exception error) {
-                ui.post(() -> {
-                    if (started) {
-                        // No code, digest, or device identifier in diagnostics.
-                        pairingNotification();
-                    }
-                });
+                // No pairing code, peer GUID, or TLS transcript is logged.
+                lastFailureCategory = safeFailureCategory(error);
             } finally {
                 Arrays.fill(code, '\0');
                 working = false;
-                ui.post(() -> { if (started && paired) launchIfReady(); });
+                ui.post(() -> {
+                    if (!started) return;
+                    if (paired) launchIfReady();
+                    else pairingNotification(); // Always show a deterministic failure.
+                });
             }
         });
     }
@@ -137,7 +131,7 @@ public final class OnDeviceAdbPairingService extends Service {
         pairingSearch=new OnDeviceAdbDiscovery(this,OnDeviceAdbDiscovery.Purpose.PAIRING,
                 new OnDeviceAdbDiscovery.Observer(){
                     @Override public void found(OnDeviceAdbDiscovery.Endpoint e){ui.post(()->{if(!started)return;pairing=e;pairingNotification();});}
-                    @Override public void lost(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{pairing=null;keypad.clear();if(started&&!paired)update("Pairing service closed","Reopen Pair device with pairing code");});}
+                    @Override public void lost(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{pairing=null;if(started&&!paired)update("Pairing service closed","Reopen Pair device with pairing code");});}
                     @Override public void failed(OnDeviceAdbDiscovery.Purpose p){ui.post(()->{if(started)update("Pairing discovery unavailable","Open wireless debugging in Android settings");});}
                 });
         connectSearch=new OnDeviceAdbDiscovery(this,OnDeviceAdbDiscovery.Purpose.CONNECTION,
@@ -148,44 +142,47 @@ public final class OnDeviceAdbPairingService extends Service {
                 });
         pairingSearch.start();connectSearch.start();
     }
-    private PendingIntent digitAction(int digit) {
-        Intent action = new Intent(this, OnDeviceAdbPairingService.class)
-                .setAction(DIGIT).putExtra(DIGIT_KEY, digit);
-        return PendingIntent.getService(this, 130 + digit, action,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    private PendingIntent keypadAction(String actionName, int requestCode) {
-        Intent action = new Intent(this, OnDeviceAdbPairingService.class).setAction(actionName);
-        return PendingIntent.getService(this, requestCode, action,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    private static String safeFailureCategory(Exception error) {
+        if (error instanceof javax.net.ssl.SSLException)
+            return "TLS handshake failed; reopen the system pairing window";
+        if (error instanceof java.net.SocketTimeoutException)
+            return "Pairing service timed out; reopen the system pairing window";
+        if (error instanceof java.security.GeneralSecurityException)
+            return "Pairing authentication failed; check the six-digit code";
+        if (error instanceof java.io.IOException)
+            return "Pairing rejected or interrupted; check the code and retry";
+        return "Pairing failed; reopen Android Wireless debugging";
     }
 
     /**
-     * Android 17's notification RemoteInput can expose a focused inline field
-     * without ever showing the IME. RemoteViews digit buttons need no keyboard,
-     * do not leave the system pairing dialog, and never render entered digits.
+     * Use the native SystemUI direct-reply experience where it works. Android
+     * does not let apps choose the RemoteInput keyboard type or force its IME.
+     * A standard numeric EditText activity handles incompatible SystemUI IMEs.
      */
     private void pairingNotification() {
         if (!started || pairing == null || paired || working) return;
-        RemoteViews pad = new RemoteViews(getPackageName(), R.layout.notification_adb_pair_keypad);
-        int[] digitViews = { R.id.pair_digit_0, R.id.pair_digit_1,
-                R.id.pair_digit_2, R.id.pair_digit_3, R.id.pair_digit_4,
-                R.id.pair_digit_5, R.id.pair_digit_6, R.id.pair_digit_7,
-                R.id.pair_digit_8, R.id.pair_digit_9 };
-        for (int digit = 0; digit < digitViews.length; digit++) {
-            pad.setOnClickPendingIntent(digitViews[digit], digitAction(digit));
-        }
-        pad.setOnClickPendingIntent(R.id.pair_delete, keypadAction(DELETE, 141));
-        pad.setOnClickPendingIntent(R.id.pair_submit, keypadAction(SUBMIT, 142));
-        pad.setTextViewText(R.id.pair_digit_status,
-                getString(R.string.wireless_adb_keypad_hint) + "  " + keypad.masked());
-        // Noninteractive until exactly six digits are present.
-        pad.setViewVisibility(R.id.pair_submit,
-                keypad.complete() ? android.view.View.VISIBLE : android.view.View.INVISIBLE);
-        Notification notice = base("8bercue · Pairing available", "Expand this notification to enter digits without a keyboard")
-                .setStyle(new Notification.DecoratedCustomViewStyle())
-                .setCustomBigContentView(pad)
+        Intent replyIntent = new Intent(this, OnDeviceAdbPairingService.class).setAction(CODE);
+        PendingIntent reply = PendingIntent.getForegroundService(this, 5, replyIntent,
+                PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        RemoteInput remoteInput = new RemoteInput.Builder(CODE_KEY)
+                .setLabel("Six-digit pairing code")
+                .setAllowFreeFormInput(true)
+                .build();
+        Notification.Action inline = new Notification.Action.Builder(null,
+                "Enter code", reply).addRemoteInput(remoteInput).build();
+
+        Intent openIntent = new Intent(this, OnDeviceAdbPairingCodeActivity.class);
+        PendingIntent open = PendingIntent.getActivity(this, 6, openIntent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification.Action numericInput = new Notification.Action.Builder(null,
+                "Open numeric keyboard", open).build();
+
+        String description = lastFailureCategory.isEmpty()
+                ? "Enter the code from Android Settings; use numeric input if keyboard is hidden"
+                : lastFailureCategory;
+        Notification notice = base("8bercue · Pairing available", description)
+                .addAction(inline)
+                .addAction(numericInput)
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setLocalOnly(true)
                 .build();
@@ -215,7 +212,6 @@ public final class OnDeviceAdbPairingService extends Service {
     }
     @Override public void onDestroy(){
         started=false;
-        keypad.clear();
         if(pairingSearch!=null)pairingSearch.close();
         if(connectSearch!=null)connectSearch.close();
         io.shutdownNow();
