@@ -494,4 +494,7 @@
     <string name="wireless_adb_identity_error">"Unable to prepare the local pairing identity. No debugging setting was changed."</string>
     <string name="wireless_adb_live_title">"Wireless debugging · setup"</string>
     <string name="wireless_adb_live_entry">"Set up wireless ADB"</string>
+    <string name="wireless_adb_live_connect">"Connect on this phone"</string>
+    <string name="wireless_adb_live_reconnecting">"Starting secure local connection"</string>
+    <string name="wireless_adb_live_unavailable">"Secure connection not ready; open Wireless ADB setup to verify pairing"</string>
 </resources>

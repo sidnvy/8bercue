@@ -759,6 +759,29 @@ public final class MainActivity extends Activity {
     else settings();
     updateStatusRegion();
   }
+  private boolean wirelessOnboardingAvailable() {
+    return Build.VERSION.SDK_INT >= 31 && LabSupport.socketEligible()
+        && OnDeviceAdbNativeCrypto.available();
+  }
+  private String primaryConnectionLabel() {
+    if (!wirelessOnboardingAvailable()) return s(R.string.ui_connect_using_computer);
+    return OnDeviceAdbWirelessManager.hasPaired(this)
+        ? s(R.string.wireless_adb_live_connect) : s(R.string.wireless_adb_live_entry);
+  }
+  private void primaryConnect() {
+    if (!wirelessOnboardingAvailable()) { beginDirectBootstrap();return; }
+    if (!OnDeviceAdbWirelessManager.hasPaired(this)) {showWirelessDiscoveryPreview();return;}
+    run(s(R.string.wireless_adb_live_reconnecting),false,()->{
+      LocalAdbBootstrap.Result attempt=LocalAdbBootstrap.start(this);
+      return new JSONObject().put("ready",attempt.ready)
+          .put("description",attempt.description);
+    },r->{
+      if(r.optBoolean("ready")) connectDirect();
+      else status(s(R.string.wireless_adb_live_unavailable),
+                  r.optString("description",s(R.string.wireless_adb_live_unavailable)));
+    });
+  }
+
   private void home() {
     if (!managementUnavailable().isEmpty()) {
       add(text(s(R.string.ui_installation_supported_management_unavailable),20,TEXT,true),24);
@@ -769,7 +792,7 @@ public final class MainActivity extends Activity {
     choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
     choice.setTextSize(18);choice.setTextColor(TEXT);
     choice.setBackgroundColor(Color.TRANSPARENT);
-    choice.setOnClickListener(v->{if(backend!=null)chooseCard();else beginDirectBootstrap();});
+    choice.setOnClickListener(v->{if(backend!=null)chooseCard();else primaryConnect();});
     taskControls.add(choice);card.addView(choice,new LinearLayout.LayoutParams(-1,-2));
     card.addView(text(s(R.string.ui_eid)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),margin(4));
     card.addView(text(inventory.has("profiles")?s(R.string.ui_card_connected_read_verified):s(R.string.ui_connect_to_check_this_card),12,MUTED,false),margin(14));
@@ -779,7 +802,7 @@ public final class MainActivity extends Activity {
     Button refresh=action(s(R.string.ui_refresh),false,this::refresh);refresh.setTextSize(13);refresh.setBackgroundColor(Color.TRANSPARENT);
     heading.addView(refresh,new LinearLayout.LayoutParams(dp(88),dp(48)));add(heading,22);
     JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_check_compatibility_in_settings)),16);add(action(backend==null?s(R.string.ui_connect_using_computer):s(R.string.ui_choose_card),true,backend==null?this::beginDirectBootstrap:this::chooseCard),20);return;}
+    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_check_compatibility_in_settings)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));

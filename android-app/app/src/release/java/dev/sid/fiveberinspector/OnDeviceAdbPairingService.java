@@ -69,7 +69,9 @@ public final class OnDeviceAdbPairingService extends Service {
             android.os.Bundle input=RemoteInput.getResultsFromIntent(intent);
             CharSequence value=input==null?null:input.getCharSequence(CODE_KEY);
             if(value==null)return START_NOT_STICKY;
-            char[] code=value.toString().toCharArray();
+            // Avoid an additional immutable String containing the ephemeral code.
+            char[] code=new char[value.length()];
+            for(int i=0;i<code.length;i++)code[i]=value.charAt(i);
             if(!OnDeviceAdbPairingExchange.validCode(code)) {
                 Arrays.fill(code,'\0');
                 update("Invalid pairing code","Open Pair device with pairing code, then enter six digits");

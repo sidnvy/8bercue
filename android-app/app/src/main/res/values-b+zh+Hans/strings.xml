@@ -494,4 +494,7 @@
     <string name="wireless_adb_identity_error">"无法创建本机配对身份；未修改任何调试设置。"</string>
     <string name="wireless_adb_live_title">"无线调试 · 首次设置"</string>
     <string name="wireless_adb_live_entry">"设置无线 ADB"</string>
+    <string name="wireless_adb_live_connect">"在本机连接"</string>
+    <string name="wireless_adb_live_reconnecting">"正在建立安全本机连接"</string>
+    <string name="wireless_adb_live_unavailable">"安全连接尚未就绪，请打开无线 ADB 设置核对配对状态"</string>
 </resources>

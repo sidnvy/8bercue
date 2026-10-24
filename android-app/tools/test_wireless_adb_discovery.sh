@@ -52,6 +52,11 @@ exporter=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbTlsExpor
 assert 'SSLEngines.exportKeyingMaterial(engine,ADB_PAIRING_LABEL,null,64)' in exporter
 assert 'Build.VERSION.SDK_INT < 31' in exporter
 assert '"TLSv1.3".equals(session.getProtocol())' in exporter
+pairingService=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingService.java').read_text()
+assert 'RemoteInput.getResultsFromIntent' in pairingService
+assert 'OnDeviceAdbPairingExchange.validCode(code)' in pairingService
+assert 'value.toString().toCharArray()' not in pairingService
+assert "Arrays.fill(code,'\\0')" in pairingService
 restricted=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java').read_text()
 for required in ('verifiedPairedIdentity()', 'ADB TLS required', 'fixedEntrypoint(', 'A_STLS', 'MAX_PACKETS'):
     assert required in restricted, f'Missing TLS-only restricted session contract: {required}'
