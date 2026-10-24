@@ -39,3 +39,8 @@ The bounded TLS pairing frame parser (`OnDeviceAdbPairingFrame`) and 13 offline 
 - Validate key handling, pairing code retention, Android local-network permission requirements, negative/timeout/retry cases, safe signed upgrades, and release surface against the actual APK.
 
 Strict policy: no ADB toggle, adbd restart, port change, phone reboot, re-pair of the workstation, or automatic eSIM write as part of experimental tests. A device that has no wireless debugging available must show a user-controlled settings flow, never silently enable debugging.
+
+
+## Cryptographic implementation checkpoint
+
+Real BoringSSL native SPAKE2/AES-GCM agreement now passes a bounded synthetic-data execution on Pixel 10. A separate JNI wrapper also passed an on-device lifecycle smoke test. The source-only native bridge is not in the APK release payload. A non-exportable Android Keystore identity and ADB public-key encoder are staged, with Java encoding tests passing. Platform TLS exporter + user-controlled pairing-code input and genuine dynamic-port TLS pairing remain open and must not be claimed complete. See `docs/ADB_TLS_PAIRING_SECURITY_REVIEW.md`.

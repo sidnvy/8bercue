@@ -68,16 +68,22 @@ final class OnDeviceAdbRestrictedClient {
             if (!tls.verifiedPairedIdentity())
                 throw new IOException("ADB paired device certificate not verified");
             InputStream in=tls.input();OutputStream out=tls.output();
-            try (OnDeviceAdbWirePacket connected = OnDeviceAdbWirePacket.read(in)) {
+            int negotiatedVersion;
+            // The first post-TLS CNXN can use checksum=0 if the server supports
+            // Android ADB v1.1. The peer is already mutually TLS-authenticated.
+            try (OnDeviceAdbWirePacket connected = OnDeviceAdbWirePacket.read(in, true)) {
                 if (connected.command != OnDeviceAdbWirePacket.A_CNXN
-                        || connected.arg0 < OnDeviceAdbWirePacket.A_VERSION)
+                        || connected.arg0 < OnDeviceAdbWirePacket.A_VERSION_MIN
+                        || connected.arg0 > OnDeviceAdbWirePacket.A_VERSION)
                     throw new IOException("TLS ADB connection not established");
+                negotiatedVersion = Math.min(connected.arg0, OnDeviceAdbWirePacket.A_VERSION);
             }
-            OnDeviceAdbWirePacket.write(out,OnDeviceAdbWirePacket.A_OPEN,STREAM_ID,0,command);
+            boolean skipChecksum = negotiatedVersion >= OnDeviceAdbWirePacket.A_VERSION_SKIP_CHECKSUM;
+            OnDeviceAdbWirePacket.write(out,OnDeviceAdbWirePacket.A_OPEN,STREAM_ID,0,command,skipChecksum);
             int remoteId = -1;
             int accumulated = 0;
             for (int n=0;n<MAX_PACKETS;n++) {
-                try (OnDeviceAdbWirePacket reply = OnDeviceAdbWirePacket.read(in)) {
+                try (OnDeviceAdbWirePacket reply = OnDeviceAdbWirePacket.read(in,skipChecksum)) {
                     if (reply.command == OnDeviceAdbWirePacket.A_OKAY) {
                         if (reply.arg1 != STREAM_ID || reply.arg0 <= 0
                                 || (remoteId != -1 && remoteId != reply.arg0))
@@ -91,12 +97,12 @@ final class OnDeviceAdbRestrictedClient {
                             throw new IOException("Restricted ADB command output exceeded limit");
                         // Ack but do NOT log command output (it may contain identifiers).
                         OnDeviceAdbWirePacket.write(out,OnDeviceAdbWirePacket.A_OKAY,
-                                STREAM_ID, remoteId, EMPTY);
+                                STREAM_ID, remoteId, EMPTY, skipChecksum);
                     } else if (reply.command == OnDeviceAdbWirePacket.A_CLSE) {
                         if (remoteId <= 0 || reply.arg0 != remoteId || reply.arg1 != STREAM_ID)
                             throw new IOException("ADB close identity mismatch");
                         OnDeviceAdbWirePacket.write(out,OnDeviceAdbWirePacket.A_CLSE,
-                                STREAM_ID,remoteId,EMPTY);
+                                STREAM_ID,remoteId,EMPTY,skipChecksum);
                         return;
                     } else throw new IOException("Unexpected ADB stream packet");
                 }

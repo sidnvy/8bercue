@@ -48,6 +48,21 @@ public final class OnDeviceAdbWirePacketOfflineTest {
                 ok(p.command==cmd,"known opcode");
             }
         }
+        // Modern post-TLS peers advertise v0x01000001 and may send checksum=0.
+        byte[] modern = packet(OnDeviceAdbWirePacket.A_WRTE,2,1,payload);
+        ByteBuffer.wrap(modern).order(ByteOrder.LITTLE_ENDIAN).putInt(16,0);
+        invalid(modern); // Legacy checker fails closed.
+        try(OnDeviceAdbWirePacket modernParsed=OnDeviceAdbWirePacket.read(new ByteArrayInputStream(modern),true)) {
+            ok(Arrays.equals(modernParsed.payload,payload),"modern ADB checksum-free payload");
+        }
+        ByteArrayOutputStream modernOut=new ByteArrayOutputStream();
+        OnDeviceAdbWirePacket.write(modernOut,OnDeviceAdbWirePacket.A_WRTE,2,1,payload,true);
+        ok(ByteBuffer.wrap(modernOut.toByteArray()).order(ByteOrder.LITTLE_ENDIAN).getInt(16)==0,
+                "modern ADB sends zero checksum");
+        try(OnDeviceAdbWirePacket modernRead=OnDeviceAdbWirePacket.read(
+                new ByteArrayInputStream(modernOut.toByteArray()),true)) {
+            ok(modernRead.payload.length==payload.length,"modern framed write roundtrip");
+        }
         try { packet(123,0,0,new byte[1]); throw new AssertionError("allowed unknown opcode"); }
         catch(IOException expected){checked++;}
         System.out.println("PASS "+checked+" bounded ADB wire packet parser assertions");

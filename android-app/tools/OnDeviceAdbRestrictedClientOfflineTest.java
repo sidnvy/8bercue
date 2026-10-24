@@ -58,7 +58,7 @@ public final class OnDeviceAdbRestrictedClientOfflineTest {
             ok(hello.command==OnDeviceAdbWirePacket.A_CNXN,"hello starts before TLS");
         }
         byte[] tlsOutput=tls.output.toByteArray();
-        try(OnDeviceAdbWirePacket open=OnDeviceAdbWirePacket.read(new ByteArrayInputStream(tlsOutput))) {
+        try(OnDeviceAdbWirePacket open=OnDeviceAdbWirePacket.read(new ByteArrayInputStream(tlsOutput), true)) {
             ok(open.command==OnDeviceAdbWirePacket.A_OPEN,"restricted OPEN after TLS");
             ok(new String(open.payload,java.nio.charset.StandardCharsets.US_ASCII).equals(command),"only verified command opened");
         }

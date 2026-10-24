@@ -17,7 +17,10 @@ trap 'rm -rf "$out"' EXIT
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbWirePacket.java \
     tools/OnDeviceAdbWirePacketOfflineTest.java \
     app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java \
-    tools/OnDeviceAdbRestrictedClientOfflineTest.java
+    tools/OnDeviceAdbRestrictedClientOfflineTest.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPublicKey.java \
+    tools/OnDeviceAdbPublicKeyOfflineTest.java \
+    app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbTlsExporter.java
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
     dev.sid.fiveberinspector.OnDeviceAdbDiscoveryOfflineTest
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
@@ -28,6 +31,8 @@ trap 'rm -rf "$out"' EXIT
     dev.sid.fiveberinspector.OnDeviceAdbWirePacketOfflineTest
 "$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
     dev.sid.fiveberinspector.OnDeviceAdbRestrictedClientOfflineTest
+"$JAVA" -cp "$out:$ANDROID_HOME/platforms/android-36/android.jar" \
+    dev.sid.fiveberinspector.OnDeviceAdbPublicKeyOfflineTest
 python3 - <<'PY'
 from pathlib import Path
 source=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbDiscovery.java').read_text()
@@ -40,6 +45,10 @@ for forbidden in ('for (int port', '65535; port', 'setprop ', 'adb tcpip', 'adb_
     assert forbidden not in source, f'Discovery must not scan or mutate adbd: {forbidden}'
 assert 'showWirelessDiscoveryPreview()' in activity or 'this::showWirelessDiscoveryPreview' in activity
 assert 'pairing and TLS login' not in activity.lower()  # no false success claims in Java code
+exporter=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbTlsExporter.java').read_text()
+assert 'SSLEngines.exportKeyingMaterial(engine,ADB_PAIRING_LABEL,null,64)' in exporter
+assert 'Build.VERSION.SDK_INT < 31' in exporter
+assert '"TLSv1.3".equals(session.getProtocol())' in exporter
 restricted=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java').read_text()
 for required in ('verifiedPairedIdentity()', 'ADB TLS required', 'fixedEntrypoint(', 'A_STLS', 'MAX_PACKETS'):
     assert required in restricted, f'Missing TLS-only restricted session contract: {required}'

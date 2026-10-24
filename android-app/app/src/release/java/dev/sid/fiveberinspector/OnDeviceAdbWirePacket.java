@@ -24,7 +24,9 @@ final class OnDeviceAdbWirePacket implements AutoCloseable {
     static final int A_CLSE = 0x45534c43;
     static final int A_WRTE = 0x45545257;
     static final int A_STLS = 0x534c5453;
-    static final int A_VERSION = 0x01000000;
+    static final int A_VERSION_MIN = 0x01000000;
+    static final int A_VERSION_SKIP_CHECKSUM = 0x01000001;
+    static final int A_VERSION = A_VERSION_SKIP_CHECKSUM;
     static final int A_STLS_VERSION = 0x01000000;
 
     final int command;
@@ -54,6 +56,11 @@ final class OnDeviceAdbWirePacket implements AutoCloseable {
     }
 
     static OnDeviceAdbWirePacket read(InputStream stream) throws IOException {
+        return read(stream, false);
+    }
+
+    static OnDeviceAdbWirePacket read(InputStream stream, boolean checksumSkipped)
+            throws IOException {
         byte[] header = new byte[HEADER_LENGTH];
         exact(stream, header);
         ByteBuffer fields = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
@@ -69,7 +76,8 @@ final class OnDeviceAdbWirePacket implements AutoCloseable {
         try {
             exact(stream, payload);
             // Android ADB v1 uses an unsigned-byte additive checksum.
-            if (sum(payload) != checksum) throw new IOException("ADB packet checksum mismatch");
+            if (!checksumSkipped && sum(payload) != checksum)
+                throw new IOException("ADB packet checksum mismatch");
             return new OnDeviceAdbWirePacket(command, arg0, arg1, payload);
         } catch (IOException error) {
             Arrays.fill(payload, (byte) 0);
@@ -79,11 +87,16 @@ final class OnDeviceAdbWirePacket implements AutoCloseable {
 
     static void write(OutputStream stream, int command, int arg0, int arg1, byte[] data)
             throws IOException {
+        write(stream, command, arg0, arg1, data, false);
+    }
+
+    static void write(OutputStream stream, int command, int arg0, int arg1, byte[] data,
+                      boolean checksumSkipped) throws IOException {
         if (!known(command) || data == null || data.length > MAX_PAYLOAD)
             throw new IOException("Unrecognized or oversized ADB packet");
         ByteBuffer header = ByteBuffer.allocate(HEADER_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
         header.putInt(command).putInt(arg0).putInt(arg1).putInt(data.length)
-                .putInt(sum(data)).putInt(command ^ -1);
+                .putInt(checksumSkipped ? 0 : sum(data)).putInt(command ^ -1);
         stream.write(header.array());
         stream.write(data);
         stream.flush();
