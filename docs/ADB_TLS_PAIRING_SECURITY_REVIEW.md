@@ -29,3 +29,14 @@ The Java-only frame parser in `OnDeviceAdbPairingFrame` implements only bounded 
 ## Release blockers
 
 The existing release verifier currently forbids the legacy `com/tananaev/adblib/` DEX package and extra unreviewed native libraries. Preserve this gate. A reviewed replacement must have its own explicit license, source-inventory, native ABI/16K-page and negative-protocol tests before changing the production release allowlist. Merely renaming code does not satisfy the security review.
+
+
+## Restricted TLS session components staged (not active in the app)
+
+- `OnDeviceAdbPairingExchange` now models AOSP's two-message SPAKE2 exchange and authenticated PeerInfo exchange over a caller-provided TLS stream. Validates a 6-digit code, a 64-byte same-session exporter, exact 32-byte SPAKE2 messages and 8,208-byte AEAD peer-info frames, and erases temporary buffers. Its `CryptoFactory` is **an intentionally unimplemented real provider**; offline tests use a fake backend that must never be packaged as an ADB authenticator.
+- `OnDeviceAdbPairingTransport` restricts the destination to the phone's own DNS-SD pairing endpoint, TLS 1.3, bounded connect/read waits, and a 64-byte exporter supplied by the TLS provider. It must not be activated before the reviewed client identity and key-exporter implementation exists.
+- `OnDeviceAdbWirePacket` strictly parses and serializes bounded 24-byte Android ADB wire headers and payloads with checksum/magic enforcement. This is **not** a full transport nor a certificate validator.
+- `OnDeviceAdbRestrictedClient` models an STLS-only session (no classic RSA downgrade), requires an explicit verified paired identity from a future TLS upgrader, opens only `CLASSPATH=<installed APK> ... Connect`, validates stream IDs, bounds command output/packet count and never logs command output. Its offline tests inject a fake TLS stream; no actual adbd/TLS authentication is claimed.
+- **No new native library or broad ADB library has been embedded in the production APK**, and no actual pairing or authenticated Binder connection has been executed from these new layers.
+
+Known remaining dependencies: app-owned RSA/certificate persistence, Android Conscrypt TLS exporter bound to the same socket, reviewed JNI SPAKE2+HKDF+AES-GCM implementation with proven server interoperability, actual paired-host TLS identity verification, callback-driven UI/notification code input, and clean-install Pixel 10 acceptance. Each must pass real-device and release-surface gates separately.
