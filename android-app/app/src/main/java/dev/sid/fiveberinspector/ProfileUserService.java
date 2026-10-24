@@ -16,6 +16,7 @@ public final class ProfileUserService extends IProfileService.Stub {
     }
     private final String uiSession = OperationTokens.create();
     private CardChoicePlan pendingCardChoice;
+    private RecoveryReviewPlan pendingRecoveryReview;
     private String displayedFingerprint;
     private String displayedCard;
     private String displayedLifecycleFingerprint;
@@ -37,6 +38,7 @@ public final class ProfileUserService extends IProfileService.Stub {
 
     private void invalidatePreviews(){
         displayedFingerprint=null;displayedCard=null;displayedLifecycleFingerprint=null;
+        pendingRecoveryReview=null;
         PortableProfileLifecycle.discardPreview();PortableProfileDownload.discardPreview();PhoneNotificationDelivery.discardCleanupPreview();
     }
     @Override public synchronized String prepareCardSelection(){
@@ -291,6 +293,120 @@ public final class ProfileUserService extends IProfileService.Stub {
         }
         catch (Throwable e) { return safeOperationError("notification-cleanup", e); }
     }
+    private static final class RecoveryReviewPlan {
+        final String token,tx,card,reader,snapshot,recordDigest,operation;
+        final boolean alreadyReviewed;
+        final long created;
+        RecoveryReviewPlan(String tx,String card,String reader,String snapshot,String recordDigest,String operation,boolean alreadyReviewed) {
+            this.tx=tx;this.card=card;this.reader=reader;this.snapshot=snapshot;
+            this.recordDigest=recordDigest;this.operation=operation;this.alreadyReviewed=alreadyReviewed;
+            this.token=OperationTokens.create();
+            this.created=android.os.SystemClock.elapsedRealtime();
+        }
+        void requireFresh(String candidate) {
+            if(candidate==null||!token.equals(candidate)||
+                android.os.SystemClock.elapsedRealtime()-created>90000)
+                throw new SecurityException("Recovery confirmation expired");
+        }
+    }
+
+    /** Caller already holds ReadOnlyRecovery's original cross-process lock. */
+    private RecoveryReviewPlan observeLifecycleForReview(OperationJournal journal) throws Exception {
+        java.util.Properties record=journal.read();
+        boolean alreadyReviewed="reviewed_observed".equals(journal.statusAfterReadOnlyReconciliation());
+        if(!"2".equals(record.getProperty("schema"))||
+            !record.getProperty("operation","").matches("enable|disable|rename|switch")||
+            !record.getProperty("status","").matches("running|unknown|observed_unknown")||
+            !(journal.requiresReconciliation()||alreadyReviewed)||
+            (alreadyReviewed&&!CardTransactionLock.persistentQuarantine()))
+            throw new SecurityException("No eligible unresolved lifecycle operation");
+        FiveberReaderSelector.Target card=FiveberReaderSelector.discover();
+        if(!card.identityHash.equals(record.getProperty("card"))||
+            !EnrolledWritePolicy.isAllowed(card.identityHash))
+            throw new SecurityException("Recovery must use the original permitted card");
+        NativeLpacBundle.ensureInstalled();
+        PhoneNativeLpac.listProfiles();
+        String initial=ProfileLifecycleGuard.fingerprint(
+            PortableProfileLifecycle.rows(CardProfileInventory.list()));
+        Thread.sleep(300);
+        String confirmed=ProfileLifecycleGuard.fingerprint(
+            PortableProfileLifecycle.rows(CardProfileInventory.list()));
+        FiveberReaderSelector.Target same=FiveberReaderSelector.discover();
+        if(!initial.equals(confirmed)||!same.identityHash.equals(card.identityHash)||
+            !same.reader.equals(card.reader))
+            throw new ReadOnlyRecovery.Failure("RECOVERY_INVENTORY_UNSTABLE");
+        if(alreadyReviewed&&!confirmed.equals(journal.reviewedLifecycleSnapshot()))
+            throw new SecurityException("Card changed after durable review; manual investigation required");
+        return new RecoveryReviewPlan(record.getProperty("txId"),card.identityHash,
+            card.reader,confirmed,OperationJournal.recordDigest(record),record.getProperty("operation"),alreadyReviewed);
+    }
+
+    /**
+     * Prepare ONLY a read-only, single-use review proposal. A readable card cannot by itself
+     * authorize future writes, and the previous mutation outcome is never declared successful.
+     */
+    @Override public synchronized String prepareRecoveryReview() {
+        pendingRecoveryReview=null;
+        try(ServiceCaller.ShellCall caller=ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            ReadOnlyRecovery.acquire();
+            try {
+                RecoveryReviewPlan proposal=observeLifecycleForReview(journal());
+                pendingRecoveryReview=proposal;
+                return new JSONObject().put("ok",true).put("token",proposal.token)
+                    .put("finishingPriorReview",proposal.alreadyReviewed)
+                    .put("operation",proposal.operation).put("inventoryChanged",
+                        !proposal.snapshot.equals(journal().read().getProperty("before","")))
+                    .put("validSeconds",90).put("previousOutcome","unknown")
+                    .put("requiresExplicitConsent",true).toString();
+            }finally{CardTransactionLock.release();}
+        }catch(Throwable e){pendingRecoveryReview=null;return safeOperationError("recovery-review-preview",e);}
+    }
+
+    /**
+     * Consume the proposal, reread the entire same card twice under the original exclusion,
+     * verify quiescence, then archive any worker quarantine and persist an immutable review
+     * disposition. Never retries, enables, disables, renames or deletes a profile.
+     */
+    @Override public synchronized String confirmRecoveryReview(String opaqueToken) {
+        RecoveryReviewPlan expected=pendingRecoveryReview;
+        pendingRecoveryReview=null; // consume even when verification or persistence fails
+        try(ServiceCaller.ShellCall caller=ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            if(expected==null)throw new SecurityException("No recovery proposal");
+            expected.requireFresh(opaqueToken);
+            ReadOnlyRecovery.acquire();
+            try {
+                OperationJournal record=journal();
+                RecoveryReviewPlan actual=observeLifecycleForReview(record);
+                if(!actual.tx.equals(expected.tx)||!actual.card.equals(expected.card)||
+                    !actual.reader.equals(expected.reader)||
+                    !actual.snapshot.equals(expected.snapshot)||
+                    !actual.recordDigest.equals(expected.recordDigest)||
+                    !actual.operation.equals(expected.operation)||
+                    actual.alreadyReviewed!=expected.alreadyReviewed)
+                    throw new SecurityException("Recovery evidence changed after confirmation");
+                // Worker quiescence MUST be proven before any durable review disposition,
+                // including the important no-quarantine-marker case (issue #14).
+                ReadOnlyRecovery.requireReviewQuiescent();
+                String authorization=IntentDigests.of(expected.token);
+                // Commit the review FIRST. With a persistent quarantine, the marker still
+                // blocks writes until separately archived. If interrupted, a fresh explicit
+                // consent and identical inventory can resume archival without altering history.
+                if(!expected.alreadyReviewed)
+                    record.reviewObservedLifecycle(expected.tx,expected.card,expected.snapshot,
+                        expected.recordDigest,authorization);
+                if(CardTransactionLock.persistentQuarantine())
+                    ReadOnlyRecovery.archiveAfterReview(expected.card,expected.recordDigest,
+                        expected.snapshot,authorization);
+                invalidatePreviews();
+                return new JSONObject().put("ok",true).put("status","reviewed_observed")
+                    .put("originalOutcome","unknown").put("previousOperation",expected.operation)
+                    .put("priorOperationRetried",false).put("safetyRecordsPreserved",true).toString();
+            }finally{CardTransactionLock.release();}
+        }catch(Throwable e){return safeOperationError("recovery-review-confirm",e);}
+    }
+
     @Override public synchronized String getOperationStatus() {
         try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
             java.util.Properties p = journal().read();

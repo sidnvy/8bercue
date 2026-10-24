@@ -48,6 +48,10 @@ final class CompanionProfileBackend extends IProfileService.Stub {
     @Override public String getCardInfo() { return result("getCardInfo"); }
     @Override public String getOperationStatus() { return result("getOperationStatus"); }
     @Override public String reconcileOperation() { return result("reconcileOperation"); }
+    @Override public String prepareRecoveryReview() { return result("prepareRecoveryReview"); }
+    @Override public String confirmRecoveryReview(String token) {
+        return result("confirmRecoveryReview",null,null,token,null,null,false);
+    }
     @Override public String prepareSwitch(int index) {
         return result("prepareSwitch",index,null,null,null,null,false);
     }

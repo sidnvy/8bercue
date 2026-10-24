@@ -109,6 +109,30 @@ final class ReadOnlyRecovery {
   }
   try(FileChannel parent=FileChannel.open(directory,StandardOpenOption.READ)){parent.force(true);}
  }
+ /** No journal disposition may be persisted before this worker and lock check. */
+ static void requireReviewQuiescent()throws Exception{
+  if(!CardTransactionLock.ownedByCurrentThread()||CardTransactionLock.isQuarantined())
+   throw new Failure("RECOVERY_WORKER_ACTIVE");
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+  Thread.sleep(200);
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+ }
+ /** Archive the original quarantine only during a deliberate, authenticated lifecycle review.
+  * Must be called while ReadOnlyRecovery.acquire() owns the original file lock. */
+ static void archiveAfterReview(String card,String journalDigest,String snapshot,String authorization)throws Exception{
+  if(!CardTransactionLock.ownedByCurrentThread()||CardTransactionLock.isQuarantined())
+   throw new Failure("RECOVERY_WORKER_ACTIVE");
+  OperationJournal journal=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state"));
+  Properties operation=journal.read();
+  if(!card.equals(operation.getProperty("card"))||!journalDigest.equals(OperationJournal.recordDigest(operation))
+    ||!snapshot.equals(journal.reviewedLifecycleSnapshot()))
+   throw new Failure("RECOVERY_EVIDENCE_INVALID");
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+  Thread.sleep(200);
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+  QuarantineReview.archive(ROOT.resolve("card-transaction.lock"),card,journalDigest,snapshot,
+      authorization,NativeLpacBundle.digest(new File(NativeLpacBundle.installedApk())));
+ }
  static String code(Throwable cause){
   for(int i=0;cause!=null&&i<12;i++,cause=cause.getCause())if(cause instanceof Failure)return ((Failure)cause).code;
   return "";

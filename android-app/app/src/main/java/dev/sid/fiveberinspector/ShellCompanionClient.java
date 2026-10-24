@@ -25,6 +25,7 @@ public final class ShellCompanionClient {
     private static int timeout(String method) {
         if (method.equals("executeDownload")) return 300000;
         if (method.equals("executeSwitch") || method.equals("executeOperation")) return 180000;
+        if (method.equals("prepareRecoveryReview") || method.equals("confirmRecoveryReview")) return 90000;
         if (method.equals("reconcileOperation") || method.equals("listProfiles")
                 || method.equals("getCardInfo") || method.equals("PROFILES")) return 65000;
         return 35000;
@@ -80,6 +81,7 @@ public final class ShellCompanionClient {
         switch (method) {
             case "getStatus": case "listProfiles": case "getCardInfo":
             case "getOperationStatus": case "reconcileOperation":
+            case "prepareRecoveryReview": case "confirmRecoveryReview":
             case "prepareCardSelection": case "selectCard":
             case "prepareSwitch": case "executeSwitch": case "prepareRename":
             case "prepareDelete": case "prepareDisable": case "executeOperation":

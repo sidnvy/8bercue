@@ -27,6 +27,12 @@ public final class UiFlowOfflineTest {
   check(RecoveryUiPolicy.needsCardChoice("AMBIGUOUS_EUICC"),"Unselected multi-card is a selection step, not a lost write");
   check(!RecoveryUiPolicy.needsCardChoice("CHANNEL_CLEANUP_FAILED"),"Unconfirmed cleanup still blocks recovery");
   check(RecoveryUiPolicy.blocks(true,true,false,"verified"),"A past unknown record still blocks even after current success");
+  check(RecoveryUiPolicy.keepsPending(false,true),"Unresolved notification must retain pending even after a clean operation journal");
+  check(RecoveryUiPolicy.keepsPending(true,false),"Unknown operation must retain pending");
+  check(!RecoveryUiPolicy.keepsPending(false,false),"Only complete operation and notification review can dismiss pending");
+  check(RecoveryUiPolicy.blocks(true,false,false,"unknown"),"A read-only snapshot cannot unlock an unknown operation");
+  check(!RecoveryUiPolicy.blocks(true,false,false,"reviewed_observed"),"Audited lifecycle review can clear the UI block");
+  check(RecoveryUiPolicy.blocks(true,true,false,"reviewed_observed"),"Historical uncertainty still blocks after current review");
   check(UiStatusPolicy.visible(false,false,false,true,"Card unavailable"),"Connected Binder must not hide card-access failure");
   check(UiStatusPolicy.visible(false,false,false,true,"Choose a card"),"Card-selection guidance stays visible");
   check(UiStatusPolicy.visible(true,false,false,true,"Card connected"),"Worker progress stays visible");
