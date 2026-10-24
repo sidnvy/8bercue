@@ -477,4 +477,13 @@
     <string name="ui_feedback_40">向支持团队分享前，请检查 ZIP 内容。</string>
     <string name="ui_feedback_41">导出失败</string>
     <string name="ui_feedback_42">无法写入所选文档。</string>
+    <string name="recovery_review_button">审核上次未确认的操作</string>
+    <string name="recovery_review_title">确认接受当前卡片状态？</string>
+    <string name="recovery_review_warning">无法证明上次启用、停用或重命名是否成功。请先检查当前 eSIM 列表。此操作不会重试之前的写入；只有安全核验通过，才会保留原始未知结果和审核记录，并允许从当前卡片状态开始新操作。如果卡片或内容不符合预期，请勿继续。</string>
+    <string name="recovery_review_changed">当前 Profile 列表与上次操作前的状态不同。确认前请检查各个 Profile 及启用状态。</string>
+    <string name="recovery_review_unchanged">当前 Profile 列表与上次操作前的状态一致，但仍无法证明上次操作是否实际执行。</string>
+    <string name="recovery_review_confirm">我已核对卡片，接受当前状态</string>
+    <string name="recovery_review_failed">未能完成授权，或卡片、后台进程、安全记录核验失败。写操作继续禁止。请保留应用数据，必要时导出诊断。</string>
+    <string name="recovery_review_completed">上次操作结果仍未知；原始证据和你的审核记录均已保留。后续操作将以新核验的卡片状态为起点。</string>
+    <string name="recovery_review_checking">正在核验卡片及安全记录</string>
 </resources>
