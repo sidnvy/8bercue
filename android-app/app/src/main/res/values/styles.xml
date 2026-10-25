@@ -8,8 +8,4 @@
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">#FFF8F5</item>
     </style>
-    <style name="PairingCodeTheme" parent="android:style/Theme.Material.Dialog.NoActionBar">
-        <item name="android:colorAccent">#A9431D</item>
-        <item name="android:windowSoftInputMode">stateAlwaysVisible|adjustResize</item>
-    </style>
 </resources>

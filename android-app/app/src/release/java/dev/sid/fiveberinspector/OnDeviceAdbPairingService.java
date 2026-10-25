@@ -18,8 +18,6 @@ public final class OnDeviceAdbPairingService extends Service {
     private static final String START="dev.sid.fiveberinspector.action.PAIRING_START";
     private static final String CODE="dev.sid.fiveberinspector.action.PAIRING_CODE";
     private static final String STOP="dev.sid.fiveberinspector.action.PAIRING_STOP";
-    static final String ACTION_CODE_FROM_ACTIVITY="dev.sid.fiveberinspector.action.CODE_FROM_ACTIVITY";
-    static final String EXTRA_CODE_FROM_ACTIVITY="private_pairing_code";
     private static final String CODE_KEY="pairing_code";
     private static final int NOTICE_ID=4931;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
@@ -71,10 +69,6 @@ public final class OnDeviceAdbPairingService extends Service {
         if(START.equals(action)){
             foreground();
             beginDiscovery();
-        } else if(ACTION_CODE_FROM_ACTIVITY.equals(action) && started) {
-            char[] code = intent.getCharArrayExtra(EXTRA_CODE_FROM_ACTIVITY);
-            intent.removeExtra(EXTRA_CODE_FROM_ACTIVITY);
-            if (code != null) submitCode(code);
         } else if(CODE.equals(action) && started) {
             // Android SystemUI owns the direct-reply edit control and IME.
             android.os.Bundle input = RemoteInput.getResultsFromIntent(intent);
@@ -158,9 +152,9 @@ public final class OnDeviceAdbPairingService extends Service {
     }
 
     /**
-     * Use the native SystemUI direct-reply experience where it works. Android
-     * does not let apps choose the RemoteInput keyboard type or force its IME.
-     * A standard numeric EditText activity handles incompatible SystemUI IMEs.
+     * Keep Settings resumed: its WirelessDebuggingFragment closes the pairing
+     * server in onPause, even for a floating Activity. Accept codes only through
+     * SystemUI RemoteInput; notification content must never launch an Activity.
      */
     private void pairingNotification() {
         if (!started || pairing == null || paired || working) return;
@@ -174,15 +168,10 @@ public final class OnDeviceAdbPairingService extends Service {
         Notification.Action inline = new Notification.Action.Builder(null,
                 getString(R.string.nav_enter_code), reply).addRemoteInput(remoteInput).build();
 
-        Intent openIntent = new Intent(this, OnDeviceAdbPairingCodeActivity.class);
-        PendingIntent open = PendingIntent.getActivity(this, 6, openIntent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-
         String description = lastFailureCategory.isEmpty()
                 ? getString(R.string.nav_pairing_notification_help)
                 : lastFailureCategory;
         Notification notice = base(getString(R.string.nav_pairing_available), description)
-                .setContentIntent(open)
                 .addAction(inline)
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setLocalOnly(true)

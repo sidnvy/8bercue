@@ -21,3 +21,17 @@
 
 - Reconfirm that SystemUI `RemoteInput` shows keyboard after OS update (or a confirmed on-device OS/IME fix), and validate native numeric fallback's notification action separately. A synthetic lab test verified that the app's dialog gains native EditText focus and the framework reports the Gboard input view active, but this pre-update firmware still visually fails to render the full keyboard.
 - Owner enters a fresh Android pairing code directly on the phone. App must visibly show pairing result, persist authenticated GUID, and then verify STLS → Binder → removable eUICC read-only inventory before marking Draft PR #17 mergeable.
+
+## 2026-10-25 production acceptance correction
+
+The separate numeric-input Activity proposed above is not a valid pairing
+fallback. Automated APK49 testing reproduced the pairing server closing on
+notification-content launch, including while holding Settings until a result.
+AOSP WirelessDebuggingFragment.onPause removes MODE_PAIRING; its dismiss listener
+calls disablePairing. A floating theme or another task does not prevent onPause.
+APK50 removes the Activity and content PendingIntent and accepts codes only via
+SystemUI RemoteInput. On the current Pixel10 firmware, the framework reports
+notification reply input shown and live pairing + UID2000 handoff pass. No overlay
+permission, Settings modification or debugging toggle is introduced.
+
+Source: https://android.googlesource.com/platform/packages/apps/Settings/+/refs/heads/main/src/com/android/settings/development/WirelessDebuggingFragment.java#239
