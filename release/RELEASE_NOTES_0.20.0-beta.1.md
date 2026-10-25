@@ -41,3 +41,11 @@ promised. No eSIM writes are implied by the read-only acceptance above.
 Crash reporting remains optional and off by default. Diagnostic sharing keeps
 its preview and confirmation. Notices and corresponding pinned native sources
 are included in the release source package.
+
+## Cryptographic software acknowledgments
+
+This product includes software developed by the OpenSSL Project for use in the
+OpenSSL Toolkit (http://www.openssl.org/).
+
+This product includes cryptographic software written by Eric Young
+(eay@cryptsoft.com). Complete upstream terms accompany the APK and source.
