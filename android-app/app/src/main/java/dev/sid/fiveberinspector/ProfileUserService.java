@@ -143,7 +143,7 @@ public final class ProfileUserService extends IProfileService.Stub {
             if(isolated||previousUnconfirmed)reply.put("recoveryState","same_card".equals(recoveryScope)?"READ_ONLY_RECOVERED":"READ_ONLY_CURRENT_CARD")
                 .put("recoveryScope",recoveryScope).put("changesBlocked",true)
                 .put("previousOperation",previous.getProperty("operation", "")).put("previousOutcome",previous.getProperty("status","unknown"))
-                .put("recoveryReviewEligible","same_card".equals(recoveryScope)&&displayedLifecycleFingerprint!=null
+                .put("recoveryReviewEligible","same_card".equals(recoveryScope)&&displayedLifecycleFingerprint!=null&&EnrolledWritePolicy.isAllowed(target.identityHash)
                     &&previous.getProperty("operation","").matches("enable|disable|rename|switch")
                     &&previous.getProperty("status","").matches("running|unknown|observed_unknown"));
             Log.i("EightberShell", "listProfiles success reader="+target.reader+" count="+reply.optInt("count",-1));

@@ -12,7 +12,7 @@ method=source.split('    public synchronized String listProfiles() throws Remote
 method=method.replace('org.json.JSONArray','JSONArray')
 fixture=r'''import java.util.*;
 public class ProfileObservationTest {
- static int checks,reads,discoveries,observations,uid=2000;static boolean authorized=true,isolated=true,worker=false,unstable=false,changed=false,reconciliation=true;
+ static int checks,reads,discoveries,observations,uid=2000;static boolean authorized=true,enrolled=true,isolated=true,worker=false,unstable=false,changed=false,reconciliation=true;
  static String scope="other_card",operation="enable",outcome="unknown";static final String CARD="b".repeat(64);
  String displayedFingerprint,displayedCard,displayedLifecycleFingerprint;String uiSession="session",transport="test";
  static class RemoteException extends Exception{}
@@ -57,7 +57,7 @@ public class ProfileObservationTest {
   static class Entry{String iccid="1234567890",provider="Test",name="Test",nickname="";boolean enabled=true;}
   static List<Entry> list(){reads++;Entry row=new Entry();if(unstable&&reads>1)row.nickname="changed";return List.of(row);}
  }
- static class EnrolledWritePolicy{static boolean isAllowed(String card){return true;}}
+ static class EnrolledWritePolicy{static boolean isAllowed(String card){return enrolled;}}
  static class OperationJournal{
   boolean requiresReconciliation(){return reconciliation;}
   Properties read(){Properties p=new Properties();p.setProperty("operation",operation);p.setProperty("status",outcome);return p;}
@@ -82,7 +82,7 @@ public class ProfileObservationTest {
  static String inventoryFingerprint(List<CardProfileInventory.Entry> rows){return rows.get(0).nickname.isEmpty()?"c".repeat(64):"d".repeat(64);}
  public synchronized String listProfiles()throws RemoteException{METHOD
  static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
- static void reset(){reads=discoveries=observations=0;uid=2000;authorized=true;isolated=true;worker=unstable=changed=false;reconciliation=true;scope="other_card";operation="enable";outcome="unknown";CardTransactionLock.held=false;}
+ static void reset(){reads=discoveries=observations=0;uid=2000;authorized=true;enrolled=true;isolated=true;worker=unstable=changed=false;reconciliation=true;scope="other_card";operation="enable";outcome="unknown";CardTransactionLock.held=false;}
  static JSONObject read()throws Exception{return new JSONObject(new ProfileObservationTest().listProfiles());}
  public static void main(String[] args)throws Exception{
   for(String relation:List.of("same_card","other_card","unbound")){
@@ -108,6 +108,7 @@ public class ProfileObservationTest {
   }
   reset();scope="same_card";outcome="verified";JSONObject currentVerified=read();check(!currentVerified.optBoolean("recoveryReviewEligible",true),"Uncertainty elsewhere in history cannot review a verified current record");
   reset();isolated=false;reconciliation=false;JSONObject healthy=read();check(healthy.has("profiles")&&healthy.optBoolean("writeQualified",false),"Healthy path unchanged");check(reads==1&&observations==0,"Healthy card needs no recovery receipt");
+  reset();scope="same_card";enrolled=false;JSONObject unsupported=read();check(unsupported.has("profiles")&&!unsupported.optBoolean("writeQualified",true)&&!unsupported.optBoolean("recoveryReviewEligible",true),"Read-only card without management admission cannot offer an impossible review");
   reset();worker=true;JSONObject failed=read();check(!failed.optBoolean("ok",true)&&"RECOVERY_WORKER_ACTIVE".equals(failed.optString("recoveryError"))&&reads==0,"Unconfirmed worker still prevents reading");
   reset();unstable=true;failed=read();check(!failed.has("profiles")&&observations==0&&"RECOVERY_INVENTORY_UNSTABLE".equals(failed.optString("recoveryError")),"Unstable inventory is not presented as verified");
   reset();changed=true;failed=read();check(!failed.has("profiles")&&observations==0,"Card swap during read still fails");
