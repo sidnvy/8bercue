@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="ui_connect_your_card" formatted="false">"Connect your card"</string>
-    <string name="ui_connect_using_your_computer_to_check_this_card" formatted="false">"Connect using your computer to check this card."</string>
-    <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"An operation ended while this screen was unavailable. Verify the card before continuing; do not repeat the operation."</string>
+      <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"An operation ended while this screen was unavailable. Verify the card before continuing; do not repeat the operation."</string>
     <string name="ui_needs_verification" formatted="false">"Needs verification"</string>
     <string name="ui_reading_the_card_to_establish_its_current_state" formatted="false">"Reading the card to establish its current state."</string>
     <string name="ui_check_ended" formatted="false">"Check ended"</string>
@@ -13,8 +12,7 @@
     <string name="ui_connection_not_completed" formatted="false">"Connection not completed"</string>
     <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">"Card and operation state need verification. Open Settings → Verify card and recovery. Do not submit its activation code again."</string>
     <string name="ui_connection_lost" formatted="false">"Connection lost"</string>
-    <string name="ui_start_the_computer_connection_again_pending_operations_will_not" formatted="false">"Start the computer connection again. Pending operations will not be repeated."</string>
-    <string name="ui_connected" formatted="false">"Connected"</string>
+      <string name="ui_connected" formatted="false">"Connected"</string>
     <string name="ui_checking_card_and_recovery_state" formatted="false">"Checking card and recovery state…"</string>
     <string name="ui_device_not_supported_by_this_build" formatted="false">"Device not supported by this build"</string>
     <string name="ui_operation_in_progress" formatted="false">"Operation in progress"</string>
@@ -23,8 +21,7 @@
     <string name="ui_reinstall_the_verified_apk_before_connecting" formatted="false">"Reinstall the verified APK before connecting."</string>
     <string name="ui_waiting_for_computer" formatted="false">"Waiting for computer"</string>
     <string name="ui_copy_the_command_below_and_run_it_within_two_minutes" formatted="false">"Copy the command below and run it within two minutes."</string>
-    <string name="ui_choose_connect_using_computer_and_copy_and_run_its_adb_command" formatted="false">"Choose Connect using computer and copy and run its ADB command."</string>
-    <string name="ui_reading_qr_image" formatted="false">"Reading QR image"</string>
+      <string name="ui_reading_qr_image" formatted="false">"Reading QR image"</string>
     <string name="ui_validating_activation_code" formatted="false">"Validating activation code"</string>
     <string name="ui_reviewing" formatted="false">"Reviewing "</string>
     <string name="ui_one_attempt_in_progress_keep_the_phone_powered_on_the_result_wil" formatted="false">"One attempt in progress. Keep the phone powered on; the result will be verified."</string>
@@ -124,34 +121,26 @@
     <string name="ui_install_once" formatted="false">"Install once"</string>
     <string name="ui_installation_cancelled" formatted="false">"Installation cancelled"</string>
     <string name="ui_no_download_started_no_changes_were_made" formatted="false">"No download started. No changes were made."</string>
-    <string name="ui_connect_using_your_computer" formatted="false">"Connect using your computer."</string>
-    <string name="ui_add_esim" formatted="false">"Add eSIM"</string>
+      <string name="ui_add_esim" formatted="false">"Add eSIM"</string>
     <string name="ui_esim_details" formatted="false">"eSIM details"</string>
     <string name="ui_rename_esim" formatted="false">"Rename eSIM"</string>
     <string name="ui_operation_records" formatted="false">"Operation records"</string>
     <string name="ui_connect_your_phone" formatted="false">"Connect your phone"</string>
     <string name="ui_settings" formatted="false">"Settings"</string>
     <string name="ui_back_to_add_methods" formatted="false">"Back to add methods"</string>
-    <string name="ui_back_to_my_esims" formatted="false">"Back to My eSIMs"</string>
-    <string name="ui_add_esim_134" formatted="false">"+  Add eSIM"</string>
+      <string name="ui_add_esim_134" formatted="false">"+  Add eSIM"</string>
     <string name="ui_installation_supported_management_unavailable" formatted="false">"Installation supported; management unavailable"</string>
-    <string name="ui_choose" formatted="false">" · Choose"</string>
-    <string name="ui_eid" formatted="false">"EID "</string>
-    <string name="ui_not_checked" formatted="false">"Not checked"</string>
-    <string name="ui_card_connected_read_verified" formatted="false">"Card connected · Read verified"</string>
-    <string name="ui_connect_to_check_this_card" formatted="false">"Connect to check this card"</string>
-    <string name="ui_your_esims" formatted="false">"Your eSIMs"</string>
+        <string name="ui_not_checked" formatted="false">"Not checked"</string>
+        <string name="ui_your_esims" formatted="false">"Your eSIMs"</string>
     <string name="ui_refresh" formatted="false">"Refresh"</string>
     <string name="ui_your_esims_will_appear_here" formatted="false">"Your eSIMs will appear here."</string>
-    <string name="ui_choose_a_card_or_check_compatibility_in_settings" formatted="false">"Choose a card or check compatibility in Settings."</string>
-    <string name="ui_connect_using_computer" formatted="false">"Connect using computer"</string>
+      <string name="ui_connect_using_computer" formatted="false">"Connect using computer"</string>
     <string name="ui_choose_card" formatted="false">"Choose card"</string>
     <string name="ui_enabled" formatted="false">"Enabled"</string>
     <string name="ui_disabled" formatted="false">"Disabled"</string>
     <string name="ui_unknown" formatted="false">"Unknown"</string>
     <string name="ui_no_profiles_yet_add_an_esim_to_get_started" formatted="false">"No profiles yet. Add an eSIM to get started."</string>
-    <string name="ui_enabled_describes_the_card_state_network_service_has_not_been_ch" formatted="false">"Enabled describes the card state. Network service has not been checked."</string>
-    <string name="ui_select_an_euicc" formatted="false">"Select an eUICC"</string>
+      <string name="ui_select_an_euicc" formatted="false">"Select an eUICC"</string>
     <string name="ui_euicc" formatted="false">" · eUICC"</string>
     <string name="ui_refresh_the_card_and_select_a_profile" formatted="false">"Refresh the card and select a profile."</string>
     <string name="ui_eid_156" formatted="false">" · EID "</string>
@@ -224,15 +213,7 @@
     <string name="ui_order_secure_element_hal_aidl_then_hidl_telephony_then_omapi_mul" formatted="false">"Order: Secure Element HAL (AIDL, then HIDL), Telephony, then OMAPI. Multiple readable cards require an explicit choice. Unconfirmed channel cleanup stops access. No brand or Android-version list selects a card."</string>
     <string name="ui_run_read_only_check" formatted="false">"Run read-only check"</string>
     <string name="ui_connect_first" formatted="false">"Connect first"</string>
-    <string name="ui_use_connect_using_computer_then_run_the_compatibility_check" formatted="false">"Use Connect using computer, then run the compatibility check."</string>
-    <string name="ui_connection" formatted="false">"Connection"</string>
-    <string name="ui_card_connection" formatted="false">"Card connection: "</string>
-    <string name="ui_not_checked_in_this_connection" formatted="false">"Not checked in this connection"</string>
-    <string name="ui_computer_connection_active" formatted="false">"Computer connection active"</string>
-    <string name="ui_local_companion_connected" formatted="false">"Local companion connected"</string>
-    <string name="ui_read_only_diagnostic_connection" formatted="false">"Read-only diagnostic connection"</string>
-    <string name="ui_read_only_companion_connected" formatted="false">"Read-only companion connected"</string>
-    <string name="ui_not_connected" formatted="false">"Not connected"</string>
+                    <string name="ui_not_connected" formatted="false">"Not connected"</string>
     <string name="ui_use_legacy_local_companion" formatted="false">"Use legacy local companion"</string>
     <string name="ui_check_direct_binder_companion_read_only" formatted="false">"Check direct Binder Companion (read-only)"</string>
     <string name="ui_checking_local_binder" formatted="false">"Checking local Binder"</string>
@@ -259,13 +240,10 @@
     <string name="ui_binder_read_unavailable" formatted="false">"Binder read unavailable"</string>
     <string name="ui_setup_help" formatted="false">"Setup help  ›"</string>
     <string name="ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co" formatted="false">"Connect this phone by USB, enable USB debugging and accept the computer authorization prompt. Choose Connect using computer, then copy and run the displayed ADB command. No Python or additional download is required."</string>
-    <string name="ui_after_connection_open_compatibility_check_a_connected_service_al" formatted="false">"After connection, open Compatibility check. A connected service alone does not prove card access: confirm the selected card channel and a fresh profile list. No card changes are made by the check."</string>
-    <string name="ui_reconnect_after_a_phone_restart_app_update_or_service_terminatio" formatted="false">"Reconnect after a phone restart, app update or service termination. Failed operations are never automatically repeated."</string>
-    <string name="ui_appearance" formatted="false">"Appearance"</string>
+        <string name="ui_appearance" formatted="false">"Appearance"</string>
     <string name="ui_theme_dark" formatted="false">"Theme: Dark"</string>
     <string name="ui_theme_light" formatted="false">"Theme: Light"</string>
-    <string name="ui_support" formatted="false">"Support"</string>
-    <string name="ui_eid_269" formatted="false">"EID  "</string>
+      <string name="ui_eid_269" formatted="false">"EID  "</string>
     <string name="ui_profiles" formatted="false">"Profiles  "</string>
     <string name="ui_storage" formatted="false">"Storage  "</string>
     <string name="ui_read_card_information" formatted="false">"Read card information"</string>
@@ -280,9 +258,7 @@
     <string name="ui_card_capabilities" formatted="false">"Card capabilities"</string>
     <string name="ui_optional_capabilities_were_not_reported_by_this_reader" formatted="false">"Optional capabilities were not reported by this reader."</string>
     <string name="ui_review_notification_cleanup" formatted="false">"Review notification cleanup"</string>
-    <string name="ui_recovery_advanced" formatted="false">"Recovery &amp; advanced  ›"</string>
-    <string name="ui_recovery_advanced_285" formatted="false">"Recovery &amp; advanced"</string>
-    <string name="ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a" formatted="false">"An interrupted operation may have an unknown outcome. Reconnect and verify the card before making changes. Do not reuse an activation code until the operator confirms it is safe."</string>
+        <string name="ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a" formatted="false">"An interrupted operation may have an unknown outcome. Reconnect and verify the card before making changes. Do not reuse an activation code until the operator confirms it is safe."</string>
     <string name="ui_recover_local_companion" formatted="false">"Recover local companion"</string>
     <string name="ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a" formatted="false">"Diagnostics exclude activation codes, profile names, identifiers and raw protocol logs."</string>
     <string name="ui_privacy_information" formatted="false">"Privacy information"</string>
@@ -406,8 +382,7 @@
     <string name="language_system">"Follow system"</string>
     <string name="language_english">"English"</string>
     <string name="language_chinese">"简体中文"</string>
-    <string name="language_current">"Language: %1$s"</string>
-    <string name="language_help">"Changes only 8bercue. Card operations and your phone’s system language are unchanged."</string>
+      <string name="language_help">"Changes only 8bercue. Card operations and your phone’s system language are unchanged."</string>
     <string name="connection_countdown">"Ready for command · %1$s remaining"</string>
     <string name="profile_accessibility">"%1$s, %2$s. View profile details"</string>
     <string name="profile_switch_replaces">"Turning this on turns off %1$s on this card."</string>
@@ -437,12 +412,8 @@
     <string name="ui_feedback_0">Report this connection failure</string>
     <string name="ui_feedback_1">Trouble connecting? Report issue</string>
     <string name="ui_feedback_2">Report previous connection failure</string>
-    <string name="ui_feedback_3">Report a problem  ›</string>
-    <string name="ui_feedback_4">Save diagnostic ZIP  ›</string>
-    <string name="ui_feedback_5">Optional crash reports: </string>
-    <string name="ui_feedback_6">On</string>
-    <string name="ui_feedback_7">Off</string>
-    <string name="ui_feedback_8">Test crash-report connection</string>
+      <string name="ui_feedback_4">Save diagnostic ZIP  ›</string>
+          <string name="ui_feedback_8">Test crash-report connection</string>
     <string name="ui_feedback_9">Test event queued</string>
     <string name="ui_feedback_10">Crash reporting disabled</string>
     <string name="ui_feedback_11">Check the GlitchTip project for receipt.</string>
@@ -478,8 +449,7 @@
     <string name="ui_feedback_41">Export failed</string>
     <string name="ui_feedback_42">Could not write the selected document.</string>
 
-    <string name="wireless_adb_preview_entry">"Wireless ADB setup preview"</string>
-    <string name="wireless_adb_preview_title">"Wireless debugging · discovery preview"</string>
+      <string name="wireless_adb_preview_title">"Wireless debugging · discovery preview"</string>
     <string name="wireless_adb_preview_help">"Android 11+: Enable Developer options → Wireless debugging, then choose Pair device with pairing code. 8bercue discovers this phone&#x27;s pairing and connection ports automatically. Pairing and TLS login are not yet available in this experimental build."</string>
     <string name="wireless_adb_preview_scan">"Discover this phone&#x27;s endpoints"</string>
     <string name="wireless_adb_preview_searching">"Searching for the local service…"</string>
@@ -520,4 +490,64 @@
     <string name="wireless_adb_exporter_synthetic">"Synthetic loopback only; actual ADB pairing still required"</string>
     <string name="wireless_adb_failure_stage">"Stage: %1$s"</string>
     <string name="wireless_adb_pairing_start">"Start wireless pairing (experimental)"</string>
+
+  <!-- Grouped settings and user-facing connection flow. -->
+  <string name="nav_connection">Connection &amp; access</string>
+  <string name="nav_appearance">Appearance &amp; language</string>
+  <string name="nav_appearance_summary">%1$s · %2$s</string>
+  <string name="nav_help_feedback">Help &amp; feedback</string>
+  <string name="nav_advanced">Advanced</string>
+  <string name="nav_privacy_about">Privacy &amp; about</string>
+  <string name="nav_session_records">Results from this app session</string>
+  <string name="nav_verification_needed">Card state needs verification</string>
+  <string name="nav_not_set_up">Not set up</string>
+  <string name="nav_diagnostic_only">Read-only diagnostics</string>
+  <string name="nav_authorize_phone">Authorize on this phone</string>
+  <string name="nav_connection_ready">Your connection is ready. Return to your eSIMs to choose a card or manage it.</string>
+  <string name="nav_view_esims">View my eSIMs</string>
+  <string name="nav_pairing_steps">1. Open Wireless debugging in Android Settings.\n2. Choose Pair device with pairing code.\n3. Keep the code window open and enter the code in the 8bercue notification.</string>
+  <string name="nav_pairing_help">Wireless setup requires Android 12 or later and Wi-Fi. If the notification reply does not show a keyboard, tap the notification itself to enter the code in 8bercue. Keep the system pairing window open until pairing finishes.</string>
+  <string name="nav_authorization_scope">Android debugging gives 8bercue more access than an ordinary app. It uses this permission to connect to this phone’s card and perform the card operations you request. Pair only with this phone.</string>
+  <string name="nav_start_setup">Start setup</string>
+  <string name="nav_reconnect_help">Your pairing is remembered. Keep Wi-Fi and Wireless debugging enabled, then connect again when needed.</string>
+  <string name="nav_computer_required">This build connects through an authorized computer. Connect this phone by USB and follow the one-command guide.</string>
+  <string name="nav_computer_alternative">You can also authorize the connection using a trusted computer.</string>
+  <string name="nav_other_connections">Other connection options</string>
+  <string name="nav_pair_again">Pair with this phone again</string>
+  <string name="nav_report_problem">Report a problem</string>
+  <string name="nav_report_summary">Review before sharing</string>
+  <string name="nav_export_diagnostics">Export diagnostics</string>
+  <string name="nav_export_summary">Save a ZIP or share a text summary</string>
+  <string name="nav_share_summary">Share text summary</string>
+  <string name="nav_advanced_help">These tools are usually only needed when checking a problem.</string>
+  <string name="nav_card_information">Card information</string>
+  <string name="nav_card_information_summary">Identity, storage and capabilities</string>
+  <string name="nav_diagnostics_recovery">Diagnostics &amp; recovery</string>
+  <string name="nav_compatibility_summary">Check the current card connection</string>
+  <string name="nav_verify_state">Verify card state</string>
+  <string name="nav_verify_summary">Check unfinished operations</string>
+  <string name="nav_laboratory">Laboratory</string>
+  <string name="nav_lab_tools">Laboratory tools</string>
+  <string name="nav_lab_only">Lab builds only</string>
+  <string name="nav_wireless_diagnostics">Wireless connection diagnostics</string>
+  <string name="nav_crash_reports">Optional crash reports</string>
+  <string name="nav_enabled">On</string>
+  <string name="nav_disabled">Off</string>
+  <string name="nav_back">Back</string>
+  <string name="nav_your_card">Your eSIM card</string>
+  <string name="nav_removable_card">Removable eUICC</string>
+  <string name="nav_builtin_card">Built-in eUICC</string>
+  <string name="nav_card_connected_summary">Connected · %1$d eSIM profiles</string>
+  <string name="nav_card_not_connected">Connect to view your eSIMs</string>
+  <string name="nav_card_choose_summary">Choose the card you want to manage</string>
+  <string name="nav_connection_needed">Open Connection &amp; access to connect to this phone, then choose your card.</string>
+  <string name="nav_connection_lost">Reconnect to this phone. Pending card operations will not be repeated.</string>
+  <string name="nav_pairing_code">Six-digit pairing code</string>
+  <string name="nav_enter_code">Enter pairing code</string>
+  <string name="nav_pairing_available">8bercue · Enter pairing code</string>
+  <string name="nav_pairing_notification_help">Reply with the code from Android Settings, or tap this notification to enter it.</string>
+  <string name="nav_pair_confirm">Pair</string>
+  <string name="nav_pair_code_prompt">Enter the six-digit code shown in Android Wireless debugging.</string>
+  <string name="nav_pair_code_incomplete">Enter all six digits.</string>
+  <string name="nav_pair_code_digits_only">Use digits only.</string>
 </resources>

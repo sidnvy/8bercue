@@ -35,6 +35,7 @@ public final class OnDeviceAdbPairingService extends Service {
     public static Intent startIntent(Context context) {
         return new Intent(context,OnDeviceAdbPairingService.class).setAction(START);
     }
+    @Override protected void attachBaseContext(Context base){super.attachBaseContext(AppLanguage.wrap(base));}
     @Override public IBinder onBind(Intent intent){return null;}
     @Override public void onCreate(){
         super.onCreate();
@@ -49,7 +50,7 @@ public final class OnDeviceAdbPairingService extends Service {
         Intent cancel=new Intent(this,OnDeviceAdbPairingService.class).setAction(STOP);
         PendingIntent stop=PendingIntent.getService(this,3,cancel,
                 PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-        b.addAction(new Notification.Action.Builder(null,"Cancel",stop).build());
+        b.addAction(new Notification.Action.Builder(null,getString(R.string.ui_cancel),stop).build());
         return b;
     }
     private void update(String title,String detail) {
@@ -167,24 +168,22 @@ public final class OnDeviceAdbPairingService extends Service {
         PendingIntent reply = PendingIntent.getForegroundService(this, 5, replyIntent,
                 PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         RemoteInput remoteInput = new RemoteInput.Builder(CODE_KEY)
-                .setLabel("Six-digit pairing code")
+                .setLabel(getString(R.string.nav_pairing_code))
                 .setAllowFreeFormInput(true)
                 .build();
         Notification.Action inline = new Notification.Action.Builder(null,
-                "Enter code", reply).addRemoteInput(remoteInput).build();
+                getString(R.string.nav_enter_code), reply).addRemoteInput(remoteInput).build();
 
         Intent openIntent = new Intent(this, OnDeviceAdbPairingCodeActivity.class);
         PendingIntent open = PendingIntent.getActivity(this, 6, openIntent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        Notification.Action numericInput = new Notification.Action.Builder(null,
-                "Open numeric keyboard", open).build();
 
         String description = lastFailureCategory.isEmpty()
-                ? "Enter the code from Android Settings; use numeric input if keyboard is hidden"
+                ? getString(R.string.nav_pairing_notification_help)
                 : lastFailureCategory;
-        Notification notice = base("8bercue · Pairing available", description)
+        Notification notice = base(getString(R.string.nav_pairing_available), description)
+                .setContentIntent(open)
                 .addAction(inline)
-                .addAction(numericInput)
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setLocalOnly(true)
                 .build();

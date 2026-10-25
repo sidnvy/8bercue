@@ -12,7 +12,7 @@ import android.widget.*;
 import java.util.concurrent.*;
 import org.json.*;
 
-/** Three-screen local manager. No credential or transaction replay on recreation. */
+/** Local manager with grouped settings. No credential or transaction replay on recreation. */
 public final class MainActivity extends Activity {
   static int BG, SURFACE, TEXT, MUTED, ACCENT, LINE, TONAL, ON_TONAL, ERROR;
   private boolean darkTheme;
@@ -36,6 +36,7 @@ public final class MainActivity extends Activity {
   private boolean fallback, companionManagement, destroyed, resumed, needsConnectionRead;
   private android.net.Uri pendingImport;
   private int screen;
+  private int connectionReturnScreen=2,computerReturnScreen=SettingsNavigation.CONNECTION;
   private JSONObject inventory = new JSONObject(), cardInfo = new JSONObject(), compatibility = new JSONObject();
   private LinearLayout content, statusBox;
   private TextView statusTitle, statusDetail;
@@ -116,15 +117,18 @@ public final class MainActivity extends Activity {
   @Override
   public void onCreate(Bundle saved) {
     super.onCreate(saved);
-    title = s(R.string.ui_connect_your_card); detail = s(R.string.ui_connect_using_your_computer_to_check_this_card);
+    title = s(R.string.ui_connect_your_card); detail = s(R.string.nav_connection_needed);
     if (Build.VERSION.SDK_INT >= 33)
       getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
           android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
     applyPalette();
     getWindow().setStatusBarColor(BG);
     getWindow().setNavigationBarColor(BG);
-    if (saved != null)
-      screen = saved.getInt("screen", 0) == 2 ? 2 : 0;
+    if (saved != null) {
+      screen=SettingsNavigation.restore(saved.getInt("screen",0),BuildConfig.DEBUG);
+      connectionReturnScreen=saved.getBoolean("connectionFromHome",false)?0:2;
+      computerReturnScreen=saved.getBoolean("computerFromHome",false)?0:SettingsNavigation.CONNECTION;
+    }
     SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.APP_STARTED);
     if (getPreferences(0).getBoolean("pending", false))
       notice = s(R.string.ui_card_and_operation_state_need_verification_open_settings_verify);
@@ -152,6 +156,8 @@ public final class MainActivity extends Activity {
   @Override
   public void onSaveInstanceState(Bundle out) {
     out.putInt("screen", screen);
+    out.putBoolean("connectionFromHome",connectionReturnScreen==0);
+    out.putBoolean("computerFromHome",computerReturnScreen==0);
     super.onSaveInstanceState(out);
   }
   @Override
@@ -200,7 +206,7 @@ public final class MainActivity extends Activity {
         backend=null;compatibility=new JSONObject();navigationSession++;clearDetailSelection();
         compatibilityFailure(CompatibilityDiagnostics.Stage.BINDER,
             CompatibilityDiagnostics.Failure.SERVICE_DISCONNECTED);
-        statusPreservingOutcome(s(R.string.ui_connection_lost), s(R.string.ui_start_the_computer_connection_again_pending_operations_will_not));render();
+        statusPreservingOutcome(s(R.string.ui_connection_lost), s(R.string.nav_connection_lost));render();
       }),0);
       backend=service;directManagement=true;companionManagement=true;fallback=false;
       recoveryBootstrap=false;
@@ -233,6 +239,7 @@ public final class MainActivity extends Activity {
     try { connectionCommand=ConnectionCommand.forApk(getApplicationInfo().sourceDir); }
     catch(IllegalArgumentException invalid){status(s(R.string.ui_command_unavailable),s(R.string.ui_reinstall_the_verified_apk_before_connecting));render();return;}
     CompatibilityDiagnostics.started(CompatibilityDiagnostics.Transport.ADB_COMPANION);
+    if(screen!=6)computerReturnScreen=screen==0?0:SettingsNavigation.CONNECTION;
     connectionDeadline=android.os.SystemClock.elapsedRealtime()+120000;connectionExpired=false;connectionFeedback="";statusPreservingOutcome(s(R.string.ui_waiting_for_computer),s(R.string.ui_copy_the_command_below_and_run_it_within_two_minutes));screen=6;render();
   }
 
@@ -247,7 +254,7 @@ public final class MainActivity extends Activity {
   private void connect() {
     if (!managementUnavailable().isEmpty()) { status(s(R.string.ui_device_not_supported_by_this_build),managementUnavailable());return; }
     connectExistingCompanion();
-    if(backend==null)status(s(R.string.ui_connect_your_card),s(R.string.ui_choose_connect_using_computer_and_copy_and_run_its_adb_command));
+    if(backend==null)status(s(R.string.ui_connect_your_card),s(R.string.nav_connection_needed));
   }
   private interface Job {
     JSONObject run() throws Exception;
@@ -738,9 +745,10 @@ public final class MainActivity extends Activity {
   private void navigate(int destination) {
     if(OPERATIONS.running())return;
     if (screen == 1 && destination != 1) { clearCredentials();pendingImport = null;draft.changed(); }
+    if(destination==SettingsNavigation.CONNECTION&&screen!=SettingsNavigation.CONNECTION&&screen!=6)connectionReturnScreen=screen==0?0:2;
     navigationSession++;
     if (destination != 1) { draft.form = false;showConfirmation = false; }
-    if (!getPreferences(0).getBoolean("pending", false)) { notice = "";title = backend != null ? s(R.string.ui_card_connected) : s(R.string.ui_connect_your_card);detail = backend != null ? "" : s(R.string.ui_connect_using_your_computer); }
+    if (!getPreferences(0).getBoolean("pending", false)) { notice = "";title = backend != null ? s(R.string.ui_card_connected) : s(R.string.ui_connect_your_card);detail = backend != null ? "" : s(R.string.nav_connection_needed); }
     selectedProfile=-1;selectedIccid="";selectedProfileKey="";detailProfile=null;
     screen = destination;
     render();
@@ -753,7 +761,9 @@ public final class MainActivity extends Activity {
     if(OPERATIONS.running())return;
     if(screen==4){screen=3;navigationSession++;render();return;}
     if (screen == 1 && draft.form) { clearCredentials();activation = null;confirmation = null;draft.form = false;showConfirmation = false;pendingImport = null;draft.changed();navigationSession++;render(); }
-    else if (screen != 0) navigate(0);
+    else if(screen==SettingsNavigation.CONNECTION)navigate(connectionReturnScreen);
+    else if(screen==6)navigate(computerReturnScreen);
+    else if (screen != 0) navigate(SettingsNavigation.parent(screen));
     else finish();
   }
   private void render() {
@@ -772,8 +782,8 @@ public final class MainActivity extends Activity {
     root.setBackgroundColor(BG);
     PageHeader.applyInsets(root);
     root.addView(new PageHeader(this,
-        screen == 0 ? "8bercue" : screen == 1 ? s(R.string.ui_add_esim) : screen == 3 ? s(R.string.ui_esim_details) : screen == 4 ? s(R.string.ui_rename_esim) : screen == 5 ? s(R.string.ui_operation_records) : screen == 6 ? s(R.string.ui_connect_your_phone) : s(R.string.ui_settings),
-        screen == 1 && draft.form ? s(R.string.ui_back_to_add_methods) : s(R.string.ui_back_to_my_esims),
+        screenTitle(),
+        screen == 1 && draft.form ? s(R.string.ui_back_to_add_methods) : s(R.string.nav_back),
         screen == 0 ? null : this::handleBack,
         screen == 0 ? () -> navigate(2) : null));
     ScrollView scroll = new ScrollView(this);
@@ -797,6 +807,8 @@ public final class MainActivity extends Activity {
     statusDetail = text("", 13, MUTED, false);
     statusBox.addView(statusTitle);
     statusBox.addView(statusDetail, margin(4));
+    if(getPreferences(0).getBoolean("pending",false)&&(screen==0||screen==2))
+      statusBox.addView(action(s(R.string.nav_verify_state),true,backend==null?this::primaryConnect:this::reconcile),margin(12));
     // Progress, outcome and recovery share this one status region.
     {
       ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -813,6 +825,14 @@ public final class MainActivity extends Activity {
     else if(screen==4) renameScreen();
     else if(screen==5) recordsScreen();
     else if(screen==6) connectionScreen();
+    else if(screen==SettingsNavigation.CONNECTION)connectionAccessScreen();
+    else if(screen==SettingsNavigation.APPEARANCE)appearanceScreen();
+    else if(screen==SettingsNavigation.SUPPORT)supportScreen();
+    else if(screen==SettingsNavigation.ADVANCED)advancedScreen();
+    else if(screen==SettingsNavigation.PRIVACY)privacyScreen();
+    else if(screen==SettingsNavigation.CARD)cardInformationScreen();
+    else if(screen==SettingsNavigation.RECOVERY)recoveryScreen();
+    else if(screen==SettingsNavigation.LAB)laboratoryScreen();
     else settings();
     updateStatusRegion();
   }
@@ -847,22 +867,19 @@ public final class MainActivity extends Activity {
       add(text(s(R.string.ui_installation_supported_management_unavailable),20,TEXT,true),24);
       add(text(managementUnavailable()),12);return;
     }
-    LinearLayout card=box();
-    Button choice=button(cardLabel()+s(R.string.ui_choose),false);
-    choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
-    choice.setTextSize(18);choice.setTextColor(TEXT);
-    choice.setBackgroundColor(Color.TRANSPARENT);
-    choice.setOnClickListener(v->{if(backend!=null)chooseCard();else primaryConnect();});
-    taskControls.add(choice);card.addView(choice,new LinearLayout.LayoutParams(-1,-2));
-    card.addView(text(s(R.string.ui_eid)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),margin(4));
-    card.addView(text(inventory.has("profiles")?s(R.string.ui_card_connected_read_verified):s(R.string.ui_connect_to_check_this_card),12,MUTED,false),margin(14));
-    add(card,18);
+    LinearLayout card=navigationGroup(18);
+    String cardSummary=binderReadOnlyInventory?s(R.string.nav_diagnostic_only):inventory.has("profiles")?s(R.string.nav_card_connected_summary,inventory.optJSONArray("profiles").length()):s(backend==null?R.string.nav_card_not_connected:R.string.nav_card_choose_summary);
+    if(backend!=null)navigationItem(card,compactCardTitle(),cardSummary,"card",this::chooseCard);
+    else {card.setPadding(dp(20),dp(18),dp(20),dp(18));card.addView(text(s(R.string.nav_your_card),18,TEXT,true));card.addView(text(cardSummary,13,MUTED,false),margin(6));}
     LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
     heading.addView(text(s(R.string.ui_your_esims),22,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
-    Button refresh=action(s(R.string.ui_refresh),false,this::refresh);refresh.setTextSize(13);refresh.setBackgroundColor(Color.TRANSPARENT);
-    heading.addView(refresh,new LinearLayout.LayoutParams(dp(88),dp(48)));add(heading,22);
+    if(backend!=null||inventory.has("profiles")){
+      Button refresh=action(s(R.string.ui_refresh),false,this::refresh);refresh.setTextSize(13);refresh.setBackgroundColor(Color.TRANSPARENT);
+      heading.addView(refresh,new LinearLayout.LayoutParams(dp(88),dp(48)));
+    }
+    add(heading,22);
     JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_check_compatibility_in_settings)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
+    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.nav_card_choose_summary)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));
@@ -873,7 +890,7 @@ public final class MainActivity extends Activity {
       row.setContentDescription(s(R.string.profile_accessibility,profileName(profile),state.getText()));row.setFocusable(true);ripple(row);row.setOnClickListener(v->{if(!OPERATIONS.running())showProfile(index,profile,row);});taskControls.add(row);add(row,0);addDivider();
     }
     if(profiles.length()==0)add(text(s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
-    add(text(s(R.string.ui_enabled_describes_the_card_state_network_service_has_not_been_ch),12,MUTED,false),20);
+
 
   }
   private String cardLabel(){String reader=inventory.optString("reader","");String description=inventory.optString("description","");return description.isEmpty()?(reader.isEmpty()?s(R.string.ui_select_an_euicc):reader+s(R.string.ui_euicc)):readerDescription(reader,description);}
@@ -901,7 +918,7 @@ public final class MainActivity extends Activity {
   }
   private void detailFact(String label,String value){LinearLayout row=new LinearLayout(this);row.setPadding(0,dp(14),0,dp(14));row.addView(text(label,13,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));TextView v=text(mask(value),13,TEXT,false);v.setGravity(Gravity.END);row.addView(v,new LinearLayout.LayoutParams(0,-2,2));add(row,0);addDivider();}
   private void renameScreen(){if(detailProfile==null)return;add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),18);add(text(profileName(detailProfile)+" · "+selectedIccid),22);EditText name=input(s(R.string.ui_nickname),false);name.setText(detailProfile.optString("nickname",""));add(name,22);add(text(s(R.string.ui_leave_blank_to_use_the_operator_name),12,MUTED,false),10);add(action(s(R.string.ui_save),true,()->{if(!detailCurrent())return;String value=name.getText().toString().trim();if(value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>64||value.matches("(?s).*[\\p{Cntrl}].*")){name.setError(s(R.string.ui_use_at_most_64_utf_8_bytes_without_control_characters));return;}hideKeyboard();prepare("rename",selectedProfile,value);}),28);add(action(s(R.string.ui_cancel),false,()->{screen=3;navigationSession++;render();}),8);}
-  private void recordsScreen(){add(text(s(R.string.ui_operation_results),22,TEXT,false),24);add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);for(String value:recentResults)add(text(value,16,TEXT,false),18);if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);add(action(s(R.string.ui_verify_card_and_recovery),false,this::reconcile),24);if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);add(action(s(R.string.ui_export_safe_diagnostics),false,this::exportDiagnostics),12); }
+  private void recordsScreen(){add(text(s(R.string.ui_operation_results),22,TEXT,false),24);add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);for(String value:recentResults)add(text(value,16,TEXT,false),18);if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);add(action(s(R.string.ui_verify_card_and_recovery),false,this::reconcile),24);if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);add(action(s(R.string.nav_help_feedback),false,()->navigate(SettingsNavigation.SUPPORT)),12); }
   private void connectionScreen(){
     add(text(s(R.string.ui_connect_with_adb),28,TEXT,false),28);
     add(text(s(R.string.ui_one_command_no_extra_script_shizuku_or_root)),12);
@@ -1007,7 +1024,7 @@ public final class MainActivity extends Activity {
     add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),18);
     if (backend == null) {
       add(text(s(R.string.ui_connect_your_card_to_review_and_install_you_can_enter_or_scan_yo), 14, MUTED, false), 18);
-      add(action(s(R.string.ui_open_connection_settings), false, () -> navigate(2)), 10);
+      add(action(s(R.string.ui_open_connection_settings), false, () -> navigate(SettingsNavigation.CONNECTION)), 10);
     }
     if (!draft.form) {
       add(text(s(R.string.ui_how_would_you_like_to_add_your_esim), 16, MUTED, false), 22);
@@ -1083,24 +1100,160 @@ public final class MainActivity extends Activity {
     }
     check.copy(s(R.string.ui_order_secure_element_hal_aidl_then_hidl_telephony_then_omapi_mul));
     if(backend!=null)check.button(s(R.string.ui_choose_card),false,()->{check.dialog.dismiss();chooseCard();});
-    check.button(s(R.string.ui_run_read_only_check),false,()->{check.dialog.dismiss();if(backend!=null||fallback)refresh();else status(s(R.string.ui_connect_first),s(R.string.ui_use_connect_using_computer_then_run_the_compatibility_check));});
+    check.button(s(R.string.ui_run_read_only_check),false,()->{check.dialog.dismiss();if(backend!=null||fallback)refresh();else status(s(R.string.ui_connect_first),s(R.string.nav_connection_needed));});
     check.button(s(R.string.ui_done),false,check.dialog::dismiss);check.show();
   }
   private void settings() {
-    add(text(s(R.string.ui_connection), 19, TEXT, true), 24);
-    add(text(s(R.string.ui_card_connection)+compatibility.optString("route",s(R.string.ui_not_checked_in_this_connection)),14,MUTED,false),8);
-    add(action(s(R.string.ui_compatibility_check),false,this::showCompatibility),12);
-    if(backend!=null)add(action(s(R.string.ui_choose_card),false,this::chooseCard),12);
-    add(text(directManagement && backend != null ? s(R.string.ui_computer_connection_active)
-          : companionManagement ? s(R.string.ui_local_companion_connected)
-          : binderReadOnlyInventory ? s(R.string.ui_read_only_diagnostic_connection)
-          : backend != null ? s(R.string.ui_computer_connection_active)
-          : fallback ? s(R.string.ui_read_only_companion_connected) : s(R.string.ui_not_connected), 15, MUTED, false), 8);
-    if (LabSupport.socketEligible())
-      add(action(s(R.string.ui_use_legacy_local_companion), useCompanion(), this::selectLegacyCompanion), 12);
-    add(action(s(R.string.ui_connect_using_computer), backend==null, this::beginDirectBootstrap), 12);
-    if (CompatibilityDiagnostics.lastFailure()!=null)
-      add(action(s(R.string.ui_feedback_2),false,this::offerCompatibilityReport),12);
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.nav_connection),connectionSummary(),"connection",()->navigate(SettingsNavigation.CONNECTION));
+    navigationItem(group,s(R.string.nav_appearance),s(R.string.nav_appearance_summary,AppLanguage.label(this),s(darkTheme?R.string.ui_theme_dark:R.string.ui_theme_light)),"appearance",()->navigate(SettingsNavigation.APPEARANCE));
+    navigationItem(group,s(R.string.ui_operation_records),s(getPreferences(0).getBoolean("pending",false)?R.string.nav_verification_needed:R.string.nav_session_records),"records",()->navigate(5));
+    navigationItem(group,s(R.string.nav_help_feedback),"","help",()->navigate(SettingsNavigation.SUPPORT));
+    navigationItem(group,s(R.string.nav_advanced),"","settings",()->navigate(SettingsNavigation.ADVANCED));
+    navigationItem(group,s(R.string.nav_privacy_about),"","privacy",()->navigate(SettingsNavigation.PRIVACY));
+  }
+
+  private String connectionSummary() {
+    if(binderReadOnlyInventory||fallback)return s(R.string.nav_diagnostic_only);
+    if(backend!=null)return s(R.string.ui_connected);
+    return s(wirelessOnboardingAvailable()&&!OnDeviceAdbWirelessManager.hasPaired(this)
+        ?R.string.nav_not_set_up:R.string.ui_not_connected);
+  }
+
+  private void connectionAccessScreen() {
+    boolean wireless=wirelessOnboardingAvailable();
+    boolean paired=wireless&&OnDeviceAdbWirelessManager.hasPaired(this);
+    LinearLayout summary=box();
+    summary.addView(text(s(backend!=null?R.string.ui_connected:wireless?R.string.nav_authorize_phone:R.string.ui_connect_using_computer),21,TEXT,true));
+    if(backend==null)summary.addView(text(connectionSummary(),14,MUTED,false),margin(8));
+    add(summary,20);
+    if(!managementUnavailable().isEmpty())add(text(managementUnavailable()),20);
+    else if(backend!=null){
+      add(text(s(R.string.nav_connection_ready)),20);
+      add(action(s(R.string.nav_view_esims),true,()->navigate(0)),24);
+    }else if(wireless){
+      add(text(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps)),20);
+      if(!paired)add(text(s(R.string.nav_authorization_scope),13,MUTED,false),14);
+      add(action(s(paired?R.string.wireless_adb_live_connect:R.string.nav_start_setup),true,
+          paired?this::primaryConnect:this::startWirelessPairing),24);
+    }else{
+      add(text(s(R.string.nav_computer_required)),20);
+      add(action(s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap),24);
+    }
+    LinearLayout help=navigationGroup(28);
+    navigationItem(help,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
+    if(wireless)navigationItem(help,s(R.string.nav_other_connections),"","connection",this::showOtherConnections);
+  }
+
+  private void startWirelessPairing() {
+    if(!wirelessOnboardingAvailable()||OPERATIONS.running())return;
+    if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7312);
+      return;
+    }
+    launchUserApprovedPairingFlow();
+  }
+
+  private void showConnectionHelp() {
+    Sheet help=new Sheet(s(R.string.ui_setup_help));
+    if(wirelessOnboardingAvailable()){
+      help.copy(s(R.string.nav_pairing_steps));
+      help.copy(s(R.string.nav_authorization_scope));
+      help.copy(s(R.string.nav_pairing_help));
+    }else help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
+    help.copy(s(R.string.nav_reconnect_help));
+    help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
+  }
+
+  private void showOtherConnections() {
+    Sheet other=new Sheet(s(R.string.nav_other_connections));
+    other.copy(s(R.string.nav_computer_alternative));
+    other.button(s(R.string.ui_connect_using_computer),false,()->{other.dialog.dismiss();beginDirectBootstrap();});
+    if(wirelessOnboardingAvailable()&&OnDeviceAdbWirelessManager.hasPaired(this))
+      other.button(s(R.string.nav_pair_again),false,()->{other.dialog.dismiss();startWirelessPairing();});
+    if(LabSupport.socketEligible())other.button(s(R.string.ui_use_legacy_local_companion),false,()->{other.dialog.dismiss();selectLegacyCompanion();});
+    other.button(s(R.string.ui_cancel),false,other.dialog::dismiss);other.show();
+  }
+
+  private void appearanceScreen() {
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.language_title),AppLanguage.label(this),"appearance",this::chooseLanguage);
+    navigationItem(group,s(R.string.ui_appearance),s(darkTheme?R.string.ui_theme_dark:R.string.ui_theme_light),"appearance",()->{
+      getPreferences(0).edit().putBoolean("darkTheme",!darkTheme).apply();applyPalette();render();
+    });
+  }
+
+  private void supportScreen() {
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
+    navigationItem(group,s(R.string.nav_report_problem),s(R.string.nav_report_summary),"help",this::reportProblem);
+    navigationItem(group,s(R.string.nav_export_diagnostics),s(R.string.nav_export_summary),"records",this::chooseDiagnosticExport);
+    if(CompatibilityDiagnostics.lastFailure()!=null)
+      navigationItem(group,s(R.string.ui_feedback_2),"","connection",this::offerCompatibilityReport);
+  }
+
+  private void chooseDiagnosticExport() {
+    Sheet export=new Sheet(s(R.string.nav_export_diagnostics));
+    export.copy(s(R.string.ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a));
+    export.button(s(R.string.ui_feedback_4),false,()->{export.dialog.dismiss();saveDiagnosticZip();});
+    export.button(s(R.string.nav_share_summary),false,()->{export.dialog.dismiss();exportDiagnostics();});
+    export.button(s(R.string.ui_cancel),false,export.dialog::dismiss);export.show();
+  }
+
+  private void advancedScreen() {
+    add(text(s(R.string.nav_advanced_help),14,MUTED,false),20);
+    add(text(s(R.string.ui_card),13,MUTED,true),24);
+    LinearLayout card=navigationGroup(10);
+    navigationItem(card,s(R.string.nav_card_information),s(R.string.nav_card_information_summary),"card",()->navigate(SettingsNavigation.CARD));
+    add(text(s(R.string.nav_diagnostics_recovery),13,MUTED,true),24);
+    LinearLayout diagnostics=navigationGroup(10);
+    navigationItem(diagnostics,s(R.string.ui_compatibility_check),s(R.string.nav_compatibility_summary),"help",this::showCompatibility);
+    navigationItem(diagnostics,s(R.string.nav_verify_state),s(R.string.nav_verify_summary),"records",()->navigate(SettingsNavigation.RECOVERY));
+    if(BuildConfig.DEBUG){
+      add(text(s(R.string.nav_laboratory),13,MUTED,true),24);
+      LinearLayout lab=navigationGroup(10);
+      navigationItem(lab,s(R.string.nav_lab_tools),s(R.string.nav_lab_only),"lab",()->navigate(SettingsNavigation.LAB));
+    }
+  }
+
+  private void cardInformationScreen() {
+    add(text(cardLabel(),18,TEXT,true),20);
+    add(text(s(R.string.ui_eid_269) + mask(cardInfo.optString("eidMasked", inventory.optString("eidMasked", s(R.string.ui_not_checked))))), 10);
+    add(text(s(R.string.ui_profiles) + (inventory.optJSONArray("profiles") == null ? s(R.string.ui_not_checked) : inventory.optJSONArray("profiles").length())), 8);
+    add(text(s(R.string.ui_storage) + (cardInfo.length() == 0 ? s(R.string.ui_not_checked) : storage())), 8);
+    add(action(cardInfo.length() == 0 ? s(R.string.ui_read_card_information) : s(R.string.ui_refresh_card_information), false, () -> {
+      IProfileService service = backend;
+      if (service == null) { status(s(R.string.ui_connect_your_card_first), s(R.string.ui_card_information_needs_the_authorized_service));return; }
+      run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getCardInfo()), r -> {
+        if (!r.optBoolean("ok", false)) { status(s(R.string.ui_card_information_unavailable), s(R.string.ui_reconnect_and_refresh_the_card));return; }
+        cardInfo = r;status(s(R.string.ui_card_information_checked), s(R.string.ui_only_details_reported_by_your_card_are_shown));render();
+      });
+    }), 16);
+    if (cardInfo.length() > 0) add(action(s(R.string.ui_capability_details), false, () -> {
+      Sheet info = new Sheet(s(R.string.ui_card_capabilities));
+      info.copy(cardInfo.optBoolean("capabilitiesSupported", false) ? capabilitySummary() : s(R.string.ui_optional_capabilities_were_not_reported_by_this_reader));
+      info.button(s(R.string.ui_done), false, info.dialog::dismiss);info.show();
+    }), 10);
+
+  }
+
+  private void recoveryScreen() {
+    add(text(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a)),20);
+    add(action(s(R.string.ui_verify_card_and_recovery),getPreferences(0).getBoolean("pending",false),this::reconcile),24);
+    if(recoveryReviewEligible&&getPreferences(0).getBoolean("pending",false))
+      add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
+    if (!notificationStatus.isEmpty()) {
+      add(text(s(R.string.ui_operator_notification), 19, TEXT, true), 24);
+      add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus)), 14, MUTED, false), 8);
+      if (notificationCleanupAvailable) add(action(s(R.string.ui_review_notification_cleanup), false, this::prepareNotificationCleanup), 12);
+    }
+
+    if(LabSupport.socketEligible())add(action(s(R.string.ui_recover_local_companion),false,this::recoverFallback),16);
+  }
+
+  private void laboratoryScreen() {
+    if(!BuildConfig.DEBUG){navigate(SettingsNavigation.ADVANCED);return;}
+    add(text(s(R.string.nav_lab_only),14,MUTED,false),20);
     if (BuildConfig.DEBUG) add(action(s(R.string.ui_check_direct_binder_companion_read_only), false, () -> {
       run(s(R.string.ui_checking_local_binder), false, () -> {
         ICompanionProbe probe = CompanionBinderProvider.service();
@@ -1165,69 +1318,77 @@ public final class MainActivity extends Activity {
         }
       });
     }), 12);
-    if (LabSupport.wirelessEligible() && Build.VERSION.SDK_INT >= 30)
-      add(action(s(OnDeviceAdbNativeCrypto.available()
-              ? R.string.wireless_adb_live_entry : R.string.wireless_adb_preview_entry),
-              false, this::showWirelessDiscoveryPreview), 12);
-    add(action(s(R.string.ui_setup_help), false, () -> {
-      Sheet help = new Sheet(s(R.string.ui_connect_your_card));
-      help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
-      help.copy(s(R.string.ui_after_connection_open_compatibility_check_a_connected_service_al));
-      help.copy(s(R.string.ui_reconnect_after_a_phone_restart_app_update_or_service_terminatio));help.button(s(R.string.ui_done), false, help.dialog::dismiss);help.show();
-    }), 12);
-    add(text(s(R.string.language_title),19,TEXT,true),28);
-    add(action(s(R.string.language_current,AppLanguage.label(this)),false,this::chooseLanguage),12);
-    add(text(s(R.string.ui_appearance),19,TEXT,true),28);
-    add(action(darkTheme?s(R.string.ui_theme_dark):s(R.string.ui_theme_light),false,()->{getPreferences(0).edit().putBoolean("darkTheme",!darkTheme).apply();applyPalette();render();}),12);
-    add(text(s(R.string.ui_support),19,TEXT,true),28);
-    add(action(s(R.string.ui_operation_records),false,()->{screen=5;navigationSession++;render();}),12);
-    add(text(s(R.string.ui_card), 19, TEXT, true), 28);
-    add(text(s(R.string.ui_eid_269) + mask(cardInfo.optString("eidMasked", inventory.optString("eidMasked", s(R.string.ui_not_checked))))), 10);
-    add(text(s(R.string.ui_profiles) + (inventory.optJSONArray("profiles") == null ? s(R.string.ui_not_checked) : inventory.optJSONArray("profiles").length())), 8);
-    add(text(s(R.string.ui_storage) + (cardInfo.length() == 0 ? s(R.string.ui_not_checked) : storage())), 8);
-    add(action(cardInfo.length() == 0 ? s(R.string.ui_read_card_information) : s(R.string.ui_refresh_card_information), false, () -> {
-      IProfileService service = backend;
-      if (service == null) { status(s(R.string.ui_connect_your_card_first), s(R.string.ui_card_information_needs_the_authorized_service));return; }
-      run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getCardInfo()), r -> {
-        if (!r.optBoolean("ok", false)) { status(s(R.string.ui_card_information_unavailable), s(R.string.ui_reconnect_and_refresh_the_card));return; }
-        cardInfo = r;status(s(R.string.ui_card_information_checked), s(R.string.ui_only_details_reported_by_your_card_are_shown));render();
-      });
-    }), 16);
-    if (cardInfo.length() > 0) add(action(s(R.string.ui_capability_details), false, () -> {
-      Sheet info = new Sheet(s(R.string.ui_card_capabilities));
-      info.copy(cardInfo.optBoolean("capabilitiesSupported", false) ? capabilitySummary() : s(R.string.ui_optional_capabilities_were_not_reported_by_this_reader));
-      info.button(s(R.string.ui_done), false, info.dialog::dismiss);info.show();
-    }), 10);
-    if (!notificationStatus.isEmpty()) {
-      add(text(s(R.string.ui_operator_notification), 19, TEXT, true), 24);
-      add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus)), 14, MUTED, false), 8);
-      if (notificationCleanupAvailable) add(action(s(R.string.ui_review_notification_cleanup), false, this::prepareNotificationCleanup), 12);
-    }
-    if (getPreferences(0).getBoolean("pending", false)) add(action(s(R.string.ui_verify_card_and_recovery), true, this::reconcile), 24);
-    if(recoveryReviewEligible&&getPreferences(0).getBoolean("pending",false))
-      add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
-    add(action(s(R.string.ui_recovery_advanced), false, () -> {
-      Sheet advanced = new Sheet(s(R.string.ui_recovery_advanced_285));
-      advanced.copy(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a));
-      advanced.button(s(R.string.ui_verify_card_and_recovery), false, () -> { advanced.dialog.dismiss();reconcile(); });
-      if(recoveryReviewEligible)advanced.button(s(R.string.recovery_review_button),false,()->{advanced.dialog.dismiss();reviewUnknownLifecycle();});
-      if (LabSupport.socketEligible()) advanced.button(s(R.string.ui_recover_local_companion), false, () -> { advanced.dialog.dismiss();recoverFallback(); });
-      advanced.button(s(R.string.ui_export_safe_diagnostics), false, this::exportDiagnostics);
-      advanced.copy(s(R.string.ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a));
-      advanced.button(s(R.string.ui_done), false, advanced.dialog::dismiss);advanced.show();
-    }), 24);
-    add(action(s(R.string.ui_feedback_3),false,this::reportProblem),16);
-    add(action(s(R.string.ui_feedback_4),false,this::saveDiagnosticZip),12);
-    add(action(s(R.string.ui_feedback_5) + (SafeTelemetry.allowed(this) ? s(R.string.ui_feedback_6) : s(R.string.ui_feedback_7)) + "  ›",
-        false, this::chooseCrashReporting), 12);
-    if (BuildConfig.DEBUG) add(action(s(R.string.ui_feedback_8),false,
-        () -> status(SafeTelemetry.smoke(this) ? s(R.string.ui_feedback_9) : s(R.string.ui_feedback_10),
-            s(R.string.ui_feedback_11))), 12);
-    add(action(s(R.string.ui_privacy_information), false, () -> showBundledText(s(R.string.ui_privacy_information), "legal/privacy.txt")), 20);
-    add(action(s(R.string.ui_third_party_notices), false, () -> showBundledText(s(R.string.ui_third_party_notices), "legal/third-party-notices.txt")), 12);
-    add(text(s(R.string.ui_independent_project_not_an_official_5ber_product), 12, MUTED, false), 20);
-    add(text("8bercue " + BuildConfig.VERSION_NAME, 12, MUTED, false), 12);
+
+    if(LabSupport.wirelessEligible()&&Build.VERSION.SDK_INT>=30)
+      add(action(s(R.string.nav_wireless_diagnostics),false,this::showWirelessEndpointDiagnostics),16);
+    add(action(s(R.string.ui_feedback_8),false,
+        ()->status(SafeTelemetry.smoke(this)?s(R.string.ui_feedback_9):s(R.string.ui_feedback_10),s(R.string.ui_feedback_11))),12);
   }
+
+  private void privacyScreen() {
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.nav_crash_reports),s(SafeTelemetry.allowed(this)?R.string.nav_enabled:R.string.nav_disabled),"privacy",this::chooseCrashReporting);
+    navigationItem(group,s(R.string.ui_privacy_information),"","privacy",()->showBundledText(s(R.string.ui_privacy_information),"legal/privacy.txt"));
+    navigationItem(group,s(R.string.ui_third_party_notices),"","records",()->showBundledText(s(R.string.ui_third_party_notices),"legal/third-party-notices.txt"));
+    add(text("8bercue "+BuildConfig.VERSION_NAME,14,MUTED,false),28);
+    add(text(s(R.string.ui_independent_project_not_an_official_5ber_product),12,MUTED,false),10);
+  }
+
+  private LinearLayout navigationGroup(int top) {
+    LinearLayout group=box();group.setPadding(0,dp(4),0,dp(4));add(group,top);return group;
+  }
+
+  private void navigationItem(LinearLayout group,String label,String summary,String icon,Runnable click) {
+    label=label.replaceFirst("\\s*[›»]\\s*$","");
+    if(group.getChildCount()>0){
+      View divider=new View(this);divider.setBackgroundColor(LINE);
+      LinearLayout.LayoutParams line=new LinearLayout.LayoutParams(-1,dp(1));line.setMargins(dp(58),0,dp(18),0);group.addView(divider,line);
+    }
+    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(dp(18),dp(16),dp(14),dp(16));row.setMinimumHeight(dp(78));
+    ImageView glyph=new ImageView(this);glyph.setImageDrawable(new UiIcon(icon,TEXT));glyph.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(glyph,new LinearLayout.LayoutParams(dp(24),dp(24)));
+    LinearLayout labels=new LinearLayout(this);labels.setOrientation(LinearLayout.VERTICAL);labels.setPadding(dp(16),0,dp(10),0);
+    TextView heading=text(label,16,TEXT,true);heading.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);labels.addView(heading);
+    if(!summary.isEmpty()){TextView subtitle=text(summary,12,MUTED,false);subtitle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);labels.addView(subtitle,margin(4));}
+    row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+    ImageView next=new ImageView(this);next.setImageDrawable(new UiIcon("next",MUTED));next.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(next,new LinearLayout.LayoutParams(dp(18),dp(18)));
+    row.setFocusable(true);row.setContentDescription(label+(summary.isEmpty()?"":", "+summary));
+    row.setAccessibilityDelegate(new View.AccessibilityDelegate(){
+      @Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){
+        super.onInitializeAccessibilityNodeInfo(host,info);info.setClassName(Button.class.getName());
+      }
+    });
+    ripple(row);row.setOnClickListener(v->{if(!OPERATIONS.running())click.run();});taskControls.add(row);
+    group.addView(row,new LinearLayout.LayoutParams(-1,-2));
+  }
+
+  private String compactCardTitle() {
+    String description=inventory.optString("description","");
+    return s(description.startsWith("Removable eUICC")?R.string.nav_removable_card:
+        description.startsWith("Built-in eUICC")?R.string.nav_builtin_card:R.string.nav_your_card);
+  }
+  private String screenTitle() {
+    return switch(screen){
+      case 0 -> "8bercue";
+      case 1 -> s(R.string.ui_add_esim);
+      case 3 -> s(R.string.ui_esim_details);
+      case 4 -> s(R.string.ui_rename_esim);
+      case 5 -> s(R.string.ui_operation_records);
+      case 6 -> s(R.string.ui_connect_your_phone);
+      case SettingsNavigation.CONNECTION -> s(R.string.nav_connection);
+      case SettingsNavigation.APPEARANCE -> s(R.string.nav_appearance);
+      case SettingsNavigation.SUPPORT -> s(R.string.nav_help_feedback);
+      case SettingsNavigation.ADVANCED -> s(R.string.nav_advanced);
+      case SettingsNavigation.PRIVACY -> s(R.string.nav_privacy_about);
+      case SettingsNavigation.CARD -> s(R.string.nav_card_information);
+      case SettingsNavigation.LAB -> s(R.string.nav_lab_tools);
+      case SettingsNavigation.RECOVERY -> s(R.string.nav_verify_state);
+      default -> s(R.string.ui_settings);
+    };
+  }
+
   private void showBundledText(String title, String asset) {
     if(AppLanguage.isChinese(this)&&asset.equals("legal/privacy.txt"))asset="legal/privacy-zh-Hans.txt";
     try (java.io.InputStream input = getAssets().open(asset)) {
@@ -1307,6 +1468,12 @@ public final class MainActivity extends Activity {
   /** Preview only: discover local TLS ports without pairing or touching adbd. */
   private void showWirelessDiscoveryPreview() {
     if (Build.VERSION.SDK_INT < 30 || !LabSupport.wirelessEligible()) return;
+    navigate(SettingsNavigation.CONNECTION);
+  }
+
+  /** Explicit diagnostic tools, visible only in laboratory builds. */
+  private void showWirelessEndpointDiagnostics() {
+    if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 30 || !LabSupport.wirelessEligible()) return;
     Sheet sheet = new Sheet(s(OnDeviceAdbNativeCrypto.available()
             ? R.string.wireless_adb_live_title : R.string.wireless_adb_preview_title));
     boolean realPairing=Build.VERSION.SDK_INT>=31 && OnDeviceAdbNativeCrypto.available();
@@ -1614,7 +1781,8 @@ public final class MainActivity extends Activity {
     boolean running = OPERATIONS.running();
     boolean pending = getPreferences(0).getBoolean("pending", false);
     if (busyProgress != null) busyProgress.setVisibility(running ? View.VISIBLE : View.GONE);
-    statusBox.setVisibility(UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
+    boolean idleConnection=!running&&!pending&&notice.isEmpty()&&backend==null&&title.equals(s(R.string.ui_connect_your_card));
+    statusBox.setVisibility(!idleConnection&&UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
     statusBox.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     statusTitle.setText(running ? OPERATIONS.title() : !notice.isEmpty() ? pending ? s(R.string.ui_needs_verification) : s(R.string.ui_update) : title);
     statusDetail.setText(running ? detail : !notice.isEmpty() ? notice : detail + (pending ? s(R.string.ui_safety_verification_is_required_use_settings_verify_card_and_rec) : ""));

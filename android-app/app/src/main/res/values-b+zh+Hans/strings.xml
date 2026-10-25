@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="ui_connect_your_card" formatted="false">"连接卡片"</string>
-    <string name="ui_connect_using_your_computer_to_check_this_card" formatted="false">"通过电脑连接，检测这张卡。"</string>
-    <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"此页面不可用期间，一项操作已结束。请先核验卡片，再继续；不要重复执行该操作。"</string>
+      <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"此页面不可用期间，一项操作已结束。请先核验卡片，再继续；不要重复执行该操作。"</string>
     <string name="ui_needs_verification" formatted="false">"需要核验"</string>
     <string name="ui_reading_the_card_to_establish_its_current_state" formatted="false">"正在读取卡片，确认当前状态。"</string>
     <string name="ui_check_ended" formatted="false">"检查已结束"</string>
@@ -13,8 +12,7 @@
     <string name="ui_connection_not_completed" formatted="false">"连接未完成"</string>
     <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">"卡片和操作状态需要核验。请打开“设置 → 核验卡片与恢复状态”。不要再次提交激活码。"</string>
     <string name="ui_connection_lost" formatted="false">"连接已断开"</string>
-    <string name="ui_start_the_computer_connection_again_pending_operations_will_not" formatted="false">"请重新通过电脑连接。待确认的操作不会自动重试。"</string>
-    <string name="ui_connected" formatted="false">"已连接"</string>
+      <string name="ui_connected" formatted="false">"已连接"</string>
     <string name="ui_checking_card_and_recovery_state" formatted="false">"正在检查卡片与恢复状态…"</string>
     <string name="ui_device_not_supported_by_this_build" formatted="false">"此版本暂不支持该设备"</string>
     <string name="ui_operation_in_progress" formatted="false">"操作进行中"</string>
@@ -23,8 +21,7 @@
     <string name="ui_reinstall_the_verified_apk_before_connecting" formatted="false">"请重新安装已核验的 APK，再连接。"</string>
     <string name="ui_waiting_for_computer" formatted="false">"等待电脑连接"</string>
     <string name="ui_copy_the_command_below_and_run_it_within_two_minutes" formatted="false">"复制下方命令，并在两分钟内运行。"</string>
-    <string name="ui_choose_connect_using_computer_and_copy_and_run_its_adb_command" formatted="false">"请选择“通过电脑连接”，复制并运行其中的 ADB 命令。"</string>
-    <string name="ui_reading_qr_image" formatted="false">"正在读取二维码图片"</string>
+      <string name="ui_reading_qr_image" formatted="false">"正在读取二维码图片"</string>
     <string name="ui_validating_activation_code" formatted="false">"正在校验激活码"</string>
     <string name="ui_reviewing" formatted="false">"正在核对："</string>
     <string name="ui_one_attempt_in_progress_keep_the_phone_powered_on_the_result_wil" formatted="false">"正在执行一次操作。请保持手机有电，完成后将核验结果。"</string>
@@ -124,34 +121,26 @@
     <string name="ui_install_once" formatted="false">"安装一次"</string>
     <string name="ui_installation_cancelled" formatted="false">"已取消安装"</string>
     <string name="ui_no_download_started_no_changes_were_made" formatted="false">"未开始下载，也未进行任何更改。"</string>
-    <string name="ui_connect_using_your_computer" formatted="false">"请通过电脑连接。"</string>
-    <string name="ui_add_esim" formatted="false">"添加 eSIM"</string>
+      <string name="ui_add_esim" formatted="false">"添加 eSIM"</string>
     <string name="ui_esim_details" formatted="false">"eSIM 详情"</string>
     <string name="ui_rename_esim" formatted="false">"更改 eSIM 名称"</string>
     <string name="ui_operation_records" formatted="false">"操作记录"</string>
     <string name="ui_connect_your_phone" formatted="false">"连接手机"</string>
     <string name="ui_settings" formatted="false">"设置"</string>
     <string name="ui_back_to_add_methods" formatted="false">"返回添加方式"</string>
-    <string name="ui_back_to_my_esims" formatted="false">"返回我的 eSIM"</string>
-    <string name="ui_add_esim_134" formatted="false">"+  添加 eSIM"</string>
+      <string name="ui_add_esim_134" formatted="false">"+  添加 eSIM"</string>
     <string name="ui_installation_supported_management_unavailable" formatted="false">"可以安装，但当前无法管理卡片"</string>
-    <string name="ui_choose" formatted="false">" · 选择"</string>
-    <string name="ui_eid" formatted="false">"EID "</string>
-    <string name="ui_not_checked" formatted="false">"尚未检查"</string>
-    <string name="ui_card_connected_read_verified" formatted="false">"卡片已连接 · 读取已核验"</string>
-    <string name="ui_connect_to_check_this_card" formatted="false">"连接后检查此卡"</string>
-    <string name="ui_your_esims" formatted="false">"我的 eSIM"</string>
+        <string name="ui_not_checked" formatted="false">"尚未检查"</string>
+        <string name="ui_your_esims" formatted="false">"我的 eSIM"</string>
     <string name="ui_refresh" formatted="false">"刷新"</string>
     <string name="ui_your_esims_will_appear_here" formatted="false">"连接后将在这里显示 eSIM 配置。"</string>
-    <string name="ui_choose_a_card_or_check_compatibility_in_settings" formatted="false">"请选择卡片，或在设置中检查兼容性。"</string>
-    <string name="ui_connect_using_computer" formatted="false">"通过电脑连接"</string>
+      <string name="ui_connect_using_computer" formatted="false">"通过电脑连接"</string>
     <string name="ui_choose_card" formatted="false">"选择卡片"</string>
     <string name="ui_enabled" formatted="false">"已启用"</string>
     <string name="ui_disabled" formatted="false">"已停用"</string>
     <string name="ui_unknown" formatted="false">"未知"</string>
     <string name="ui_no_profiles_yet_add_an_esim_to_get_started" formatted="false">"还没有配置。添加 eSIM 即可开始使用。"</string>
-    <string name="ui_enabled_describes_the_card_state_network_service_has_not_been_ch" formatted="false">"“已启用”仅表示卡内状态，尚未检查网络服务。"</string>
-    <string name="ui_select_an_euicc" formatted="false">"选择 eUICC 卡片"</string>
+      <string name="ui_select_an_euicc" formatted="false">"选择 eUICC 卡片"</string>
     <string name="ui_euicc" formatted="false">" · eUICC"</string>
     <string name="ui_refresh_the_card_and_select_a_profile" formatted="false">"请刷新卡片并选择配置。"</string>
     <string name="ui_eid_156" formatted="false">" · EID "</string>
@@ -224,15 +213,7 @@
     <string name="ui_order_secure_element_hal_aidl_then_hidl_telephony_then_omapi_mul" formatted="false">"检测顺序：Secure Element HAL（先 AIDL，后 HIDL）、Telephony，再到 OMAPI。多张可读卡需明确选择；通道关闭状态无法确认时会停止访问。不按品牌或 Android 版本名单选择卡片。"</string>
     <string name="ui_run_read_only_check" formatted="false">"运行只读检查"</string>
     <string name="ui_connect_first" formatted="false">"请先连接"</string>
-    <string name="ui_use_connect_using_computer_then_run_the_compatibility_check" formatted="false">"请先使用“通过电脑连接”，再运行兼容性检查。"</string>
-    <string name="ui_connection" formatted="false">"连接"</string>
-    <string name="ui_card_connection" formatted="false">"卡片通道："</string>
-    <string name="ui_not_checked_in_this_connection" formatted="false">"本次连接尚未检查"</string>
-    <string name="ui_computer_connection_active" formatted="false">"电脑连接已启用"</string>
-    <string name="ui_local_companion_connected" formatted="false">"本地服务已连接"</string>
-    <string name="ui_read_only_diagnostic_connection" formatted="false">"只读诊断连接"</string>
-    <string name="ui_read_only_companion_connected" formatted="false">"只读本地服务已连接"</string>
-    <string name="ui_not_connected" formatted="false">"未连接"</string>
+                    <string name="ui_not_connected" formatted="false">"未连接"</string>
     <string name="ui_use_legacy_local_companion" formatted="false">"使用旧版本地服务"</string>
     <string name="ui_check_direct_binder_companion_read_only" formatted="false">"检查直接 Binder 服务（只读）"</string>
     <string name="ui_checking_local_binder" formatted="false">"正在检查本地 Binder"</string>
@@ -259,13 +240,10 @@
     <string name="ui_binder_read_unavailable" formatted="false">"Binder 读取不可用"</string>
     <string name="ui_setup_help" formatted="false">"连接帮助  ›"</string>
     <string name="ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co" formatted="false">"通过 USB 连接手机，开启 USB 调试，并接受电脑授权提示。选择“通过电脑连接”，复制并运行显示的 ADB 命令。无需 Python 或额外下载。"</string>
-    <string name="ui_after_connection_open_compatibility_check_a_connected_service_al" formatted="false">"连接后，请打开“兼容性检查”。服务连接成功不代表已能访问卡片；请确认所选通道及最新配置清单。检查不会更改卡片。"</string>
-    <string name="ui_reconnect_after_a_phone_restart_app_update_or_service_terminatio" formatted="false">"手机重启、应用更新或服务终止后，请重新连接。失败操作不会自动重复。"</string>
-    <string name="ui_appearance" formatted="false">"外观"</string>
+        <string name="ui_appearance" formatted="false">"外观"</string>
     <string name="ui_theme_dark" formatted="false">"主题：深色"</string>
     <string name="ui_theme_light" formatted="false">"主题：浅色"</string>
-    <string name="ui_support" formatted="false">"支持"</string>
-    <string name="ui_eid_269" formatted="false">"EID  "</string>
+      <string name="ui_eid_269" formatted="false">"EID  "</string>
     <string name="ui_profiles" formatted="false">"配置数量："</string>
     <string name="ui_storage" formatted="false">"存储空间："</string>
     <string name="ui_read_card_information" formatted="false">"读取卡片信息"</string>
@@ -280,9 +258,7 @@
     <string name="ui_card_capabilities" formatted="false">"卡片能力"</string>
     <string name="ui_optional_capabilities_were_not_reported_by_this_reader" formatted="false">"此读卡器未报告可选能力。"</string>
     <string name="ui_review_notification_cleanup" formatted="false">"核对通知清理"</string>
-    <string name="ui_recovery_advanced" formatted="false">"恢复与高级选项  ›"</string>
-    <string name="ui_recovery_advanced_285" formatted="false">"恢复与高级选项"</string>
-    <string name="ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a" formatted="false">"中断的操作可能结果未知。进行更改前，请重新连接并核验卡片。运营商确认安全前，不要重复使用激活码。"</string>
+        <string name="ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a" formatted="false">"中断的操作可能结果未知。进行更改前，请重新连接并核验卡片。运营商确认安全前，不要重复使用激活码。"</string>
     <string name="ui_recover_local_companion" formatted="false">"恢复本地服务"</string>
     <string name="ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a" formatted="false">"诊断不包含激活码、配置名称、标识符或原始协议日志。"</string>
     <string name="ui_privacy_information" formatted="false">"隐私说明"</string>
@@ -406,8 +382,7 @@
     <string name="language_system">"跟随系统"</string>
     <string name="language_english">"English"</string>
     <string name="language_chinese">"简体中文"</string>
-    <string name="language_current">"语言：%1$s"</string>
-    <string name="language_help">"仅更改 8bercue 的显示语言，不更改卡片或手机系统语言。"</string>
+      <string name="language_help">"仅更改 8bercue 的显示语言，不更改卡片或手机系统语言。"</string>
     <string name="connection_countdown">"等待运行命令 · 剩余 %1$s"</string>
     <string name="profile_accessibility">"%1$s，%2$s。查看配置详情"</string>
     <string name="profile_switch_replaces">"开启后，此卡将停用“%1$s”。"</string>
@@ -437,12 +412,8 @@
     <string name="ui_feedback_0">反馈本次连接失败</string>
     <string name="ui_feedback_1">连接遇到问题？反馈问题</string>
     <string name="ui_feedback_2">反馈上次连接失败</string>
-    <string name="ui_feedback_3">反馈问题  ›</string>
-    <string name="ui_feedback_4">保存诊断 ZIP  ›</string>
-    <string name="ui_feedback_5">可选崩溃报告：</string>
-    <string name="ui_feedback_6">已开启</string>
-    <string name="ui_feedback_7">已关闭</string>
-    <string name="ui_feedback_8">测试崩溃报告连接</string>
+      <string name="ui_feedback_4">保存诊断 ZIP  ›</string>
+          <string name="ui_feedback_8">测试崩溃报告连接</string>
     <string name="ui_feedback_9">测试事件已排队</string>
     <string name="ui_feedback_10">崩溃报告已关闭</string>
     <string name="ui_feedback_11">请在 GlitchTip 项目中确认是否收到。</string>
@@ -478,8 +449,7 @@
     <string name="ui_feedback_41">导出失败</string>
     <string name="ui_feedback_42">无法写入所选文档。</string>
 
-    <string name="wireless_adb_preview_entry">"无线 ADB 设置预览"</string>
-    <string name="wireless_adb_preview_title">"无线调试 · 服务发现预览"</string>
+      <string name="wireless_adb_preview_title">"无线调试 · 服务发现预览"</string>
     <string name="wireless_adb_preview_help">"Android 11+：开启开发者选项 → 无线调试，然后选择“使用配对码配对设备”。8bercue 将自动发现本机的配对端口与连接端口。本实验版本暂未实现 TLS 配对与登录。"</string>
     <string name="wireless_adb_preview_scan">"发现本机调试服务"</string>
     <string name="wireless_adb_preview_searching">"正在发现本机服务…"</string>
@@ -521,4 +491,64 @@
     <string name="wireless_adb_exporter_synthetic">"仅验证了模拟回环连接；仍需实际进行 ADB 配对"</string>
     <string name="wireless_adb_failure_stage">"阶段：%1$s"</string>
     <string name="wireless_adb_pairing_start">"开始无线配对（实验功能）"</string>
+
+  <!-- Grouped settings and user-facing connection flow. -->
+  <string name="nav_connection">连接与授权</string>
+  <string name="nav_appearance">外观与语言</string>
+  <string name="nav_appearance_summary">%1$s · %2$s</string>
+  <string name="nav_help_feedback">帮助与反馈</string>
+  <string name="nav_advanced">高级</string>
+  <string name="nav_privacy_about">隐私与关于</string>
+  <string name="nav_session_records">查看本次使用记录</string>
+  <string name="nav_verification_needed">有待核验事项</string>
+  <string name="nav_not_set_up">尚未设置</string>
+  <string name="nav_diagnostic_only">只读诊断连接</string>
+  <string name="nav_authorize_phone">在本机完成授权</string>
+  <string name="nav_connection_ready">连接已就绪。返回 eSIM 列表后，即可选择和管理卡片。</string>
+  <string name="nav_view_esims">返回我的 eSIM</string>
+  <string name="nav_pairing_steps">1. 在 Android 设置中打开「无线调试」。\n2. 选择「使用配对码配对设备」。\n3. 保持配对码窗口打开，通过 8bercue 通知输入配对码。</string>
+  <string name="nav_pairing_help">本机设置需要 Android 12 或更高版本，并连接 Wi-Fi。若通知回复无法显示键盘，可点击通知本身在 8bercue 中输入配对码。配对完成前请保持系统配对码窗口打开。</string>
+  <string name="nav_authorization_scope">授权后，8bercue 可使用高于普通应用的 Android 系统调试权限，连接本机卡片并执行你明确选择的卡片操作。请只与本机配对。</string>
+  <string name="nav_start_setup">开始设置</string>
+  <string name="nav_reconnect_help">配对信息会保留。保持 Wi-Fi 与无线调试可用，需要时重新连接即可。</string>
+  <string name="nav_computer_required">此版本通过已授权的电脑连接。请使用 USB 连接本机，并按指引运行一条命令。</string>
+  <string name="nav_computer_alternative">也可以使用可信任的电脑完成连接授权。</string>
+  <string name="nav_other_connections">备用连接方式</string>
+  <string name="nav_pair_again">重新与本机配对</string>
+  <string name="nav_report_problem">反馈问题</string>
+  <string name="nav_report_summary">发送前审核内容</string>
+  <string name="nav_export_diagnostics">导出诊断</string>
+  <string name="nav_export_summary">保存 ZIP 或分享文字摘要</string>
+  <string name="nav_share_summary">分享文字摘要</string>
+  <string name="nav_advanced_help">这些工具通常只在排查问题时使用。</string>
+  <string name="nav_card_information">卡片信息</string>
+  <string name="nav_card_information_summary">身份、存储与能力</string>
+  <string name="nav_diagnostics_recovery">诊断与恢复</string>
+  <string name="nav_compatibility_summary">检查当前卡片连接</string>
+  <string name="nav_verify_state">核验卡片状态</string>
+  <string name="nav_verify_summary">检查未完成的操作</string>
+  <string name="nav_laboratory">实验室</string>
+  <string name="nav_lab_tools">实验室工具</string>
+  <string name="nav_lab_only">仅 Lab 版本</string>
+  <string name="nav_wireless_diagnostics">无线连接诊断</string>
+  <string name="nav_crash_reports">可选崩溃报告</string>
+  <string name="nav_enabled">已开启</string>
+  <string name="nav_disabled">已关闭</string>
+  <string name="nav_back">返回</string>
+  <string name="nav_your_card">你的 eSIM 卡片</string>
+  <string name="nav_removable_card">可移除 eUICC</string>
+  <string name="nav_builtin_card">内置 eUICC</string>
+  <string name="nav_card_connected_summary">已连接 · %1$d 个 eSIM</string>
+  <string name="nav_card_not_connected">连接后查看你的 eSIM</string>
+  <string name="nav_card_choose_summary">选择你要管理的卡片</string>
+  <string name="nav_connection_needed">请在「连接与授权」中连接本机，再选择要管理的卡片。</string>
+  <string name="nav_connection_lost">请重新连接本机。待核验的卡片操作不会被重复执行。</string>
+  <string name="nav_pairing_code">六位配对码</string>
+  <string name="nav_enter_code">输入配对码</string>
+  <string name="nav_pairing_available">8bercue · 输入配对码</string>
+  <string name="nav_pairing_notification_help">通过通知回复输入 Android 设置中的配对码，也可点击本通知输入。</string>
+  <string name="nav_pair_confirm">配对</string>
+  <string name="nav_pair_code_prompt">输入 Android 无线调试中显示的六位配对码。</string>
+  <string name="nav_pair_code_incomplete">请输入完整的六位数字。</string>
+  <string name="nav_pair_code_digits_only">仅可输入数字。</string>
 </resources>
