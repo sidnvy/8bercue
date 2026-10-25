@@ -40,6 +40,7 @@ jobs:
           python3 android-app/tools/verify_release_admission.py
           python3 android-app/tools/test_release_admission.py
           python3 -O android-app/tools/test_release_admission.py
+          python3 android-app/tools/test_adb_staging.py
       - name: Verify tracked ARM64 native payload
         run: python3 android-app/tools/verify_native_release.py --require-page-size 16384
 

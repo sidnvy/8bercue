@@ -2,6 +2,9 @@
 # Rebuild every crypto object from bundled, hash-locked upstream source.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Discard generated production inputs before any validation/build can fail.
+# Neither a disabled stage nor a failed rebuild may reuse an older candidate.
+rm -rf -- app/build/releaseJniLibs app/build/releaseAdbAssets
 revision=571a7432a19592c620fa316abde47770dad4f82b
 digest=d44a73d4927b66f0d43b51f171a044a900b91eeb431763083915f33e64713a0e
 ndk="${ANDROID_NDK_HOME:-${ANDROID_HOME:?}/ndk/27.3.13750724}"
