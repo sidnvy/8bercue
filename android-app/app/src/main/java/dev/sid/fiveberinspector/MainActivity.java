@@ -410,6 +410,10 @@ public final class MainActivity extends Activity {
         () -> s != null ? new JSONObject(s.listProfiles()) : ShellCompanionClient.list(), r -> {
           compatibility=r.optJSONObject("compatibility")==null?new JSONObject():r.optJSONObject("compatibility");
           if (!r.optBoolean("ok", true)) {
+            if(r.optString("recoveryError").isEmpty()&&RecoveryUiPolicy.needsCardChoice(r.optString("capabilityError",""))){
+              inventory=new JSONObject();notificationCleanupAvailable=false;recoveryReviewEligible=false;clearDetailSelection();
+              status(s(R.string.ui_choose_a_card),s(R.string.ui_more_than_one_euicc_is_readable_select_the_card_you_want_to_mana));render();return;
+            }
             compatibilityFailure(CompatibilityDiagnostics.Stage.INVENTORY,
                 CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED);
             inventory=new JSONObject();notificationCleanupAvailable=false;recoveryReviewEligible=false;clearDetailSelection();

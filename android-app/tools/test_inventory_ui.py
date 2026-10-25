@@ -15,6 +15,8 @@ ui = (root / 'app/src/main/java/dev/sid/fiveberinspector/MainActivity.java').rea
 methods = ui[ui.index('  private void refresh()'):ui.index('  private void checkRecovery()')]
 start = ui.index('  private void updateStatusRegion()')
 methods += ui[start:ui.index('  private void status(String a, String b)', start)]
+policy = (root / 'app/src/main/java/dev/sid/fiveberinspector/RecoveryUiPolicy.java').read_text()
+policy = policy[policy.index('final class RecoveryUiPolicy'):].replace('final class RecoveryUiPolicy', 'static final class RecoveryUiPolicy', 1)
 names = sorted(set(re.findall(r'R\.string\.(\w+)', methods)))
 resources = '\n'.join(f'static final int {name}={i};' for i, name in enumerate(names))
 labels = ','.join('"' + name + '"' for name in names)
@@ -39,6 +41,7 @@ public class InventoryUiTest {
  interface Work{JSONObject get()throws Exception;}interface Result{void accept(JSONObject r)throws Exception;}
  static class ShellCompanionClient{static JSONObject list(){throw new AssertionError("Unexpected legacy fallback");}}
  static class CompatibilityDiagnostics{enum Stage{INVENTORY}enum Failure{INVENTORY_READ_FAILED}}
+ACTUAL_POLICY
  static class SecureElementFailure{static Object message(String s){return s;}}
  static class UiMessages{static String known(Object context,Object error){return "";}}
  static class OPERATIONS{static boolean running(){return false;}static String title(){return "Reading";}}
@@ -48,12 +51,12 @@ public class InventoryUiTest {
  static class Prefs{boolean pending;boolean getBoolean(String k,boolean d){return pending;}Prefs edit(){return this;}Prefs putBoolean(String k,boolean v){pending=v;return this;}boolean commit(){return true;}}
  static class DetailSelection{void open(Object a,Object b,Object c,int d){}}
  IProfileService backend;boolean binderReadOnlyInventory,fallback,notificationCleanupAvailable,recoveryReviewEligible,recoveryReconnectNeeded,restoreDetailAfterRead;
- JSONObject inventory=new JSONObject(),compatibility=new JSONObject(),detailProfile;int screen,selectedProfile=-1,renders,cleared;String selectedProfileKey="",title="",detail="",notice="";
+ JSONObject inventory=new JSONObject(),compatibility=new JSONObject(),detailProfile;int screen,selectedProfile=-1,renders,cleared,failures;String selectedProfileKey="",title="",detail="",notice="";
  final List<View> sheetControls=new ArrayList<>(),taskControls=new ArrayList<>();final Map<View,Boolean> controlAvailability=new HashMap<>();Widget busyProgress;
  final Prefs prefs=new Prefs();final DetailSelection detailSelection=new DetailSelection();final Widget statusBox=new Widget(),statusTitle=new Widget(),statusDetail=new Widget();
  String s(int id){return LABELS[id];}Prefs getPreferences(int n){return prefs;}void connect(){throw new AssertionError("Unexpected connection");}
  void run(String label,boolean change,Work work,Result result){try{result.accept(work.get());}catch(Exception e){throw new RuntimeException(e);}}
- void compatibilityFailure(Object a,Object b){}void clearDetailSelection(){cleared++;}String recoveryFailure(String s){return "Wait for service";}
+ void compatibilityFailure(Object a,Object b){failures++;}void clearDetailSelection(){cleared++;}String recoveryFailure(String s){return "Wait for service";}
  void status(String a,String b){notice="";title=a;detail=b;updateStatusRegion();}void statusPreservingOutcome(String a,String b){title=a;detail=b;updateStatusRegion();}
  String connectionNotice(JSONObject r){return "Connected";}void render(){renders++;updateStatusRegion();}String canonicalTitle(){return title;}
 ACTUAL_METHODS
@@ -62,6 +65,7 @@ ACTUAL_METHODS
   if(!state.isEmpty())result.put("recoveryState",state).put("recoveryReviewEligible",review);
   return result;
  }
+ static JSONObject ambiguous(){return new JSONObject().put("ok",false).put("capabilityError","AMBIGUOUS_EUICC");}
  static InventoryUiTest read(JSONObject response){InventoryUiTest e=new InventoryUiTest();e.backend=()->response.toString();e.refresh();return e;}
  public static void main(String[] args){
   for(String state:List.of("READ_ONLY_RECOVERED","READ_ONLY_CURRENT_CARD")){
@@ -78,10 +82,23 @@ ACTUAL_METHODS
   check(!e.inventory.has("profiles")&&e.cleared==1&&!e.recoveryReviewEligible,"Failed read clears stale profiles, selection and review action");
   check(e.prefs.pending&&e.recoveryReconnectNeeded,"Unconfirmed worker still pauses access");
   check(e.statusTitle.text.equals("recovery_access_paused"),"A blocked read does not claim the card is viewable");
+  for(boolean pending:List.of(false,true)){
+   e=read(inventory("",false));e.prefs.pending=pending;e.notice="Previous status";e.notificationCleanupAvailable=true;e.recoveryReviewEligible=true;
+   e.backend=()->ambiguous().toString();e.refresh();
+   check(e.statusTitle.text.equals("ui_choose_a_card"),"Multiple readable cards request a choice rather than report an unavailable card");
+   check(e.statusDetail.text.equals("ui_more_than_one_euicc_is_readable_select_the_card_you_want_to_mana"),"Choice prompt does not append diagnostic instructions");
+   check(!e.inventory.has("profiles")&&!e.recoveryReviewEligible&&!e.notificationCleanupAvailable&&e.cleared==1,"Choice clears stale inventory and current-card actions");
+   check(e.prefs.pending==pending,"Choice preserves any unresolved operation restriction");
+   check(e.failures==0,"Normal multi-card choice is not recorded as a connection failure");
+  }
+  e=read(ambiguous().put("recoveryError","RECOVERY_WORKER_ACTIVE"));
+  check(e.statusTitle.text.equals("recovery_access_paused")&&e.recoveryReconnectNeeded,"An actual safety failure takes priority over a choice hint");
+  e=read(new JSONObject().put("ok",false).put("capabilityError","CARD_NOT_PRESENT"));
+  check(e.statusTitle.text.equals("ui_card_unavailable")&&e.failures==1,"Actual card failures retain their error flow");
   System.out.println("PASS "+checks+" actual inventory/status UI checks (controlled Binder/display I/O)");
  }
 }
-'''.replace('RESOURCES',resources).replace('LABELS_VALUE',labels).replace('ACTUAL_METHODS',methods).replace('MainActivity.this','this')
+'''.replace('RESOURCES',resources).replace('LABELS_VALUE',labels).replace('ACTUAL_METHODS',methods).replace('ACTUAL_POLICY',policy).replace('MainActivity.this','this')
 with tempfile.TemporaryDirectory() as tmp:
     fixture = Path(tmp) / 'InventoryUiTest.java'
     fixture.write_text(source)
