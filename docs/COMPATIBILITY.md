@@ -44,9 +44,10 @@ failure does not always distinguish an absent service from denied lookup.
 ## Check your combination
 
 1. Connect the companion through wireless or USB ADB.
-2. Open **Settings → Advanced → Compatibility check**.
-3. Explicitly select the intended card when several are readable.
-4. Confirm a fresh profile list and verify that it belongs to that card.
+2. Explicitly select the intended card when several are readable.
+3. Confirm a fresh profile list and verify that it belongs to that card.
+4. For a device report, note the backend under **Settings → Help & feedback →
+   Connection details**. Card discovery also runs when you use **Refresh**.
 
 Discovery and the read-only check do not install, switch or delete profiles.
 Failed or uncertain channel cleanup stops fallback. HIDL read success does not

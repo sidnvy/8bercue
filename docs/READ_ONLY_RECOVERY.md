@@ -6,21 +6,27 @@ earlier command succeeded, and the app does not silently replay it.
 
 ## Restore observation
 
-Reconnect through [wireless or computer setup](ADB_CONNECTION.md), then inspect
-**Settings → Advanced → Verify card state**. Read-only recovery checks ownership
-of the existing service/workers, exclusive card access, the original card identity
+Reconnect through [wireless or computer setup](ADB_CONNECTION.md). The app reads
+the selected card automatically; **Refresh** repeats that read. No separate
+compatibility or recovery test is needed. Read-only recovery checks ownership
+of the existing service/workers, exclusive card access, the selected card identity
 and stable profile inventories. It does not signal unrelated processes, delete
 safety files, reset the HAL or retry the original write.
 
 Successful observation can restore a fresh profile list while the earlier
-outcome remains unknown. Failed cleanup, an active native worker, a changed card
-or an unavailable original lock keeps further writes blocked.
+outcome remains unknown. A different card can also be viewed: it cannot establish
+what happened to the earlier card. Legacy records without card binding are kept
+as unbound uncertainty. Neither case clears the original record or permits writes.
+An active or unverified worker, unstable inventory or unavailable original lock
+still prevents a verified read. A card changed during the read must be selected
+and read again.
 
 ## Review an unknown lifecycle operation
 
 Eligible unknown enable/disable/rename/legacy-switch records can offer a separate
-**Review the unknown operation** action. It requires fresh same-card observation
-and explicit, short-lived user confirmation. The service persists a separate
+**Review previous change** action in **Settings → Operation records**. The
+action appears only after a fresh read of the original bound card and requires
+explicit, short-lived user confirmation. The service persists a separate
 review disposition; the original journal/history is not rewritten as a verified
 success and the old operation is not replayed.
 

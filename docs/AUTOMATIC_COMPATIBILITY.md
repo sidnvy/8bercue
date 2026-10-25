@@ -18,7 +18,8 @@ inventories and uncertain cleanup stop fallback. A successful choice pins the
 complete card identity and reader for the live service session. Changed cards
 stop access; selection never clears journals or authorizes a write.
 
-**Settings → Advanced → Compatibility check** presents fixed-vocabulary backend,
+Card discovery runs automatically when connecting or refreshing.
+**Settings → Help & feedback → Connection details** presents fixed-vocabulary backend,
 reader, stage and condition results. It preserves ambiguity when a failed lookup
 cannot distinguish an absent service from denied access. Safe diagnostics omit
 card identities, profile identifiers, activation data and raw vendor exceptions.

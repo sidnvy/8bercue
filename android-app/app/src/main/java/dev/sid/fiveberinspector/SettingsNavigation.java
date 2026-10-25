@@ -16,6 +16,7 @@ final class SettingsNavigation {
 
   static int restore(int screen, boolean laboratory) {
     if (screen == LAB && !laboratory) return ADVANCED;
+    if (screen == RECOVERY && !laboratory) return 5; // contextual operation records, no generic recovery tool
     // Computer connection needs a new explicit two-minute authorization window.
     if (screen == 6) return CONNECTION;
     return screen == 2 || screen == 5 || (screen >= CONNECTION && screen <= RECOVERY)
