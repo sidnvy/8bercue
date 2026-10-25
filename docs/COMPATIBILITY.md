@@ -18,6 +18,16 @@ operation was tested. Contribute precise results with the
 [device report template](../.github/ISSUE_TEMPLATE/device-compatibility.yml).
 Built-in eUICCs may also be visible; always select the intended card.
 
+## Phone results
+
+| Phone / ROM | App version | Reported scope |
+| --- | --- | --- |
+| Pixel 10 Pro XL / Android 17 | 0.20.0-beta.2 / 50 | Production-signed upgrade, on-device notification pairing, three app restart/reconnect/profile-read cycles, English/Chinese navigation; no writes or network-service tests in this release acceptance |
+
+Add your phone/ROM as a small scoped row after the device check. Include the
+backend when verified, and distinguish read-only results from each tested write.
+A new row records a useful combination; it does not add a model gate to the app.
+
 ## Android transports
 
 | Backend | Discovery | Current operation boundary |
