@@ -7,6 +7,7 @@ import re
 import struct
 import zipfile
 from pathlib import Path
+from adb_native_policy import verify as verify_adb_pairing, LIBRARY as ADB_LIBRARY
 
 LAB_CLASSES = {
     'PhoneSpeedtestDownload', 'SpeedtestDownloadHalBridge', 'SpeedtestDownloadPolicy',
@@ -60,21 +61,28 @@ def verify(path):
                   'driver/driver_apdu_stdio.so','driver/driver_http_stdio.so'}
         if manifest['abi']!='arm64-v8a' or set(manifest['files'])!=expected:
             raise ValueError('Unexpected native payload set')
+        packaged_lpac={n for n in names if n.startswith(prefix+'assets/fiveber-lpac/') and not n.endswith('/')}
+        expected_lpac={prefix+'assets/fiveber-lpac/manifest.json'} | {prefix+'assets/fiveber-lpac/'+n for n in expected}
+        if packaged_lpac != expected_lpac:
+            raise ValueError('Unexpected LPAC asset inventory')
         for name, meta in manifest['files'].items():
             data=archive.read(prefix+'assets/fiveber-lpac/'+name)
             if len(data)!=meta['size'] or hashlib.sha256(data).hexdigest()!=meta['sha256']:
                 raise ValueError('Native hash mismatch: '+name)
-        libraries=[n for n in names if n.startswith(prefix+'lib/') and n.endswith('.so')]
+        libraries=[n for n in names if n.startswith(prefix+'lib/') and not n.endswith('/')]
         expected_library=prefix+'lib/arm64-v8a/libeuicc-drivers.so'
-        if libraries!=[expected_library] or archive.read(expected_library)!=archive.read(prefix+'assets/fiveber-lpac/libeuicc-drivers.so'):
+        if set(libraries)!={expected_library,prefix+ADB_LIBRARY} or archive.read(expected_library)!=archive.read(prefix+'assets/fiveber-lpac/libeuicc-drivers.so'):
             raise ValueError('Missing or inconsistent ARM64 package metadata')
+        if {n for n in names if n.startswith(prefix+'assets/adb-pairing/') and not n.endswith('/')} != {prefix+'assets/adb-pairing/provenance.json'}:
+            raise ValueError('Unexpected ADB provenance asset inventory')
+        pairing=verify_adb_pairing(archive,prefix)
         for notice in ['privacy.txt','third-party-notices.txt']:
             if len(archive.read(prefix+'assets/legal/'+notice))<100:
                 raise ValueError('Missing bundled disclosure')
         if any(n.lower().endswith(('.keystore','.jks','.properties.pending')) for n in names):
             raise ValueError('Private state/key file included')
     return {'artifact':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
-            'releaseSurface':'PASS','dexFiles':len(dex),'nativeFiles':len(expected),
+            'releaseSurface':'PASS','dexFiles':len(dex),'nativeFiles':len(expected),'adbPairing':pairing,
             'productionReady':False}
 
 if __name__=='__main__':

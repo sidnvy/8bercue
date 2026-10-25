@@ -9,16 +9,17 @@ python3 tools/verify_lab_artifact.py app/build/outputs/apk/lab/app-lab.apk --sdk
 python3 - <<'PYLAB'
 from pathlib import Path
 from zipfile import ZipFile
+import sys
+sys.path.insert(0,"tools")
+from verify_release_surface import verify
 lab = Path('app/build/outputs/apk/lab/app-lab.apk')
 release = Path('app/build/outputs/apk/release/app-release-unsigned.apk')
 with ZipFile(lab) as z:
     if 'lib/arm64-v8a/lib8bercue_adb_pairing.so' not in z.namelist():
         raise SystemExit('Lab JNI absent')
 if release.exists():
-    with ZipFile(release) as z:
-        if 'lib/arm64-v8a/lib8bercue_adb_pairing.so' in z.namelist():
-            raise SystemExit('Experimental JNI leaked into release')
-    print('PASS Lab JNI present; Release JNI isolated (existing unsigned Release checked)')
+    verify(release)
+    print('PASS Lab JNI and existing unsigned Release surface checked; production signature not checked here')
 else:
     print('PASS Lab JNI present; NOT CHECKED: unsigned Release APK absent')
 PYLAB

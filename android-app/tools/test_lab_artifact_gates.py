@@ -70,8 +70,8 @@ with tempfile.TemporaryDirectory() as temp:
             result=subprocess.run([sys.executable,*flags,str(driver),str(script),'readelf',str(work)],env=env,capture_output=True,text=True)
             check((result.returncode==0)==(case=='good'),f'Source ELF gate {case}, optimized={optimized}')
             if case!='good':check('PASS' not in result.stdout,'No false ELF PASS')
-        # Execute the actual final Lab/Release isolation gate with synthetic ZIPs.
-        script=work/'lab_gate.py';script.write_text(heredoc('build_lab_adb_pairing.sh','PYLAB'))
+        # Execute the Lab-presence gate; incomplete synthetic Release ZIPs must fail production admission.
+        script=work/'lab_gate.py';script.write_text(heredoc('build_lab_adb_pairing.sh','PYLAB').replace('sys.path.insert(0,"tools")',f'sys.path.insert(0,{str(root / "tools")!r})'))
         lab=work/'app/build/outputs/apk/lab/app-lab.apk';release=work/'app/build/outputs/apk/release/app-release-unsigned.apk'
         lab.parent.mkdir(parents=True,exist_ok=True);release.parent.mkdir(parents=True,exist_ok=True)
         for case in ['absent','isolated','leak','missing_jni']:
@@ -82,9 +82,9 @@ with tempfile.TemporaryDirectory() as temp:
                 with zipfile.ZipFile(release,'w') as z:
                     if case=='leak':z.writestr('lib/arm64-v8a/lib8bercue_adb_pairing.so',payload)
             result=subprocess.run([sys.executable,*flags,str(script)],cwd=work,env=env,capture_output=True,text=True)
-            check((result.returncode==0)==(case in ['absent','isolated']),f'Variant isolation {case}')
+            check((result.returncode==0)==(case=='absent'),f'Variant isolation {case}')
             if case=='absent':check('NOT CHECKED' in result.stdout and 'Release JNI isolated' not in result.stdout,'Absent Release never claimed checked')
-            if case in ['leak','missing_jni']:check('PASS' not in result.stdout,'No false isolation PASS')
+            if case in ['isolated','leak','missing_jni']:check('PASS' not in result.stdout,'No false isolation PASS')
 for code in [verifier.read_text(),heredoc('build_adb_crypto_source.sh','PYELF'),heredoc('build_lab_adb_pairing.sh','PYLAB')]:
     check(not any(isinstance(n,ast.Assert) for n in ast.walk(ast.parse(code))),'Artifact gate contains no optimizable assert')
 print(f'PASS {checks} Lab artifact/embedded gate checks including python -O (synthetic ZIP and tool adapters only)')

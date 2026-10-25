@@ -1,3 +1,5 @@
+> Current release preparation: [2026-10-25 candidate](RELEASE_CANDIDATE_20261025.md) adds explicit fixed-revision native admission and owner-granted linking permission. The historical Lab-only/isolation statements below describe earlier builds. Public release still requires exact signed-APK acceptance.
+
 # ADB native dependency and signed delivery — 2026-10-24
 
 > Current acceptance: [fresh onboarding and release audit, 2026-10-25](PIXEL10_FRESH_ONBOARDING_ACCEPTANCE_20261025.md) — owner-authorized fresh pairing and three new-identity reconnect/read cycles PASS on APK `07f09a13…`; production gates remain open. Earlier APK results below retain their original scope.

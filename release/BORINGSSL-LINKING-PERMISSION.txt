@@ -1,0 +1,25 @@
+Additional permission under GNU AGPL version 3, section 7
+
+For original 8bercue code for which sid holds the copyright, sid grants
+additional permission to link or combine that code with BoringSSL at revision
+571a7432a19592c620fa316abde47770dad4f82b through the 8bercue on-device ADB
+pairing JNI component, and to convey the resulting combination.
+
+The BoringSSL source archive identified by this permission has SHA-256
+d44a73d4927b66f0d43b51f171a044a900b91eeb431763083915f33e64713a0e.
+
+This permission does not change the license of BoringSSL, its constituent
+OpenSSL/SSLeay/ISC/MIT code, the Apache-2.0 JNI reference code, lpac,
+libeuicc, or any other third-party code. Their respective terms, attribution
+and source-distribution obligations remain applicable. All other obligations
+of the GNU AGPL version 3 for the original 8bercue code remain applicable.
+
+Distribution includes the complete corresponding 8bercue source, build
+scripts, local changes, pinned BoringSSL source and complete third-party
+license notices. No private signing material or device identities are included.
+
+This permission applies only to copyright controlled by sid. It grants no
+permission on behalf of another rightsholder and does not establish that
+another rightsholder's permission, if required, has been obtained.
+
+Copyright (C) 2026 sid. Granted by sid on 2026-10-25.

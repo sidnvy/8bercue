@@ -34,6 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 android-app/tools/verify_release_admission.py
           test -n "${ANDROID_HOME:-}"
           manager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
           test -x "$manager"
@@ -67,9 +68,11 @@ jobs:
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$FIVEBER_RELEASE_KEYSTORE"
           test -s "$FIVEBER_RELEASE_KEYSTORE"
           bash android-app/tools/build_android_lpac.sh
+          STAGE_ADB_PAIRING_RELEASE=1 bash android-app/tools/build_adb_crypto_source.sh
           bash android-app/gradlew -p android-app :app:assembleRelease --console=plain --no-daemon
           python3 android-app/tools/verify_artifact.py \
             android-app/app/build/outputs/apk/release/app-release.apk \
             --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
             --expected-signer-sha256 "$APPROVED_CERT_SHA256" --require-reporting
+          python3 android-app/tools/test_adb_release_artifact.py android-app/app/build/outputs/apk/release/app-release.apk
           echo "PASS: protected signer and production APK verification (no artifact published)"
