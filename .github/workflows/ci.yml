@@ -61,6 +61,8 @@ jobs:
           "$SDKMANAGER" --install "ndk;27.3.13750724"
       - name: Rebuild bundled native sources and check ELF payloads
         run: bash android-app/tools/build_android_lpac.sh
+      - name: Compile pinned upstream BoringSSL source and ADB contract (not a release artifact)
+        run: bash android-app/tools/build_adb_crypto_source.sh
 
   android-build:
     name: Unsigned Android build and lint
@@ -86,6 +88,8 @@ jobs:
       - name: Install verified Android SDK components
         run: |
           "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0"
+      - name: Test on-device wireless ADB discovery contracts
+        run: bash android-app/tools/test_wireless_adb_discovery.sh
       - name: Build unsigned APK and run lint
         run: |
           set -euo pipefail
