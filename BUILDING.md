@@ -1,8 +1,8 @@
 # Build 8bercue
 
 Use the source tag matching a published release when reproducing that APK. The
-current Beta is [0.20.0-beta.2](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.2),
-versionCode 50. Release archives include corresponding source, pinned native
+current Beta is [0.20.0-beta.4](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.4),
+versionCode 52. Release archives include corresponding source, pinned native
 sources, local patches, notices, a public certificate and checksums. Private
 signing keys and per-session device archives are not build inputs.
 

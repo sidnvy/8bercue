@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/sidnvy/8bercue/releases">Download APK</a> ·
-  <a href="https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.2">Release notes</a> ·
+  <a href="https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.4">Release notes</a> ·
   <a href="CONTRIBUTING.md">Contribute</a> ·
   <a href="https://github.com/sidnvy/8bercue/issues">Feedback</a>
 </p>
