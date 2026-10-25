@@ -1,5 +1,7 @@
 # Pixel 10 final post-reboot acceptance — 2026-10-25
 
+> Historical APK `6b78ccfe…` report. The subsequent [fresh-onboarding acceptance](PIXEL10_FRESH_ONBOARDING_ACCEPTANCE_20261025.md) records the owner-authorized reset, new APK `07f09a13…`, fresh code entry and current card baseline. The NOT TESTED fresh-pairing row and no-data-clear statement below apply only to this earlier run.
+
 **The exact final source-built Lab APK below passed all three app-only reconnect/read cycles and a real expired-choice/recovery test. PR #17 remains Draft for independent review and production delivery decisions.** This supersedes prior lock/discovery blockers for earlier APKs, without relabeling historical results.
 
 ## Corrections and root causes

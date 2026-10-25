@@ -1,6 +1,8 @@
 # ADB native dependency and signed delivery — 2026-10-24
 
-> Final exact-APK hardware result: [2026-10-25 post-reboot acceptance](PIXEL10_POST_REBOOT_ACCEPTANCE_20261025.md) — three reconnect/read cycles and expired-choice recovery PASS; production gates remain open. Earlier statuses below are historical.
+> Current acceptance: [fresh onboarding and release audit, 2026-10-25](PIXEL10_FRESH_ONBOARDING_ACCEPTANCE_20261025.md) — owner-authorized fresh pairing and three new-identity reconnect/read cycles PASS on APK `07f09a13…`; production gates remain open. Earlier APK results below retain their original scope.
+
+> Earlier exact-APK hardware result: [2026-10-25 post-reboot acceptance](PIXEL10_POST_REBOOT_ACCEPTANCE_20261025.md) — three reconnect/read cycles and expired-choice recovery PASS; production gates remain open. Earlier statuses below are historical.
 
 > Latest code/review status: [2026-10-25 follow-up](PR17_REVIEW_FOLLOWUP_20261025.md). Historical hardware evidence below remains scoped to its tested APK.
 
@@ -34,6 +36,8 @@ Build inventories: `app/build/adb-crypto-source-inventory.json` (unstripped sour
 
 The Pixel's installed Lab signer was compared against each rebuilt Lab APK before `adb install -r -t`; the signer matched and pairing preferences remained byte-for-byte equivalent as parsed values. The key was not rotated; successful paired reconnect independently demonstrates continued use of an authorized key.
 
-The approved production certificate is identified by SHA-256 `24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c`. Lab has a separate debug signer. A production-signed APK cannot be assumed to upgrade that Lab installation while preserving its data/Keystore. No signing lineage or approved production signing credentials were used in this test. Uninstalling to change signer would erase pairing state and is forbidden for this acceptance run.
+The approved production certificate is identified by SHA-256 `24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c`. Lab has a separate debug signer. A production-signed APK cannot be assumed to upgrade that Lab installation while preserving its data/Keystore. No signing lineage or production signing credentials were used in these hardware tests. The later fresh-onboarding run separately obtained explicit owner authorization to remove only the Lab app data; that does not authorize an implicit cross-signer migration or further data removal.
 
-A production candidate with pairing JNI would also fail the current intentionally unchanged native allowlist. Therefore source build, notices, Lab alignment and Lab signed-upgrade evidence are complete, while **production native admission, licensing approval, protected signing and a compatible signed migration remain owner decisions**. Do not label this Lab APK a production-ready Release or mark PR #17 ready for merge on the strength of Lab acceptance alone.
+Protected production signing is already provisioned: the existing main-only signer smoke succeeded at `91564e7` ([run 39735032895](https://github.com/sidnvy/8bercue/actions/runs/39735032895)), and the published certificate digest was independently verified. Only protected secret names were inspected, never values. This baseline smoke does not sign or approve the current wireless candidate.
+
+A production candidate with pairing JNI would also fail the current intentionally unchanged native allowlist. Source build, notices, Lab alignment and Lab signed-upgrade evidence are complete, while **production native admission, licensing approval, protected signing of the exact final candidate and compatible production upgrade acceptance remain open**. Do not label this Lab APK a production-ready Release or mark PR #17 ready for merge on the strength of Lab acceptance alone.
