@@ -24,29 +24,31 @@ import java.util.Arrays;
 public final class OnDeviceAdbPairingCodeActivity extends Activity {
     private EditText code;
 
+    @Override protected void attachBaseContext(android.content.Context base){super.attachBaseContext(AppLanguage.wrap(base));}
+
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         getWindow().setDimAmount(.12f);
-        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND | android.view.WindowManager.LayoutParams.FLAG_SECURE);
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(40, 28, 40, 24);
         TextView prompt = new TextView(this);
-        prompt.setText("Enter the six-digit code shown in Android Wireless debugging");
+        prompt.setText(getString(R.string.nav_pair_code_prompt));
         prompt.setTextSize(16);
         layout.addView(prompt);
         code = new EditText(this);
         code.setSingleLine(true);
-        code.setHint("6-digit pairing code");
+        code.setHint(getString(R.string.nav_pairing_code));
         code.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         code.setKeyListener(DigitsKeyListener.getInstance("0123456789"));
         code.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
         code.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         layout.addView(code, new LinearLayout.LayoutParams(-1, -2));
         Button confirm = new Button(this);
-        confirm.setText("Pair");
+        confirm.setText(getString(R.string.nav_pair_confirm));
         confirm.setOnClickListener(v -> submit());
         layout.addView(confirm);
         setContentView(layout);
@@ -70,7 +72,7 @@ public final class OnDeviceAdbPairingCodeActivity extends Activity {
         if (code == null) return;
         android.text.Editable editable = code.getText();
         if (editable == null || editable.length() != 6) {
-            code.setError("Enter all six digits");
+            code.setError(getString(R.string.nav_pair_code_incomplete));
             return;
         }
         char[] digits = new char[6];
@@ -78,7 +80,7 @@ public final class OnDeviceAdbPairingCodeActivity extends Activity {
         editable.clear();
         if (!OnDeviceAdbPairingExchange.validCode(digits)) {
             Arrays.fill(digits, '\0');
-            code.setError("Only digits are allowed");
+            code.setError(getString(R.string.nav_pair_code_digits_only));
             return;
         }
         try {

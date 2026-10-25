@@ -56,6 +56,14 @@ public final class UiFlowOfflineTest {
   selected.clear();check(!selected.matches(inventory,backend,profile,2),"Background/navigation clears permission to submit");
   for(String op:new String[]{"switch","disable","rename"})check(ProfileActionPolicy.executesDirectly(op),"Explicit reversible click authorizes single prepare/execute");
   for(String op:new String[]{"delete","download","cleanup",null,"arbitrary"})check(!ProfileActionPolicy.executesDirectly(op),"Irreversible/unknown action never skips confirmation");
+  for(int unsafe:new int[]{1,3,4,-1,999})check(SettingsNavigation.restore(unsafe,true)==0,"Recreation cannot restore credentials, profile selection or an unknown destination");
+  check(SettingsNavigation.restore(6,true)==SettingsNavigation.CONNECTION,"Recreation cannot resume a stale computer command window");
+  check(SettingsNavigation.restore(SettingsNavigation.LAB,false)==SettingsNavigation.ADVANCED,"Release cannot restore a laboratory destination");
+  check(SettingsNavigation.restore(SettingsNavigation.APPEARANCE,false)==SettingsNavigation.APPEARANCE,"Language recreation retains the preference page");
+  check(SettingsNavigation.restore(SettingsNavigation.RECOVERY,false)==SettingsNavigation.RECOVERY,"Recovery page can be shown without replaying an action");
+  check(SettingsNavigation.parent(SettingsNavigation.CARD)==SettingsNavigation.ADVANCED,"Card information returns to Advanced");
+  check(SettingsNavigation.parent(SettingsNavigation.RECOVERY)==SettingsNavigation.ADVANCED,"Recovery returns to Advanced");
+  check(SettingsNavigation.parent(SettingsNavigation.CONNECTION)==2,"Connection opened from Settings returns to Settings");
   System.out.println("PASS "+checks+" UI/command regression assertions");
   if(args.length==1)System.out.println(command);
  }

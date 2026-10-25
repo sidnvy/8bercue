@@ -9,7 +9,7 @@ bundle=(src/"SafeDiagnosticBundle.java").read_text()
 manifest=(src.parents[0]/"AndroidManifest.xml").read_text() if False else (Path(__file__).resolve().parents[1]/"app/src/main/AndroidManifest.xml").read_text()
 assert "Trouble connecting? Report issue" in ui
 assert "Report previous connection failure" in ui
-assert "Report a problem  ›" in ui
+assert "Report a problem" in ui and "R.string.nav_report_problem" in ui
 assert "Send diagnostic report" in ui
 assert "CompatibilityDiagnostics.Failure.BOOTSTRAP_TIMEOUT" in ui
 assert "CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED" in ui
