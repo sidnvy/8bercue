@@ -66,9 +66,9 @@ ADB command and run it during the two-minute connection window. Select the
 correct device if several phones are connected. The command confirms the local
 service connection; card access is checked separately.
 
-Your profiles appear after the card is read. Compatibility and card information
-are under **Settings → Advanced**. Help and diagnostic export are under
-**Help & feedback**. [Try a new phone](docs/NEW_DEVICE_CHECK.md).
+Your profiles appear after the card is read automatically; use **Refresh** to
+read again. Card information is under **Settings → Advanced**. Connection details,
+help and diagnostic export are under **Help & feedback**. [Try a new phone](docs/NEW_DEVICE_CHECK.md).
 
 ## How it works
 

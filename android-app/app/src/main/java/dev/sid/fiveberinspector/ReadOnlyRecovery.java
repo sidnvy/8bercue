@@ -86,12 +86,26 @@ final class ReadOnlyRecovery {
   try{if(isolated){CardTransactionLock.validateMarker(MARKER);RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());}}
   catch(Exception failure){CardTransactionLock.release();throw new Failure("RECOVERY_WORKER_ACTIVE");}
  }
- static void observed(String card,String fingerprint)throws Exception{
-  if(!CardTransactionLock.persistentQuarantine())return;
+ /** A verified read is observation of the selected card, not recovery of another
+  * card's lost operation. Keep both its journal and the global write quarantine. */
+ static String observed(String card,String fingerprint)throws Exception{
+  if(!CardTransactionLock.persistentQuarantine())return "none";
+  if(!CardTransactionLock.ownedByCurrentThread()||card==null||fingerprint==null
+      ||!card.matches("[a-f0-9]{64}")||!fingerprint.matches("[a-f0-9]{64}"))
+   throw new Failure("RECOVERY_EVIDENCE_INVALID");
   Properties journal=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state")).read();
-  if(!card.equals(journal.getProperty("card")))throw new Failure("RECOVERY_CARD_CHANGED");
+  if(!journal.getProperty("status","").matches("unknown|observed_unknown|running"))
+   throw new Failure("RECOVERY_EVIDENCE_INVALID");
+  String scope=scope(journal,card);
+  String phase="same_card".equals(scope)?"stable_inventory_read_only"
+      :"other_card".equals(scope)?"other_card_inventory_read_only":"unbound_inventory_read_only";
   CardTransactionLock.validateMarker(MARKER);
-  receipt("stable_inventory_read_only",NativeLpacBundle.digest(MARKER.toFile()),OperationJournal.recordDigest(journal),card,fingerprint,0);
+  receipt(phase,NativeLpacBundle.digest(MARKER.toFile()),OperationJournal.recordDigest(journal),card,fingerprint,0);
+  return scope;
+ }
+ static String scope(Properties journal,String card){
+  return !"2".equals(journal.getProperty("schema"))?"unbound"
+      :card.equals(journal.getProperty("card"))?"same_card":"other_card";
  }
  private static void receipt(String phase,String marker,String journal,String card,String inventory,int retired)throws Exception{
   Path directory=ROOT.resolve("read-only-recovery");

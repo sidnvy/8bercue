@@ -412,7 +412,7 @@ public final class MainActivity extends Activity {
           if (!r.optBoolean("ok", true)) {
             compatibilityFailure(CompatibilityDiagnostics.Stage.INVENTORY,
                 CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED);
-            inventory=new JSONObject();notificationCleanupAvailable=false;clearDetailSelection();
+            inventory=new JSONObject();notificationCleanupAvailable=false;recoveryReviewEligible=false;clearDetailSelection();
             if(!r.optString("recoveryError").isEmpty()){
               recoveryReconnectNeeded=true;
               getPreferences(0).edit().putBoolean("pending",true).commit();
@@ -426,9 +426,11 @@ public final class MainActivity extends Activity {
           }
           inventory = r;
           recoveryReconnectNeeded=false;
-          if("READ_ONLY_RECOVERED".equals(r.optString("recoveryState"))){
+          recoveryReviewEligible=r.optBoolean("recoveryReviewEligible",false);
+          String recoveryState=r.optString("recoveryState");
+          if("READ_ONLY_RECOVERED".equals(recoveryState)||"READ_ONLY_CURRENT_CARD".equals(recoveryState)){
             getPreferences(0).edit().putBoolean("pending",true).commit();
-            notice=s(R.string.recovery_observed_unknown,operationLabel(r.optString("previousOperation")));
+            notice=s(R.string.recovery_view_only_summary);
           }
           if (screen==3 || screen==4 || restoreDetailAfterRead) {
             JSONArray rows=inventory.optJSONArray("profiles");int found=-1;
@@ -446,7 +448,8 @@ public final class MainActivity extends Activity {
     final IProfileService s = backend;
     if (s == null)
       return;
-    run(s(R.string.ui_checking_recovery), false, () -> new JSONObject(s.getOperationStatus()), r -> {
+    recoveryReviewEligible=false; // A fresh current-card read determines whether a review is possible.
+    run(s(R.string.ui_reading_your_esims), false, () -> new JSONObject(s.getOperationStatus()), r -> {
       if (!r.optBoolean("ok", false)) {
         if(RecoveryUiPolicy.needsCardChoice(r.optString("capabilityError",""))){
           inventory=new JSONObject();notificationCleanupAvailable=false;clearDetailSelection();
@@ -463,9 +466,6 @@ public final class MainActivity extends Activity {
         render();return;
       }
       recoveryReconnectNeeded="SAFETY_PAUSED".equals(r.optString("recoveryState"));
-      recoveryReviewEligible=r.optString("operation","").matches("enable|disable|rename|switch")
-          &&r.optString("originalOutcome","").matches("running|unknown|observed_unknown")
-          &&r.optBoolean("requiresReconciliation",false);
       String priorNotificationMessage = UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       notificationStatus = r.optString("notificationStatus", "");
       if ("none".equals(notificationStatus)) notificationStatus = "";
@@ -481,9 +481,7 @@ public final class MainActivity extends Activity {
         // dismissing the local pending state. Card-specific write policy still applies.
         getPreferences(0).edit().remove("pending").commit();
       }
-      if(recoveryBlocked)
-        notice=s(R.string.ui_recovery_check)+safeState(phase)
-            +s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
+      if(recoveryBlocked)notice=s(R.string.recovery_view_only_summary);
       if (notificationReviewRequired)
         notice += (notice.isEmpty() ? "" : "\n") + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       refresh();
@@ -807,8 +805,6 @@ public final class MainActivity extends Activity {
     statusDetail = text("", 13, MUTED, false);
     statusBox.addView(statusTitle);
     statusBox.addView(statusDetail, margin(4));
-    if(getPreferences(0).getBoolean("pending",false)&&(screen==0||screen==2))
-      statusBox.addView(action(s(R.string.nav_verify_state),true,backend==null?this::primaryConnect:this::reconcile),margin(12));
     // Progress, outcome and recovery share this one status region.
     {
       ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -912,13 +908,27 @@ public final class MainActivity extends Activity {
     Button rename=action(s(R.string.ui_rename),false,()->{if(detailCurrent()){screen=4;navigationSession++;render();}});availability(rename,canEdit&&p.optBoolean("canRename",false));add(rename,28);
     Button delete=action(s(R.string.ui_delete_esim_166),false,()->{if(detailCurrent())prepare("delete",selectedProfile,"");});delete.setTextColor(ERROR);availability(delete,canEdit&&disabled&&p.optBoolean("canDelete",false));add(delete,12);
     if(enabled)add(text(s(R.string.ui_turn_off_this_esim_before_deleting_it),12,MUTED,false),4);
-    if(!canEdit)add(text(s(R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
+    if(!canEdit)add(text(s(getPreferences(0).getBoolean("pending",false)?R.string.recovery_view_only_summary:R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
     add(text(s(R.string.ui_about_this_esim),16,TEXT,true),28);detailFact(s(R.string.ui_operator),p.optString("provider",p.optString("name",s(R.string.ui_not_reported))));detailFact("ICCID",selectedIccid);detailFact(s(R.string.ui_card),cardLabel());
     add(text(s(R.string.ui_card_state_only_network_service_has_not_been_checked),12,MUTED,false),20);
   }
   private void detailFact(String label,String value){LinearLayout row=new LinearLayout(this);row.setPadding(0,dp(14),0,dp(14));row.addView(text(label,13,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));TextView v=text(mask(value),13,TEXT,false);v.setGravity(Gravity.END);row.addView(v,new LinearLayout.LayoutParams(0,-2,2));add(row,0);addDivider();}
   private void renameScreen(){if(detailProfile==null)return;add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),18);add(text(profileName(detailProfile)+" · "+selectedIccid),22);EditText name=input(s(R.string.ui_nickname),false);name.setText(detailProfile.optString("nickname",""));add(name,22);add(text(s(R.string.ui_leave_blank_to_use_the_operator_name),12,MUTED,false),10);add(action(s(R.string.ui_save),true,()->{if(!detailCurrent())return;String value=name.getText().toString().trim();if(value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>64||value.matches("(?s).*[\\p{Cntrl}].*")){name.setError(s(R.string.ui_use_at_most_64_utf_8_bytes_without_control_characters));return;}hideKeyboard();prepare("rename",selectedProfile,value);}),28);add(action(s(R.string.ui_cancel),false,()->{screen=3;navigationSession++;render();}),8);}
-  private void recordsScreen(){add(text(s(R.string.ui_operation_results),22,TEXT,false),24);add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);for(String value:recentResults)add(text(value,16,TEXT,false),18);if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);add(action(s(R.string.ui_verify_card_and_recovery),false,this::reconcile),24);if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);add(action(s(R.string.nav_help_feedback),false,()->navigate(SettingsNavigation.SUPPORT)),12); }
+  private void recordsScreen(){
+    add(text(s(R.string.ui_operation_results),22,TEXT,false),24);
+    add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);
+    for(String value:recentResults)add(text(value,16,TEXT,false),18);
+    if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);
+    if(getPreferences(0).getBoolean("pending",false)){
+      add(text(s(R.string.recovery_record_summary)),20);
+      if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
+    }
+    if(notificationCleanupAvailable){
+      add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus))),20);
+      add(action(s(R.string.ui_review_notification_cleanup),false,this::prepareNotificationCleanup),12);
+    }
+    add(action(s(R.string.nav_help_feedback),false,()->navigate(SettingsNavigation.SUPPORT)),12);
+  }
   private void connectionScreen(){
     add(text(s(R.string.ui_connect_with_adb),28,TEXT,false),28);
     add(text(s(R.string.ui_one_command_no_extra_script_shizuku_or_root)),12);
@@ -1089,7 +1099,7 @@ public final class MainActivity extends Activity {
     });
   }
   private void showCompatibility() {
-    Sheet check=new Sheet(s(R.string.ui_compatibility_check));
+    Sheet check=new Sheet(s(R.string.nav_connection_details));
     if(compatibility.length()==0)check.copy(s(R.string.ui_connect_the_shell_service_then_refresh_to_check_this_card_no_car));
     else {
       check.fact(s(R.string.ui_selected_card_channel),compatibility.optString("route",s(R.string.ui_no_verified_card_connection)));
@@ -1099,8 +1109,8 @@ public final class MainActivity extends Activity {
           : s(R.string.ui_profile_reading_has_not_been_verified_no_compatibility_check_cha));
     }
     check.copy(s(R.string.ui_order_secure_element_hal_aidl_then_hidl_telephony_then_omapi_mul));
-    if(backend!=null)check.button(s(R.string.ui_choose_card),false,()->{check.dialog.dismiss();chooseCard();});
-    check.button(s(R.string.ui_run_read_only_check),false,()->{check.dialog.dismiss();if(backend!=null||fallback)refresh();else status(s(R.string.ui_connect_first),s(R.string.nav_connection_needed));});
+    if(BuildConfig.DEBUG&&backend!=null)check.button(s(R.string.ui_choose_card),false,()->{check.dialog.dismiss();chooseCard();});
+    if(BuildConfig.DEBUG)check.button(s(R.string.ui_run_read_only_check),false,()->{check.dialog.dismiss();if(backend!=null||fallback)refresh();else status(s(R.string.ui_connect_first),s(R.string.nav_connection_needed));});
     check.button(s(R.string.ui_done),false,check.dialog::dismiss);check.show();
   }
   private void settings() {
@@ -1186,6 +1196,8 @@ public final class MainActivity extends Activity {
   private void supportScreen() {
     LinearLayout group=navigationGroup(20);
     navigationItem(group,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
+    if(backend!=null||compatibility.length()>0||CompatibilityDiagnostics.lastFailure()!=null)
+      navigationItem(group,s(R.string.nav_connection_details),"","connection",this::showCompatibility);
     navigationItem(group,s(R.string.nav_report_problem),s(R.string.nav_report_summary),"help",this::reportProblem);
     navigationItem(group,s(R.string.nav_export_diagnostics),s(R.string.nav_export_summary),"records",this::chooseDiagnosticExport);
     if(CompatibilityDiagnostics.lastFailure()!=null)
@@ -1205,11 +1217,11 @@ public final class MainActivity extends Activity {
     add(text(s(R.string.ui_card),13,MUTED,true),24);
     LinearLayout card=navigationGroup(10);
     navigationItem(card,s(R.string.nav_card_information),s(R.string.nav_card_information_summary),"card",()->navigate(SettingsNavigation.CARD));
-    add(text(s(R.string.nav_diagnostics_recovery),13,MUTED,true),24);
-    LinearLayout diagnostics=navigationGroup(10);
-    navigationItem(diagnostics,s(R.string.ui_compatibility_check),s(R.string.nav_compatibility_summary),"help",this::showCompatibility);
-    navigationItem(diagnostics,s(R.string.nav_verify_state),s(R.string.nav_verify_summary),"records",()->navigate(SettingsNavigation.RECOVERY));
     if(BuildConfig.DEBUG){
+      add(text(s(R.string.nav_diagnostics_recovery),13,MUTED,true),24);
+      LinearLayout diagnostics=navigationGroup(10);
+      navigationItem(diagnostics,s(R.string.ui_compatibility_check),s(R.string.nav_compatibility_summary),"help",this::showCompatibility);
+      navigationItem(diagnostics,s(R.string.nav_verify_state),s(R.string.nav_verify_summary),"records",()->navigate(SettingsNavigation.RECOVERY));
       add(text(s(R.string.nav_laboratory),13,MUTED,true),24);
       LinearLayout lab=navigationGroup(10);
       navigationItem(lab,s(R.string.nav_lab_tools),s(R.string.nav_lab_only),"lab",()->navigate(SettingsNavigation.LAB));
@@ -1238,6 +1250,7 @@ public final class MainActivity extends Activity {
   }
 
   private void recoveryScreen() {
+    if(!BuildConfig.DEBUG){navigate(5);return;}
     add(text(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a)),20);
     add(action(s(R.string.ui_verify_card_and_recovery),getPreferences(0).getBoolean("pending",false),this::reconcile),24);
     if(recoveryReviewEligible&&getPreferences(0).getBoolean("pending",false))
@@ -1784,8 +1797,9 @@ public final class MainActivity extends Activity {
     boolean idleConnection=!running&&!pending&&notice.isEmpty()&&backend==null&&title.equals(s(R.string.ui_connect_your_card));
     statusBox.setVisibility(!idleConnection&&UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
     statusBox.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    statusTitle.setText(running ? OPERATIONS.title() : !notice.isEmpty() ? pending ? s(R.string.ui_needs_verification) : s(R.string.ui_update) : title);
-    statusDetail.setText(running ? detail : !notice.isEmpty() ? notice : detail + (pending ? s(R.string.ui_safety_verification_is_required_use_settings_verify_card_and_rec) : ""));
+    statusTitle.setText(running ? OPERATIONS.title() : pending&&inventory.has("profiles")
+        ? s(R.string.recovery_view_only_title) : !notice.isEmpty() ? pending ? s(R.string.ui_needs_verification) : s(R.string.ui_update) : title);
+    statusDetail.setText(running ? detail : !notice.isEmpty() ? notice : detail);
   }
   private void status(String a, String b) {
     notice = "";title = a;detail = b;updateStatusRegion();

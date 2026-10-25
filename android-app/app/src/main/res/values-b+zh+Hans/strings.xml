@@ -2,7 +2,7 @@
 <resources>
     <string name="ui_connect_your_card" formatted="false">"连接卡片"</string>
       <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"此页面不可用期间，一项操作已结束。请先核验卡片，再继续；不要重复执行该操作。"</string>
-    <string name="ui_needs_verification" formatted="false">"需要核验"</string>
+    <string name="ui_needs_verification" formatted="false">上次操作未确认</string>
     <string name="ui_reading_the_card_to_establish_its_current_state" formatted="false">"正在读取卡片，确认当前状态。"</string>
     <string name="ui_check_ended" formatted="false">"检查已结束"</string>
     <string name="ui_refreshing_the_card_after_the_interrupted_screen" formatted="false">"正在刷新卡片，确认页面中断后的状态。"</string>
@@ -10,7 +10,7 @@
     <string name="ui_tap_start_connection_again_then_rerun_the_same_command" formatted="false">"点按“重新连接”，然后再次运行同一条命令。"</string>
     <string name="ui_starting_local_service" formatted="false">"正在启动本地服务"</string>
     <string name="ui_connection_not_completed" formatted="false">"连接未完成"</string>
-    <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">"卡片和操作状态需要核验。请打开“设置 → 核验卡片与恢复状态”。不要再次提交激活码。"</string>
+    <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">上次更改的结果未确认。重新连接后可读取卡片；请勿重复提交激活码。</string>
     <string name="ui_connection_lost" formatted="false">"连接已断开"</string>
       <string name="ui_connected" formatted="false">"已连接"</string>
     <string name="ui_checking_card_and_recovery_state" formatted="false">"正在检查卡片与恢复状态…"</string>
@@ -46,15 +46,15 @@
     <string name="ui_reading_your_esims" formatted="false">"正在读取 eSIM 配置"</string>
     <string name="ui_card_unavailable" formatted="false">"卡片不可用"</string>
     <string name="ui_no_verified_inventory_was_returned_reconnect_and_refresh" formatted="false">"未返回经过核验的配置清单。请重新连接并刷新。"</string>
-    <string name="ui_open_compatibility_check_for_the_result_of_each_channel" formatted="false">" 请打开“兼容性检查”，查看各通道的检测结果。"</string>
+    <string name="ui_open_compatibility_check_for_the_result_of_each_channel" formatted="false">" 可在“帮助与反馈”中查看连接详情。"</string>
     <string name="ui_checking_recovery" formatted="false">"正在检查恢复状态"</string>
     <string name="ui_choose_a_card" formatted="false">"选择一张卡"</string>
     <string name="ui_more_than_one_euicc_is_readable_select_the_card_you_want_to_mana" formatted="false">"检测到多张可读取的 eUICC，请选择要管理的卡片。"</string>
     <string name="ui_recovery_state_unavailable" formatted="false">"恢复状态不可用"</string>
     <string name="ui_changes_are_blocked_until_the_safety_record_can_be_checked_do_no" formatted="false">"安全记录核验完成前，更改操作已暂停。不要清除应用数据，也不要重复上一项操作。"</string>
-    <string name="ui_changes_remain_blocked_until_card_and_recovery_verification_can" formatted="false">" 卡片与恢复状态核验完成前，仍无法更改。"</string>
+    <string name="ui_changes_remain_blocked_until_card_and_recovery_verification_can" formatted="false">" 上次操作结果暂时无法确认，修改仍不可用。"</string>
     <string name="ui_recovery_check" formatted="false">"恢复检查："</string>
-    <string name="ui_use_verify_card_and_recovery_before_making_more_changes" formatted="false">"。继续更改前，请先执行“核验卡片与恢复状态”。"</string>
+    <string name="ui_use_verify_card_and_recovery_before_making_more_changes" formatted="false">确认上次操作结果前，修改暂不可用。</string>
     <string name="ui_verifying_card_and_recovery" formatted="false">"正在核验卡片与恢复状态"</string>
     <string name="ui_card_read_completed_the_previous_operation_still_requires_review" formatted="false">"卡片读取已完成，但上一项操作仍需检查。不要重复下载或执行删除等操作。"</string>
     <string name="ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve" formatted="false">"已核查并放弃结果未知的下载，配置清单未变化。其激活码可能已消耗，请勿重复使用。现在可进行新操作。"</string>
@@ -153,7 +153,7 @@
     <string name="ui_rename" formatted="false">"更改名称"</string>
     <string name="ui_delete_esim_166" formatted="false">"删除 eSIM"</string>
     <string name="ui_turn_off_this_esim_before_deleting_it" formatted="false">"请先停用此 eSIM，再删除。"</string>
-    <string name="ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a" formatted="false">"此卡及其恢复状态完成核验前，无法进行更改。"</string>
+    <string name="ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a" formatted="false">当前卡片连接暂不支持修改。</string>
     <string name="ui_about_this_esim" formatted="false">"关于此 eSIM"</string>
     <string name="ui_card_state_only_network_service_has_not_been_checked" formatted="false">"仅代表卡内状态，尚未检查网络服务。"</string>
     <string name="ui_nickname" formatted="false">"名称"</string>
@@ -295,7 +295,7 @@
     <string name="ui_review_the_code_then_validate_it_before_installation" formatted="false">"请核对激活码，安装前会再次校验。"</string>
     <string name="ui_requires_verification" formatted="false">"需要核验"</string>
     <string name="ui_update" formatted="false">"提示"</string>
-    <string name="ui_safety_verification_is_required_use_settings_verify_card_and_rec" formatted="false">"\n继续更改前，请执行“设置 → 核验卡片与恢复状态”。"</string>
+    <string name="ui_safety_verification_is_required_use_settings_verify_card_and_rec" formatted="false">上次操作未确认，仍可查看卡片。</string>
     <string name="ui_please_wait_for_the_current_operation_to_finish" formatted="false">"请等待当前操作完成。"</string>
     <string name="ui_scan_qr_code" formatted="false">"扫描二维码"</string>
     <string name="ui_back_to_add_esim" formatted="false">"返回添加 eSIM"</string>
@@ -405,10 +405,10 @@
     <string name="adb_clipboard_label">"8bercue ADB 连接"</string>
     <string name="recovery_access_paused">卡片访问已暂停</string>
     <string name="recovery_observed_unknown">已恢复只读访问。上次%1$s的结果仍未确认，所有更改继续暂停，未重试任何操作。</string>
-    <string name="recovery_reconnect_for_read">上次操作结果未确认。请打开“通过电脑连接”并运行显示的命令，核验旧后台后恢复只读访问。安全记录会保留，不会更改任何 Profile。</string>
-    <string name="recovery_card_changed">当前卡片与未决操作绑定的卡片不同。请插回原卡后重新核验，更改继续暂停。</string>
+    <string name="recovery_reconnect_for_read">"暂时无法读取卡片。请在“连接与权限”中重新连接后刷新。"</string>
+    <string name="recovery_card_changed">上次操作涉及另一张卡。可以查看当前卡片，但不能用它确认上次操作的结果。</string>
     <string name="recovery_inventory_unstable">两次读取的卡片状态不一致。请稍后刷新重新核验。未重试任何操作，更改继续暂停。</string>
-    <string name="recovery_evidence_unverified">无法核验恢复证据或旧后台身份，访问继续暂停。请保留应用数据和安全记录以便诊断。</string>
+    <string name="recovery_evidence_unverified">"无法确认上次连接的状态，暂时无法读取卡片。可在“帮助与反馈”中报告问题。"</string>
     <string name="ui_feedback_0">反馈本次连接失败</string>
     <string name="ui_feedback_1">连接遇到问题？反馈问题</string>
     <string name="ui_feedback_2">反馈上次连接失败</string>
@@ -469,7 +469,7 @@
     <string name="wireless_adb_live_reconnecting">"正在建立安全本机连接"</string>
     <string name="wireless_adb_live_unavailable">"安全连接尚未就绪，请打开无线 ADB 设置核对配对状态"</string>
 
-    <string name="recovery_review_button">审核上次未确认的操作</string>
+    <string name="recovery_review_button">确认上次操作</string>
     <string name="recovery_review_title">确认接受当前卡片状态？</string>
     <string name="recovery_review_warning">无法证明上次启用、停用或重命名是否成功。请先检查当前 eSIM 列表。此操作不会重试之前的写入；只有安全核验通过，才会保留原始未知结果和审核记录，并允许从当前卡片状态开始新操作。如果卡片或内容不符合预期，请勿继续。</string>
     <string name="recovery_review_changed">当前 Profile 列表与上次操作前的状态不同。确认前请检查各个 Profile 及启用状态。</string>
@@ -547,4 +547,8 @@
   <string name="nav_enter_code">输入配对码</string>
   <string name="nav_pairing_available">8bercue · 输入配对码</string>
   <string name="nav_pairing_notification_help">展开本通知，点「输入配对码」。请保持 Android 配对码窗口打开。</string>
+  <string name="nav_connection_details">连接详情</string>
+  <string name="recovery_view_only_title">仅可查看</string>
+  <string name="recovery_view_only_summary">可以查看这张卡。上次操作结果未确认，修改暂不可用。</string>
+  <string name="recovery_record_summary">App 未收到上次更改的最终结果。已保留记录，不会自动重试该操作。</string>
 </resources>

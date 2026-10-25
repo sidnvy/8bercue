@@ -2,7 +2,7 @@
 <resources>
     <string name="ui_connect_your_card" formatted="false">"Connect your card"</string>
       <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"An operation ended while this screen was unavailable. Verify the card before continuing; do not repeat the operation."</string>
-    <string name="ui_needs_verification" formatted="false">"Needs verification"</string>
+    <string name="ui_needs_verification" formatted="false">Previous change not confirmed</string>
     <string name="ui_reading_the_card_to_establish_its_current_state" formatted="false">"Reading the card to establish its current state."</string>
     <string name="ui_check_ended" formatted="false">"Check ended"</string>
     <string name="ui_refreshing_the_card_after_the_interrupted_screen" formatted="false">"Refreshing the card after the interrupted screen."</string>
@@ -10,7 +10,7 @@
     <string name="ui_tap_start_connection_again_then_rerun_the_same_command" formatted="false">"Tap Start connection again, then rerun the same command."</string>
     <string name="ui_starting_local_service" formatted="false">"Starting local service"</string>
     <string name="ui_connection_not_completed" formatted="false">"Connection not completed"</string>
-    <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">"Card and operation state need verification. Open Settings → Verify card and recovery. Do not submit its activation code again."</string>
+    <string name="ui_card_and_operation_state_need_verification_open_settings_verify" formatted="false">The last change was not confirmed. Reconnect to read the card; do not submit the activation code again.</string>
     <string name="ui_connection_lost" formatted="false">"Connection lost"</string>
       <string name="ui_connected" formatted="false">"Connected"</string>
     <string name="ui_checking_card_and_recovery_state" formatted="false">"Checking card and recovery state…"</string>
@@ -46,15 +46,15 @@
     <string name="ui_reading_your_esims" formatted="false">"Reading your eSIMs"</string>
     <string name="ui_card_unavailable" formatted="false">"Card unavailable"</string>
     <string name="ui_no_verified_inventory_was_returned_reconnect_and_refresh" formatted="false">"No verified inventory was returned. Reconnect and refresh."</string>
-    <string name="ui_open_compatibility_check_for_the_result_of_each_channel" formatted="false">" Open Compatibility check for the result of each channel."</string>
+    <string name="ui_open_compatibility_check_for_the_result_of_each_channel" formatted="false">" Connection details are available in Help &amp; feedback."</string>
     <string name="ui_checking_recovery" formatted="false">"Checking recovery"</string>
     <string name="ui_choose_a_card" formatted="false">"Choose a card"</string>
     <string name="ui_more_than_one_euicc_is_readable_select_the_card_you_want_to_mana" formatted="false">"More than one eUICC is readable. Select the card you want to manage."</string>
     <string name="ui_recovery_state_unavailable" formatted="false">"Recovery state unavailable"</string>
     <string name="ui_changes_are_blocked_until_the_safety_record_can_be_checked_do_no" formatted="false">"Changes are blocked until the safety record can be checked. Do not clear app data or repeat the previous operation."</string>
-    <string name="ui_changes_remain_blocked_until_card_and_recovery_verification_can" formatted="false">" Changes remain blocked until card and recovery verification can complete."</string>
+    <string name="ui_changes_remain_blocked_until_card_and_recovery_verification_can" formatted="false">" Changes are paused because the previous result could not be checked."</string>
     <string name="ui_recovery_check" formatted="false">"Recovery check: "</string>
-    <string name="ui_use_verify_card_and_recovery_before_making_more_changes" formatted="false">". Use Verify card and recovery before making more changes."</string>
+    <string name="ui_use_verify_card_and_recovery_before_making_more_changes" formatted="false">Changes remain paused until the previous result is confirmed.</string>
     <string name="ui_verifying_card_and_recovery" formatted="false">"Verifying card and recovery"</string>
     <string name="ui_card_read_completed_the_previous_operation_still_requires_review" formatted="false">"Card read completed; the previous operation still requires review. Do not repeat a download or destructive action."</string>
     <string name="ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve" formatted="false">"The unknown download was reviewed and abandoned. The profile inventory is unchanged. Its activation code may have been consumed; do not reuse it. New operations are available."</string>
@@ -153,7 +153,7 @@
     <string name="ui_rename" formatted="false">"Rename"</string>
     <string name="ui_delete_esim_166" formatted="false">"Delete eSIM"</string>
     <string name="ui_turn_off_this_esim_before_deleting_it" formatted="false">"Turn off this eSIM before deleting it."</string>
-    <string name="ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a" formatted="false">"Changes are unavailable until this card and its recovery state are verified."</string>
+    <string name="ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a" formatted="false">Changes are unavailable for this card connection.</string>
     <string name="ui_about_this_esim" formatted="false">"About this eSIM"</string>
     <string name="ui_card_state_only_network_service_has_not_been_checked" formatted="false">"Card state only. Network service has not been checked."</string>
     <string name="ui_nickname" formatted="false">"Nickname"</string>
@@ -295,7 +295,7 @@
     <string name="ui_review_the_code_then_validate_it_before_installation" formatted="false">"Review the code, then validate it before installation."</string>
     <string name="ui_requires_verification" formatted="false">"requires verification"</string>
     <string name="ui_update" formatted="false">"Update"</string>
-    <string name="ui_safety_verification_is_required_use_settings_verify_card_and_rec" formatted="false">"\nSafety verification is required. Use Settings → Verify card and recovery before further changes."</string>
+    <string name="ui_safety_verification_is_required_use_settings_verify_card_and_rec" formatted="false">The previous change is not confirmed; you can still view the card.</string>
     <string name="ui_please_wait_for_the_current_operation_to_finish" formatted="false">"Please wait for the current operation to finish."</string>
     <string name="ui_scan_qr_code" formatted="false">"Scan QR code"</string>
     <string name="ui_back_to_add_esim" formatted="false">"Back to Add eSIM"</string>
@@ -405,10 +405,10 @@
     <string name="adb_clipboard_label">"8bercue ADB connection"</string>
     <string name="recovery_access_paused">Card access paused</string>
     <string name="recovery_observed_unknown">Read-only access restored. The previous %1$s result is still unknown; all changes remain paused. No operation was retried.</string>
-    <string name="recovery_reconnect_for_read">A previous operation could not be confirmed. Open Connect using computer and run the displayed command to check old workers and restore read-only access. Safety records will be kept; no profile will be changed.</string>
-    <string name="recovery_card_changed">This is not the card bound to the unresolved operation. Reinsert that card and verify again. Changes remain paused.</string>
+    <string name="recovery_reconnect_for_read">"Card access is temporarily paused. Reconnect in Connection &amp; access, then refresh."</string>
+    <string name="recovery_card_changed">The earlier change belongs to another card. You can view the current card without confirming that earlier result.</string>
     <string name="recovery_inventory_unstable">Two card reads returned different results. Wait and refresh to verify again. No operation was retried; changes remain paused.</string>
-    <string name="recovery_evidence_unverified">Recovery evidence or the previous backend identity could not be verified. Access remains paused. Keep app data and safety records for diagnosis.</string>
+    <string name="recovery_evidence_unverified">"The previous connection state could not be verified. Card access is paused. Report this through Help &amp; feedback."</string>
     <string name="ui_feedback_0">Report this connection failure</string>
     <string name="ui_feedback_1">Trouble connecting? Report issue</string>
     <string name="ui_feedback_2">Report previous connection failure</string>
@@ -470,7 +470,7 @@
     <string name="wireless_adb_live_unavailable">"Secure connection not ready; open Wireless ADB setup to verify pairing"</string>
 
 
-    <string name="recovery_review_button">Review the unknown operation</string>
+    <string name="recovery_review_button">Review the previous change</string>
     <string name="recovery_review_title">Accept the current card state?</string>
     <string name="recovery_review_warning">The previous enable, disable or rename result cannot be proven. Check the visible eSIM list first. This will NOT repeat the previous operation. If verification succeeds, an audit record will preserve its unknown outcome and allow new actions from the current card state. Do not continue if the card is unexpected.</string>
     <string name="recovery_review_changed">The current card profile inventory differs from the snapshot before that operation. Review each profile and enabled state before confirming.</string>
@@ -546,4 +546,8 @@
   <string name="nav_enter_code">Enter pairing code</string>
   <string name="nav_pairing_available">8bercue · Enter pairing code</string>
   <string name="nav_pairing_notification_help">Expand this notification and choose Enter pairing code. Keep the Android pairing window open.</string>
+  <string name="nav_connection_details">Connection details</string>
+  <string name="recovery_view_only_title">View only</string>
+  <string name="recovery_view_only_summary">You can view this card. Changes are paused because a previous change was not confirmed.</string>
+  <string name="recovery_record_summary">The app did not receive a final result for an earlier change. Its record is kept and the change will not be retried automatically.</string>
 </resources>

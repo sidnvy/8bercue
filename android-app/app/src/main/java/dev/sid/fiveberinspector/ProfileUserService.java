@@ -100,7 +100,9 @@ public final class ProfileUserService extends IProfileService.Stub {
             java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.list();
             org.json.JSONArray profiles = new org.json.JSONArray();
             boolean isolated=CardTransactionLock.persistentQuarantine();
-            boolean writeQualified=EnrolledWritePolicy.isAllowed(target.identityHash)&&!isolated&&!journal().requiresReconciliation();
+            OperationJournal record=journal();
+            boolean previousUnconfirmed=record.requiresReconciliation();
+            boolean writeQualified=EnrolledWritePolicy.isAllowed(target.identityHash)&&!isolated&&!previousUnconfirmed;
             if(isolated){
                 step="recovery-readback";
                 Thread.sleep(300);
@@ -121,7 +123,9 @@ public final class ProfileUserService extends IProfileService.Stub {
             }
             FiveberReaderSelector.Target finalCard=FiveberReaderSelector.discover();
             if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
-            if(isolated)ReadOnlyRecovery.observed(target.identityHash,inventoryFingerprint(entries));
+            java.util.Properties previous=record.read();
+            String recoveryScope=isolated?ReadOnlyRecovery.observed(target.identityHash,inventoryFingerprint(entries))
+                :previousUnconfirmed?ReadOnlyRecovery.scope(previous,target.identityHash):"none";
             displayedFingerprint = inventoryFingerprint(entries);
             displayedCard = target.identityHash;
             displayedLifecycleFingerprint = null;
@@ -136,8 +140,12 @@ public final class ProfileUserService extends IProfileService.Stub {
             reply.put("connectionNotice","Card connection: "+compatibility.route()+". "+
                 (target.reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX)?"Experimental system-policy workaround; another ROM may block it.":target.reader.startsWith(ReaderDescriptor.HIDL_PREFIX)?"Card reads verified; management writes are not implemented for HIDL.":"Card reads verified; changes still require confirmation."));
             reply.put("readOnly",true);
-            if(isolated)reply.put("recoveryState","READ_ONLY_RECOVERED").put("changesBlocked",true)
-                .put("previousOperation",journal().read().getProperty("operation", "")).put("previousOutcome","unknown");
+            if(isolated||previousUnconfirmed)reply.put("recoveryState","same_card".equals(recoveryScope)?"READ_ONLY_RECOVERED":"READ_ONLY_CURRENT_CARD")
+                .put("recoveryScope",recoveryScope).put("changesBlocked",true)
+                .put("previousOperation",previous.getProperty("operation", "")).put("previousOutcome",previous.getProperty("status","unknown"))
+                .put("recoveryReviewEligible","same_card".equals(recoveryScope)&&displayedLifecycleFingerprint!=null
+                    &&previous.getProperty("operation","").matches("enable|disable|rename|switch")
+                    &&previous.getProperty("status","").matches("running|unknown|observed_unknown"));
             Log.i("EightberShell", "listProfiles success reader="+target.reader+" count="+reply.optInt("count",-1));
             return reply.toString();
         } catch (Throwable ex) {

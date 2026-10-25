@@ -18,8 +18,9 @@ interface; Android version and phone brand alone do not establish support.
    removable eUICC are different cards.
 4. Wait for a fresh profile list. Check it against the intended card. An empty
    list can be valid; a connected companion alone is not a verified card read.
-5. Open **Settings → Advanced → Compatibility check**. Note the selected backend
-   and any fixed failure stage. Use the read-only rerun if needed.
+5. If reporting compatibility, open **Settings → Help & feedback → Connection
+   details**. Note the selected backend and any fixed failure stage. Use **Refresh**
+   on the home screen to repeat the read; no separate compatibility test is needed.
 6. Restart only the app, reconnect and repeat the read. Note whether pairing or
    a computer command was needed again. No phone reboot is needed for this check.
 

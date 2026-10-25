@@ -42,7 +42,7 @@ body:
   - type: dropdown
     id: backend
     attributes:
-      label: Backend shown in Compatibility check
+      label: Backend shown in Help & feedback → Connection details
       options:
         - Secure Element AIDL
         - Secure Element HIDL

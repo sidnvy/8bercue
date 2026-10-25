@@ -60,7 +60,8 @@ public final class UiFlowOfflineTest {
   check(SettingsNavigation.restore(6,true)==SettingsNavigation.CONNECTION,"Recreation cannot resume a stale computer command window");
   check(SettingsNavigation.restore(SettingsNavigation.LAB,false)==SettingsNavigation.ADVANCED,"Release cannot restore a laboratory destination");
   check(SettingsNavigation.restore(SettingsNavigation.APPEARANCE,false)==SettingsNavigation.APPEARANCE,"Language recreation retains the preference page");
-  check(SettingsNavigation.restore(SettingsNavigation.RECOVERY,false)==SettingsNavigation.RECOVERY,"Recovery page can be shown without replaying an action");
+  check(SettingsNavigation.restore(SettingsNavigation.RECOVERY,false)==5,"Release restores old recovery page to contextual operation records");
+  check(SettingsNavigation.restore(SettingsNavigation.RECOVERY,true)==SettingsNavigation.RECOVERY,"Debug recovery tool remains available");
   check(SettingsNavigation.parent(SettingsNavigation.CARD)==SettingsNavigation.ADVANCED,"Card information returns to Advanced");
   check(SettingsNavigation.parent(SettingsNavigation.RECOVERY)==SettingsNavigation.ADVANCED,"Recovery returns to Advanced");
   check(SettingsNavigation.parent(SettingsNavigation.CONNECTION)==2,"Connection opened from Settings returns to Settings");
