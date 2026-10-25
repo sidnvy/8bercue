@@ -8,11 +8,11 @@ The original reconnect defect was the persistent whole-certificate DER pin: AOSP
 
 After the owner-authorized phone reboot, local discovery returned again. The earlier strict CNXN follow-up then exposed a second regression: it required a terminal NUL, while [AOSP send_connect](https://android.googlesource.com/platform/packages/modules/adb/+/1cf2f017d312f73b3dc53bda85ef2610e35a80e9/adb.cpp#327) copies the connection string begin/end without one. Commit fa07d48 accepts that length-delimited banner and the legacy terminal-NUL form, preserving exact device:: role, 4096-byte cap, embedded-NUL rejection, framed STLS/CNXN limits and fixed Connect-only OPEN. New tests fail against the prior implementation. The corrected APK reached authenticated Binder and read verified inventory.
 
-Two non-inline findings in review 5640592931 were also verified and fixed: the homepage now reports an incomplete connection if backend attachment fails after ready; pair() preserves legacy serverFingerprint until authenticated Binder readiness, including explicit re-pairing. Nine checks execute the actual extracted completion/pairing methods with controlled I/O, including failed attachment, failed/empty pairing and failed preference commit. These are not live new-pairing or Binder race hardware claims.
+Two non-inline findings in review 5640592931 were also verified and fixed: the homepage now reports an incomplete connection if backend attachment fails after ready; pair() preserves legacy serverFingerprint until authenticated Binder readiness, including explicit re-pairing. Fourteen checks execute the actual extracted completion/pairing methods with controlled I/O, including failed attachment, failed/empty pairing and failed preference commit. A later non-inline finding in review 5641364273 is also fixed: the pairing service rechecks management() on its UI callback before publishing Connected/stopping; a missing Binder reports the existing manual-recovery notice and never auto-retries. The tests exercise the actual launchIfReady method with controlled executor/UI queues, including Binder loss before UI dispatch, success, destroyed-service suppression and one-shot retry exclusion. These are not live new-pairing or Binder race hardware claims.
 
 ## Exact artifact and test boundary
 
-- APK SHA-256: `653b7720e250753fb78104ca1cb551ae14bd009f3ea3f79725069bf0a85a7d35`.
+- APK SHA-256: `6b78ccfe33246818341f1ef36018c9ba8647458b5dab26cd458066d7e8e5bbf8`.
 - Signer SHA-256: `3a1ebed312d2f5ec257cde4a2966e3b8da7533be20b014bd77a48e171f6329ea`; stable internal Lab debug signer, classification SIGNED_DEBUGGABLE_LAB_ONLY, productionReady=false.
 - Packaged source-built JNI SHA-256: `10f9509cfbd28825f5f4ecc5f05a2e91348c7f350987c568c4a8aa4f5e009c1e`; unchanged crypto bytes from the previously verified source rebuild.
 - Matching-signer install -r -t passed; parsed pairing preferences exactly matched before and after the final upgrade. No clear-data/uninstall or key replacement.
@@ -39,7 +39,7 @@ No Profile was installed, enabled, disabled, switched, renamed or deleted. Only 
 
 ## Local automated checks
 
-- 155 protocol/certificate/discovery assertions; 9 actual completion/pairing method checks; 85 synthetic artifact-policy checks including optimized Python: PASS.
+- 155 protocol/certificate/discovery assertions; 14 actual completion/pairing method checks; 85 synthetic artifact-policy checks including optimized Python: PASS.
 - Existing 39 provider, 74 UI, 332 compatibility, 76 recovery, 44 production recovery-entry, 2231 localization and privacy/identity-composition checks: PASS. Cryptographic/callback/Android mocks are labeled.
 - Release/Lab assembly and both Lint tasks: PASS. Gradle unit-test tasks are NO-SOURCE; substantive tests are the offline harnesses.
 - Real signed Lab verifier with python -O: PASS, complete single-signer and native inventory, full upstream notice equality, AArch64 and 16 KiB ELF/ZIP alignment. Actual unsigned Release artifact and unchanged release-surface gates: PASS, productionReady=false.

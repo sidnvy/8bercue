@@ -201,6 +201,10 @@ public final class OnDeviceAdbPairingService extends Service {
                 OnDeviceAdbWirelessManager.startManagement(this,endpoint);
                 ui.post(()->{
                     if(!started)return;
+                    if(CompanionBinderProvider.management()==null){
+                        update("Management not ready","Open 8bercue and tap Connect on this phone to retry");
+                        return;
+                    }
                     update("8bercue · Connected","Authenticated management service ready");
                     stopSelf();
                 });
