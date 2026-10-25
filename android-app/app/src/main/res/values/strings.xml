@@ -489,7 +489,7 @@
     <string name="wireless_adb_preview_error">"Discovery unavailable. Check that wireless debugging is enabled; no settings were changed."</string>
     <string name="wireless_adb_preview_settings">"Open Developer options"</string>
     <string name="wireless_adb_preview_not_auth">"Discovery does not authorize ADB; the secure pairing step is still required."</string>
-    <string name="wireless_adb_live_help">"Android 11+: Enable Developer options → Wireless debugging → Pair device with pairing code. Keep the Android pairing screen open and reply with the six-digit code from the 8bercue notification. No computer is required."</string>
+    <string name="wireless_adb_live_help">"Android 12+: Enable Developer options → Wireless debugging → Pair device with pairing code. Keep the Android pairing screen open and reply with the six-digit code from the 8bercue notification. No computer is required."</string>
     <string name="wireless_adb_identity_prepare">"Prepare local ADB pairing identity"</string>
     <string name="wireless_adb_identity_ready">"Local ADB identity ready"</string>
     <string name="wireless_adb_identity_error">"Unable to prepare the local pairing identity. No debugging setting was changed."</string>

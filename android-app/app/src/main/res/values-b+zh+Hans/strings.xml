@@ -489,7 +489,7 @@
     <string name="wireless_adb_preview_error">"无法发现服务，请确认无线调试已开启；未更改任何系统设置。"</string>
     <string name="wireless_adb_preview_settings">"打开开发者选项"</string>
     <string name="wireless_adb_preview_not_auth">"发现端口不代表 ADB 已授权，仍需完成安全配对。"</string>
-    <string name="wireless_adb_live_help">"Android 11+：开启开发者选项 → 无线调试 → 使用配对码配对设备。请保持 Android 配对码窗口打开，并在 8bercue 通知中输入六位代码，无需电脑。"</string>
+    <string name="wireless_adb_live_help">"Android 12+：开启开发者选项 → 无线调试 → 使用配对码配对设备。请保持 Android 配对码窗口打开，并在 8bercue 通知中输入六位代码，无需电脑。"</string>
     <string name="wireless_adb_identity_prepare">"准备本机 ADB 配对身份"</string>
     <string name="wireless_adb_identity_ready">"本机 ADB 身份已就绪"</string>
     <string name="wireless_adb_identity_error">"无法创建本机配对身份；未修改任何调试设置。"</string>
