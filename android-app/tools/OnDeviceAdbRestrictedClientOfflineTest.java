@@ -31,9 +31,10 @@ public final class OnDeviceAdbRestrictedClientOfflineTest {
     static byte[] greeting() throws IOException {
         return frame(OnDeviceAdbWirePacket.A_STLS,OnDeviceAdbWirePacket.A_STLS_VERSION,0,ZERO);
     }
-    static byte[] goodTls() throws IOException {
+    static byte[] goodTls() throws IOException { return goodTls(DEVICE); }
+    static byte[] goodTls(byte[] banner) throws IOException {
         return concat(
-          frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,DEVICE),
+          frame(OnDeviceAdbWirePacket.A_CNXN,OnDeviceAdbWirePacket.A_VERSION,4096,banner),
           frame(OnDeviceAdbWirePacket.A_OKAY,2,1,ZERO),
           frame(OnDeviceAdbWirePacket.A_WRTE,2,1,new byte[]{1,2}),
           frame(OnDeviceAdbWirePacket.A_CLSE,2,1,ZERO));
@@ -62,6 +63,22 @@ public final class OnDeviceAdbRestrictedClientOfflineTest {
         try(OnDeviceAdbWirePacket open=OnDeviceAdbWirePacket.read(new ByteArrayInputStream(tlsOutput), true)) {
             ok(open.command==OnDeviceAdbWirePacket.A_OPEN,"restricted OPEN after TLS");
             ok(new String(open.payload,java.nio.charset.StandardCharsets.US_ASCII).equals(command),"only verified command opened");
+        }
+        // AOSP adb.cpp send_connect() copies a length-delimited std::string;
+        // the actual non-terminated banner must get past CNXN and open Connect.
+        for (String banner:new String[]{"device::", "device::ro.product.name=fixture;features=shell_v2", "device::features=shell_v2\u0000"}) {
+            FakeTls compatible=new FakeTls(goodTls(banner.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+            OnDeviceAdbRestrictedClient.run(new ByteArrayInputStream(greeting()),new ByteArrayOutputStream(),()->compatible,APK);
+            try (OnDeviceAdbWirePacket open=OnDeviceAdbWirePacket.read(new ByteArrayInputStream(compatible.output.toByteArray()),true)) {
+                ok(open.command==OnDeviceAdbWirePacket.A_OPEN,"length-delimited or legacy banner opens fixed command");
+            }
+        }
+        byte[] oversized=new byte[4097];Arrays.fill(oversized,(byte)'a');
+        System.arraycopy("device::".getBytes(java.nio.charset.StandardCharsets.US_ASCII),0,oversized,0,8);
+        for (byte[] banner:new byte[][]{"device:".getBytes(), "host::features=shell_v2".getBytes(),
+                "device::features=a\u0000junk".getBytes(), oversized}) {
+            FakeTls denied=new FakeTls(goodTls(banner));fails(greeting(),denied);
+            ok(denied.output.size()==0,"invalid/oversized role banner never opens Connect");
         }
         fails(frame(OnDeviceAdbWirePacket.A_AUTH,1,0,ZERO),new FakeTls(goodTls()));
         fails(frame(OnDeviceAdbWirePacket.A_STLS,0,0,ZERO),new FakeTls(goodTls()));

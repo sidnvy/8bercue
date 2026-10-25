@@ -41,6 +41,16 @@ final class OnDeviceAdbRestrictedClient {
                 + "dev.sid.fiveberinspector.Connect\u0000";
     }
 
+    private static boolean isDeviceBanner(byte[] payload) {
+        // AOSP send_connect() copies std::string begin/end without a NUL.
+        // Accept a legacy terminal NUL too, but never an embedded terminator.
+        byte[] role = "device::".getBytes(StandardCharsets.US_ASCII);
+        if (payload.length < role.length || payload.length > 4096) return false;
+        for (int i=0; i<role.length; i++) if (payload[i]!=role[i]) return false;
+        for (int i=role.length; i<payload.length-1; i++) if (payload[i]==0) return false;
+        return true;
+    }
+
     /**
      * The return value says only that a restricted command stream ended without
      * transport error. The caller MUST separately verify the authenticated
@@ -75,9 +85,7 @@ final class OnDeviceAdbRestrictedClient {
             // certificate only on this read, after startHandshake() returned.
             try (OnDeviceAdbWirePacket connected = OnDeviceAdbWirePacket.read(in, true)) {
                 if (connected.command != OnDeviceAdbWirePacket.A_CNXN
-                        || connected.payload.length < 9
-                        || connected.payload[connected.payload.length-1] != 0
-                        || !new String(connected.payload,0,8,StandardCharsets.US_ASCII).equals("device::")
+                        || !isDeviceBanner(connected.payload)
                         || connected.arg1 < 4096 || connected.arg1 > 1024 * 1024
                         || connected.arg0 < OnDeviceAdbWirePacket.A_VERSION_MIN
                         || connected.arg0 > OnDeviceAdbWirePacket.A_VERSION)
