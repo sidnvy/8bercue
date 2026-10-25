@@ -1,5 +1,7 @@
 # PR #17 review follow-up — 2026-10-25
 
+> Later CI update: owner-completed OAuth workflow authorization allowed commit `6335df6` to enable the pinned upstream source build. See [native delivery](ADB_NATIVE_DELIVERY.md) and [current PR checks](https://github.com/sidnvy/8bercue/pull/17/checks). The unchanged-workflow statements below describe the earlier review checkpoint.
+
 > Final exact-APK hardware result: [2026-10-25 post-reboot acceptance](PIXEL10_POST_REBOOT_ACCEPTANCE_20261025.md) — three reconnect/read cycles and expired-choice recovery PASS; production gates remain open. Earlier statuses below are historical.
 
 Previous head: `0005c87`. The eight CodeRabbit findings were checked against actual code and addressed in this follow-up. **Draft remains required. The last positive-path attempt failed at local discovery; a subsequent owner-authorized reboot completed, with post-reboot acceptance awaiting first unlock.**

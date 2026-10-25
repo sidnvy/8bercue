@@ -17,7 +17,7 @@
 
 1. **原生库准入。** 普通 Release 目前仍排除配对 JNI。若决定纳入，需要明确审核后的构建与产物契约：只允许 ARM64 的现有 `libeuicc-drivers.so` 和新增 `lib8bercue_adb_pairing.so`；现有 LPAC 资产清单、资产哈希、禁止的类/依赖、隐私资源、备份关闭、非 debuggable、16 KiB 对齐要求都必须保留。不能仅放宽为“允许任意 .so”。
 2. **来源与许可。** 配对 JNI 必须仅来自锁定源码构建，并保留完整 BoringSSL/OpenSSL/SSLeay/ISC/MIT 声明。需要完成项目 AGPL-3.0-only、Apache-2.0 JNI 及这些第三方条款组合的许可审查；已有 notices 不是兼容性审查结论。本轮没有改变许可证或添加例外授权。
-3. **源码 CI。** 已准备 `native-source-ci.patch`，只把历史 AAR 构建入口换为锁定上游源码构建。当前 OAuth 缺少 workflow 权限；需维护者明确授权后应用。不得把旧 AAR CI 的绿色结果称为新源码 CI 已通过。
+3. **源码 CI。** 用户已完成 GitHub `workflow` 授权，原补丁以 `6335df6` 成功推送，只把历史 AAR 构建入口换为锁定上游源码构建。该步骤编译 JNI 与 ARM64 合约、核对来源/声明和 ELF，不执行 ARM64 合约、不签名、不发布；实际结果见 [PR #17 checks](https://github.com/sidnvy/8bercue/pull/17/checks)。不得把旧 AAR CI 的绿色结果称为新源码 CI 已通过。
 4. **受保护签名。** 使用既有 `beta-release` 环境和正式证书，针对最终准入的精确源码/产物重新验证。现有签名 workflow 只允许 main；不能把旧 main smoke 或 Lab 签名当作本候选的正式签名结果，也不能为方便测试绕过环境审批。
 5. **升级与身份。** 正式签名升级应从正式签名旧版验证。Lab 与正式签名不同；不允许承诺直接跨签名保留 App 数据/Keystore，也不导出私钥或暗中卸载当前新配对实例。
 6. **版本与源码交付。** 当前开发版本仍为已发布的 `0.19.1-beta.3 / 48`。正式发布应选择新版本，生成与该精确版本相符的说明、readiness 数据和源码清单，再校验不可变源码归档。历史发布的 `BETA-READINESS.json` 不应被当作当前候选的验收记录。
