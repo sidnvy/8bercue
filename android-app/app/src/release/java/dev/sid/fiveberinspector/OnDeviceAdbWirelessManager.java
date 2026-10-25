@@ -21,7 +21,7 @@ final class OnDeviceAdbWirelessManager {
             // Persist only after the TLS-bound SPAKE2 proof and AEAD verification.
             if(guid.isEmpty())throw new IOException("Paired device identity missing");
             if(!context.getSharedPreferences("wireless_adb_identity",Context.MODE_PRIVATE)
-                    .edit().remove("serverFingerprint").putString("pairedGuid",guid).commit())
+                    .edit().putString("pairedGuid",guid).commit())
                 throw new IOException("ADB pairing state not stored");
         } catch(IOException | GeneralSecurityException exception) {
             throw exception;

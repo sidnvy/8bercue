@@ -1,5 +1,7 @@
 # PR #17 review follow-up — 2026-10-25
 
+> Final exact-APK hardware result: [2026-10-25 post-reboot acceptance](PIXEL10_POST_REBOOT_ACCEPTANCE_20261025.md) — three reconnect/read cycles and expired-choice recovery PASS; production gates remain open. Earlier statuses below are historical.
+
 Previous head: `0005c87`. The eight CodeRabbit findings were checked against actual code and addressed in this follow-up. **Draft remains required. The last positive-path attempt failed at local discovery; a subsequent owner-authorized reboot completed, with post-reboot acceptance awaiting first unlock.**
 
 | Finding | Change | Verification |

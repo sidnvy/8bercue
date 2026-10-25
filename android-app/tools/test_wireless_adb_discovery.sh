@@ -104,3 +104,5 @@ PY
 
 python3 tools/test_lab_artifact_gates.py
 python3 tools/test_local_adb_binder_source.py
+
+python3 tools/test_wireless_completion.py

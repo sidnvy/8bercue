@@ -1,5 +1,7 @@
 # ADB native dependency and signed delivery — 2026-10-24
 
+> Final exact-APK hardware result: [2026-10-25 post-reboot acceptance](PIXEL10_POST_REBOOT_ACCEPTANCE_20261025.md) — three reconnect/read cycles and expired-choice recovery PASS; production gates remain open. Earlier statuses below are historical.
+
 > Latest code/review status: [2026-10-25 follow-up](PR17_REVIEW_FOLLOWUP_20261025.md). Historical hardware evidence below remains scoped to its tested APK.
 
 **Lab only. Production Release excludes the pairing JNI library. The unchanged release verifier is not amended to allow it.**

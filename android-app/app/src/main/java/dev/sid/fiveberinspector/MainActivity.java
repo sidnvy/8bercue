@@ -833,8 +833,11 @@ public final class MainActivity extends Activity {
       return new JSONObject().put("ready",attempt.ready)
           .put("description",attempt.description);
     },r->{
-      if(r.optBoolean("ready")) connectDirect();
-      else status(s(R.string.wireless_adb_live_unavailable),
+      if(r.optBoolean("ready")) {
+        connectDirect();
+        if(backend==null) status(s(R.string.ui_connection_not_completed),
+                                s(R.string.wireless_adb_attach_pending));
+      } else status(s(R.string.wireless_adb_live_unavailable),
                   r.optString("description",s(R.string.wireless_adb_live_unavailable)));
     });
   }
