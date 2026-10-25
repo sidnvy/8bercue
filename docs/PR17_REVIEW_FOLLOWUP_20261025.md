@@ -1,6 +1,6 @@
 # PR #17 review follow-up — 2026-10-25
 
-Previous head: `0005c87`. The eight CodeRabbit findings were checked against actual code and addressed in this follow-up. **Draft remains required. Hardware acceptance of this exact APK is still blocked by missing local mDNS advertisement after normal unlock.**
+Previous head: `0005c87`. The eight CodeRabbit findings were checked against actual code and addressed in this follow-up. **Draft remains required. The last positive-path attempt failed at local discovery; a subsequent owner-authorized reboot completed, with post-reboot acceptance awaiting first unlock.**
 
 | Finding | Change | Verification |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ Lab APK SHA-256: `410a875bfeaa78d8e5e485825809de1c5ebd70cb3d8da7ff42c86bfb980699
 
 The Pixel 10 pairing preferences remained available with pairedGuid present. Matching-signer data-preserving upgrades were performed; the final install result and current lock state are recorded in the PR update. No data clear, key rotation, debugging/adbd/VPN reconfiguration, eUICC mutation or other-phone interaction was performed.
 
-The owner normally unlocked the phone. The actual reconnect attempt failed safely at discovery: Android reports wireless debugging enabled, trusted network and listening TLS port 46587, while the service-discovery cache has no record for that port. The discovered service returned two non-owned candidate addresses, both rejected. No TLS/CNXN/Connect/Binder stage was reached on that attempt. The current limitation is service discovery, not a demonstrated pairing-key or TLS failure. The earlier two successful 2026-10-24 reconnect/read cycles belong to their earlier APK, not this follow-up artifact. Final current-head restart/reconnect/Binder/removable slot 1 port 0 read and additional repeats are **NOT ACCEPTED** pending restoration of a locally discovered endpoint within the permitted safety constraints. No forbidden system/debugging changes were attempted. The owner subsequently proposed a reboot and confirmed a verified USB fallback. A reboot remains pending until the native Workstation device list shows the Pixel 10 USB transport; the observed list currently contains only its wireless transport. No reboot has been performed.
+The owner normally unlocked the phone. The actual reconnect attempt failed safely at discovery: Android reports wireless debugging enabled, trusted network and listening TLS port 46587, while the service-discovery cache has no record for that port. The discovered service returned two non-owned candidate addresses, both rejected. No TLS/CNXN/Connect/Binder stage was reached on that attempt. The current limitation is service discovery, not a demonstrated pairing-key or TLS failure. The earlier two successful 2026-10-24 reconnect/read cycles belong to their earlier APK, not this follow-up artifact. Final current-head restart/reconnect/Binder/removable slot 1 port 0 read and additional repeats are **NOT ACCEPTED** pending restoration of a locally discovered endpoint within the permitted safety constraints. No forbidden system/debugging changes were attempted. The owner subsequently proposed a reboot and confirmed a verified USB fallback. Initial default-server enumeration missed the existing USB transport on the other local ADB server. The owner-authorized reboot and recovery are recorded below.
 
 Production native admission/licensing, protected compatible signing/migration, and the source-native workflow patch remain separate owner gates. Do not convert green CI or corrected review findings into production or hardware approval.
 
@@ -49,3 +49,13 @@ Three further findings at `451b465` were verified and corrected without changing
 The wireless suite now passes 144 protocol/certificate/discovery assertions, and the gate suite passes 85 synthetic policy checks. The unchanged actual signed Lab APK above also passes the stricter verifier with python -O. Earlier full build/Lint and native results remain attached to their original runtime commit; this follow-up changes tests, packaging verification and documentation only.
 
 A read-only route lookup for the app UID sends IPv4 mDNS (224.0.0.251) through wlan0, and Android service discovery shows wlan0 rather than tun0. These observations do not establish WireGuard as the cause or exclude every VPN/filter interaction; no VPN change was made.
+
+## Owner-authorized reboot and USB recovery
+
+The owner proposed trying a phone reboot and confirmed that the phone was physically present with verified USB ADB. Further native read-only inspection found the connected Pixel 10 USB device and its ADB interface, owned by the existing local ADB server on port 5039; the default server on 5037 had only listed its wireless transport. Both transports were verified to report the same Pixel 10 serial before proceeding. No ADB server was restarted or reconfigured.
+
+One reboot command was sent through that USB transport. The client timed out as the transport disconnected, so the command was not repeated. The phone re-enumerated and the existing default 5037 server acquired its USB transport. Both USB and existing wireless Workstation ADB recovered. System boot completed and uptime was about 105 seconds. The dynamic TLS port changed from 46587 to 45777; wireless debugging remained enabled and VPN transport remained present, with no debugging or VPN setting changes.
+
+At observation time Android user 0 was RUNNING_LOCKED. App-private credential-encrypted storage was unavailable before first unlock; this is not evidence of data deletion. Pairing-preference equality and post-reboot app discovery/TLS/Binder/card-read acceptance remain NOT CHECKED until the owner normally unlocks the phone. No claim is made that reboot fixed discovery or that WireGuard caused it.
+
+All three Android CI jobs passed at code commit `f86bc86`: https://github.com/sidnvy/8bercue/actions/runs/40156103969 . This additional update changes documentation only.
