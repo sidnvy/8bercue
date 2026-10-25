@@ -40,22 +40,25 @@ public class OnDeviceAdbDiscoveryLifecycleTest {
   d.start();m.listener.onDiscoveryStarted(info.type);
   int base=m.resolves.size();m.listener.onServiceFound(info);
   m.resolves.get(base).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
-  ok(m.resolves.size()==base+1);android.os.Handler.drain();ok(m.resolves.size()==base+2);
+  ok(m.resolves.size()==base+1);android.os.Handler.drain();ok(m.resolves.size()==base+1);
+  android.os.Handler.advanceBy(299);ok(m.resolves.size()==base+1);
+  android.os.Handler.advanceBy(1);ok(m.resolves.size()==base+2);
   m.resolves.get(base+1).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
-  android.os.Handler.drain();ok(m.resolves.size()==base+3);
+  android.os.Handler.advanceBy(299);ok(m.resolves.size()==base+2);
+  android.os.Handler.advanceBy(1);ok(m.resolves.size()==base+3);
   m.resolves.get(base+2).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
-  android.os.Handler.drain();ok(m.resolves.size()==base+3); // Budget exhausted.
+  android.os.Handler.advanceBy(300);ok(m.resolves.size()==base+3); // Budget exhausted.
   base=m.resolves.size();m.listener.onServiceFound(info);
-  m.resolves.get(base).onResolveFailed(info,0);android.os.Handler.drain();ok(m.resolves.size()==base+1);
-  base=m.resolves.size();m.listener.onServiceFound(info);
-  m.resolves.get(base).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
-  m.listener.onServiceLost(info);android.os.Handler.drain();ok(m.resolves.size()==base+1);
+  m.resolves.get(base).onResolveFailed(info,0);android.os.Handler.advanceBy(300);ok(m.resolves.size()==base+1);
   base=m.resolves.size();m.listener.onServiceFound(info);
   m.resolves.get(base).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
-  m.listener.onServiceFound(info);android.os.Handler.drain();ok(m.resolves.size()==base+2); // Superseded ticket.
+  m.listener.onServiceLost(info);android.os.Handler.advanceBy(300);ok(m.resolves.size()==base+1);
   base=m.resolves.size();m.listener.onServiceFound(info);
   m.resolves.get(base).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
-  d.close();android.os.Handler.drain();ok(m.resolves.size()==base+1);
+  m.listener.onServiceFound(info);android.os.Handler.advanceBy(300);ok(m.resolves.size()==base+2); // Superseded ticket.
+  base=m.resolves.size();m.listener.onServiceFound(info);
+  m.resolves.get(base).onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE);
+  d.close();android.os.Handler.advanceBy(300);ok(m.resolves.size()==base+1);
   d=new OnDeviceAdbDiscovery(c,OnDeviceAdbDiscovery.Purpose.CONNECTION,new OnDeviceAdbDiscovery.Observer(){
    public void found(OnDeviceAdbDiscovery.Endpoint e){throw new AssertionError();}
    public void lost(OnDeviceAdbDiscovery.Purpose p){}public void failed(OnDeviceAdbDiscovery.Purpose p){}

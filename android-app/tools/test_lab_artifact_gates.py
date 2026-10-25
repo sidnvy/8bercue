@@ -11,7 +11,10 @@ import os,pathlib,runpy,subprocess,sys
 case=os.environ.get('GATE_CASE','good')
 def output(args,**kwargs):
     name=pathlib.Path(args[0]).name
-    if name=='apksigner':return '' if case=='signer' else 'Signer #1 certificate SHA-256 digest: '+'a'*64
+    if name=='apksigner':
+        if case=='signer':return ''
+        cert='Signer #1 certificate SHA-256 digest: '+'a'*64
+        return cert+('\\nSigner #2 certificate SHA-256 digest: '+'b'*64 if case=='multiple_signers' else '')
     if name=='aapt2':return "name='dev.sid.fiveberinspector'"+('' if case=='variant' else ' application-debuggable')
     if args[1]=='-h':return 'ELF32 ARM' if case=='machine' else 'ELF64 AArch64'
     if args[1]=='-lW':return 'LOAD 0x1000' if case=='alignment' else 'LOAD 0x4000'
@@ -42,13 +45,19 @@ with tempfile.TemporaryDirectory() as temp:
             if case=='extra':z.writestr('lib/arm64-v8a/libextra.so',payload)
             z.writestr('assets/fiveber-lpac/manifest.json',json.dumps(manifest))
             for name in files:z.writestr('assets/fiveber-lpac/'+name,payload)
+            if case=='extra_lpac':z.writestr('assets/fiveber-lpac/unlisted.so',payload)
+            if case=='duplicate_lpac':
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore',UserWarning)
+                    z.writestr('assets/fiveber-lpac/lpac',payload)
             notice=(root/'app/src/lab/assets/legal/third-party-notices.txt').read_bytes()
             z.writestr('assets/legal/third-party-notices.txt',b'BoringSSL is a fork of OpenSSL' if case=='license' else notice)
     for optimized in [False,True]:
         env=dict(os.environ);env.pop('PYTHONOPTIMIZE',None)
         flags=['-O'] if optimized else []
         if optimized:env['PYTHONOPTIMIZE']='2'
-        for case in ['good','signer','variant','abi','hash','inventory','extra','license','machine','alignment','dependency']:
+        for case in ['good','signer','multiple_signers','variant','abi','hash','inventory','extra','extra_lpac','duplicate_lpac','license','machine','alignment','dependency']:
             path=work/'fixture.apk';apk(path,case);env['GATE_CASE']=case
             result=subprocess.run([sys.executable,*flags,str(driver),str(verifier),str(path),'--sdk',str(work)],env=env,capture_output=True,text=True)
             check((result.returncode==0)==(case=='good'),f'Lab gate {case}, optimized={optimized}')

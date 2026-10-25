@@ -9,7 +9,7 @@ a = p.parse_args()
 tools = a.sdk / 'build-tools/35.0.0'
 subprocess.run([str(tools / 'zipalign'), '-c', '-P', '16', '4', str(a.apk)], check=True)
 signed = subprocess.check_output([str(tools / 'apksigner'), 'verify', '--verbose', '--print-certs', str(a.apk)], text=True)
-signer = re.findall('Signer #1 certificate SHA-256 digest: ([a-f0-9]{64})', signed)
+signer = re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([a-f0-9]{64})$', signed, re.M)
 if not len(signer) == 1:
     raise SystemExit('Expected signed Lab APK')
 badging = subprocess.check_output([str(tools / 'aapt2'), 'dump', 'badging', str(a.apk)], text=True)
@@ -25,6 +25,12 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as temp:
         raise SystemExit("Artifact check failed: manifest['abi'] == 'arm64-v8a'")
     if not set(manifest['files']) == {'lpac', 'libeuicc-driver-loader.so', 'libeuicc-drivers.so', 'liblpac-utils.so', 'driver/driver_apdu_stdio.so', 'driver/driver_http_stdio.so'}:
         raise SystemExit("Artifact check failed: set(manifest['files']) == {'lpac', 'libeuicc-driver-loader.so', 'libeuicc-drivers.so', 'liblpac-utils.so', 'driver/driver_apdu_stdio.so', 'driver/driver_http_stdio.so'}")
+    packaged_lpac = [name for name in z.namelist()
+                     if name.startswith('assets/fiveber-lpac/') and not name.endswith('/')]
+    expected_lpac = {'assets/fiveber-lpac/manifest.json'} | {
+        'assets/fiveber-lpac/' + name for name in manifest['files']}
+    if set(packaged_lpac) != expected_lpac or len(packaged_lpac) != len(expected_lpac):
+        raise SystemExit('Unexpected or duplicate LPAC asset inventory')
     for name, meta in manifest['files'].items():
         data = z.read('assets/fiveber-lpac/' + name)
         if not (len(data) == meta['size'] and hashlib.sha256(data).hexdigest() == meta['sha256']):
