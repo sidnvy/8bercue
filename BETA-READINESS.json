@@ -3,44 +3,30 @@
   "tag": "v0.20.0-beta.2",
   "apkVersion": "0.20.0-beta.2",
   "versionCode": 50,
-  "apkSha256": null,
+  "apkSha256": "15ed0d537902d92ef12ef738d4d564e68424ff9f42281fdf54d7aa877b6b0ce2",
+  "sourceCommit": "60f10b61edc5b98fa7ee1eff69b226b0b6260e2a",
+  "sourceArchiveSha256": "731c7cf6b9809ae983bebe5848138d4b469515689de1d6bcfc319a5b043383dd",
   "signerCertificateSha256": "24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c",
-  "authorization": "Owner authorized merging PRs 17 and 19, main acceptance, then a new release if tests pass on 2026-10-25.",
-  "status": "PENDING_EXACT_SIGNED_APK_ACCEPTANCE",
+  "status": "PUBLISHED_LIMITED_BETA",
   "productionReady": false,
-  "requiredBetaChecks": {
-    "mergedMainCi": "PENDING notification-input fix",
-    "mergedMainLabHardware": "See docs/evidence/main-acceptance-20261025.json; separate debug signer",
-    "candidateUnsignedBuildLint": "PASS; engineering artifact only",
-    "candidateNativeAdmissionMutations": "PASS; 48 actual ZIP policy checks including python -O",
-    "nativeCopyrightPermission": "PASS; sid adopted fixed-revision linking permission on 2026-10-25",
-    "protectedSigning": "PENDING final candidate",
-    "sameSignerUpgradeAndLaunch": "PENDING exact production-signed candidate",
-    "freshOnboarding": "APK49 fresh identity PASS; exact APK50 notification pairing/reconnect PENDING (preserve existing identity)",
-    "sourceArchive": "PENDING sealed candidate source",
-    "publicPromotion": "BLOCKED pending final acceptance"
+  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.2",
+  "sourceSnapshotNote": "Describes the published tagged artifact, not later documentation-only commits. Reset artifact pointers and acceptance statements when preparing another release.",
+  "validation": {
+    "mainCi": "PASS https://github.com/sidnvy/8bercue/actions/runs/40203659250",
+    "protectedSigning": "PASS https://github.com/sidnvy/8bercue/actions/runs/40203699776",
+    "publicAssetsReDownloaded": "PASS all checksums, exact APK/source/certificate",
+    "deviceScope": "Pixel 10 Pro XL: production49-to50 upgrade with retained identity/preferences, notification pairing, three restart/reconnect/read-only cycles, English/Chinese Release navigation",
+    "details": "https://github.com/sidnvy/8bercue/releases/download/v0.20.0-beta.2/FINAL-ACCEPTANCE.json"
   },
   "exactBuildWritesTested": [],
   "profileWritesSubmitted": 0,
-  "notificationHttpSubmitted": 0,
-  "telemetry": "Owner GlitchTip project configured; crash reports remain opt-in/off by default; manual reports require preview confirmation",
-  "connectionAuthorization": "App-owned TLS 1.3 pairing/reconnect, fixed Connect only and authenticated typed Binder; computer alternative retains two-minute one-use window.",
   "deferredChecks": [
-    "fresh install",
-    "Android 13 and other-ROM live qualification",
-    "Android 9-12 language fallback",
-    "download/notification/delete closure",
-    "activation/deactivation and nickname changes",
-    "camera scan and permission flow",
-    "TalkBack and large-font runtime",
-    "Windows terminal quoting",
-    "16KB actual device runtime"
+    "Clean-data APK50 fresh identity creation (prior APK49 fresh identity and APK50 retained-identity pairing passed)",
+    "Other-ROM and older-Android live qualification",
+    "Install/enable/disable/rename/delete and notification delivery on APK50",
+    "Camera flow, TalkBack and large-font runtime",
+    "Windows command quoting and physical 16 KiB runtime"
   ],
-  "safety": "Unknown operation and persistent quarantine are retained; successful observation does not authorize writes.",
-  "supersededCandidate": {
-    "tag": "v0.20.0-beta.1",
-    "versionCode": 49,
-    "publication": "WITHHELD",
-    "reason": "Notification-content Activity pauses Android Settings and closes its pairing server; notification inline RemoteInput works."
-  }
+  "telemetry": "Crash reports optional/off by default; manual reporting requires preview confirmation",
+  "nativeLinkingPermission": "Fixed-revision limited permission; see LICENSING.md"
 }

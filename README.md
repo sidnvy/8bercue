@@ -4,59 +4,122 @@
 
 <h1 align="center">8bercue</h1>
 
-<p align="center">An open-source eSIM manager for Android. Your profiles, on your terms.</p>
+<p align="center">An open-source eSIM card manager for Android.</p>
 
 <p align="center">
   <a href="https://github.com/sidnvy/8bercue/releases">Download APK</a> ·
-  <a href="https://github.com/sidnvy/8bercue/releases/tag/v0.19.1-beta.3">Release notes</a> ·
+  <a href="https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.2">Release notes</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
   <a href="https://github.com/sidnvy/8bercue/issues">Feedback</a>
 </p>
 
-Manage profiles on compatible eUICCs, including removable cards such as 5ber, from a clean Android interface. No 5ber account required.
+Manage profiles on compatible removable eUICC cards using your own Android phone.
+8bercue is built for cards from different vendors, including 5ber, 9eSIM and
+海豚卡, rather than a single vendor's ecosystem. You do not need a 5ber
+account. See [card and phone compatibility](docs/COMPATIBILITY.md) for what is
+known and how to check your combination.
 
 <p align="center">
-  <img src="docs/images/profiles.png" width="260" alt="Profile list showing installed eSIMs and their status">
+  <img src="docs/images/profiles.png" width="260" alt="Installed eSIM profiles and their status">
   &nbsp;&nbsp;
-  <img src="docs/images/profile-details.png" width="260" alt="Profile details with activate, rename and delete actions">
+  <img src="docs/images/profile-details.png" width="260" alt="Profile details and available actions">
 </p>
 
-## Features
+## What it does
 
-- View profiles and card information.
-- Rename, enable, disable and delete profiles.
-- Add an eSIM by scanning a QR code, importing an image or entering an activation code.
-- Connect through a computer using ADB.
-- Use English or Simplified Chinese, following the system or an in-app language choice.
-- Confirm installation and deletion, with recovery tools for interrupted operations.
+- Read profiles and card information.
+- Enable, disable, rename and delete profiles when the selected connection supports them.
+- Add an eSIM from a QR code, an image or an activation code.
+- Set up wireless ADB on the phone, or connect using a computer with USB ADB.
+- Use English or Simplified Chinese, with light and dark themes.
+- Review sensitive operations and inspect interrupted operations before continuing.
 
-Read-only recovery preserves uncertain-operation records and keeps changes paused while the current card is checked. See [recovery behavior](docs/READ_ONLY_RECOVERY.md).
+The app is in **Beta**. A successful card read does not establish that every write
+operation or network service works on the same device.
 
 ## Get started
 
-The APK installs on **ARM64 Android 9+**. Card management also requires a compatible eUICC and a usable HAL, Telephony or OMAPI channel with the required system permissions. Android version and ADB access alone do not guarantee card access. Available management actions depend on the connection. See [device compatibility](docs/COMPATIBILITY.md).
+Install the signed APK from [Releases](https://github.com/sidnvy/8bercue/releases).
+The app requires **ARM64 Android 9+** and a compatible eUICC. Actual card access
+depends on the phone's ROM, exposed interfaces and permissions.
 
-This version checks the actual card connection automatically: Secure Element HAL first, then Telephony, with OMAPI as another fallback. **Compatibility check** shows the selected channel and missing conditions. If several cards are readable, use **Choose card** to select the intended eUICC. No phone-brand or Android 16 admission list is used. The previous 0.18 Beta retains its older limits.
+### On the phone — Android 12+ with Wi-Fi
 
-Connect once with a computer using **ADB**. No separate privilege-manager app is required. Reconnect after a reboot, app update or service termination.
+1. Open **Set up wireless ADB**, then **Start setup**, and allow notifications.
+2. In Android's developer settings, open **Wireless debugging** and choose
+   **Pair device with pairing code**.
+3. Keep the system code window open. Expand the 8bercue notification, choose
+   **Enter pairing code**, and enter the six-digit code there.
+4. Return to 8bercue and select the intended card if several are available.
 
-1. Install the APK from [Releases](https://github.com/sidnvy/8bercue/releases).
-2. Open 8bercue and choose **Connect using computer**.
-3. Open **Compatibility check** and confirm the selected channel and a fresh profile list before making changes. See [testing a new phone](docs/NEW_DEVICE_CHECK.md).
+After pairing, use **Connect on this phone** to reconnect. A computer and Shizuku
+are not required for this setup. The app uses an authorized Android Shell
+companion; it does not obtain root. Reconnect when the companion has stopped,
+such as after a reboot or an app update. Keep wireless debugging available while
+using the wireless connection. [Connection help](docs/ADB_CONNECTION.md).
 
-On the connection screen, choose **Copy ADB command** and run it while the two-minute timer is active. The command stays the same across installations and updates; it finds the installed APK automatically. Your terminal confirms the authenticated connection or explains why it failed. If the window expires, choose **Start connection again** and rerun the same command. No Python script or separate helper app is required. With several devices attached, use `adb -s SERIAL shell` for the intended phone. Card access is checked separately after connection.
+### With a computer
 
-Manage the selected card from the profile list. Open a profile to turn it on/off, rename it or delete it. Switching and saving a nickname execute directly; installation and deletion require confirmation. Enabled profiles must be turned off before deletion. Connection, compatibility and recovery details are in Settings.
+Open **Connect using computer**. On wireless-capable phones this is under
+**Settings → Connection & access → Other connection options**. Copy the displayed
+ADB command and run it during the two-minute connection window. Select the
+correct device if several phones are connected. The command confirms the local
+service connection; card access is checked separately.
 
-Currently in **Beta**. See the [release notes](https://github.com/sidnvy/8bercue/releases/tag/v0.19.1-beta.3) for setup details, migration guidance and known issues.
+Your profiles appear after the card is read. Compatibility and card information
+are under **Settings → Advanced**. Help and diagnostic export are under
+**Help & feedback**. [Try a new phone](docs/NEW_DEVICE_CHECK.md).
 
-## Build & contribute
+## How it works
 
-See [BUILDING.md](BUILDING.md) to build and sign your own APK. Bug reports and contributions are welcome through [Issues](https://github.com/sidnvy/8bercue/issues) and pull requests. Keep activation codes and personal identifiers out of public reports.
+```mermaid
+flowchart LR
+    App[8bercue] --> Auth[User-authorized ADB]
+    Auth --> Shell[Local Shell companion]
+    Shell --> Route[Compatible Android card interface]
+    Route --> Card[eUICC management applet]
+```
 
-## License & contact
+Android's normal OMAPI path checks application access rules supplied by the card,
+including ARA-M rules. A card vendor can authorize its own application while
+other applications cannot open the same management applet through that path.
+Where a ROM allows Shell to use a lower-level Secure Element HAL, 8bercue can
+reach the applet through that interface without the ordinary OMAPI application
+check. Its OMAPI fallback still follows OMAPI access rules.
 
-[AGPL-3.0-only](COPYING) · [Third-party licenses](LICENSING.md) · [Privacy](PRIVACY.txt)
+This gives an independent card-management client a usable route on compatible
+phones. It can avoid a vendor app's account requirement and download counters
+that exist only in that app or its account service. It does not remove card
+firmware limits, operator activation-code rules or restrictions enforced by the
+profile server. eUICC and operator authentication still apply.
+
+[Architecture and permission boundaries](docs/ARCHITECTURE.md) explain ADB pairing,
+ARA-M, card protocols and the ROM adapters, with links to the implementation and
+Android's access-control design.
+
+## Help more phones and cards work
+
+Compatibility is checked from actual interfaces and card responses, without a
+phone-brand allowlist. The transport layer tries Secure Element AIDL, HIDL,
+Telephony and OMAPI; each has different availability and operation limits.
+
+Try your own phone with a read-only check. Working combinations and useful
+failure reports both help. If a reusable adapter change makes your device work,
+submit it with a small test and the relevant device/ROM details. See
+[CONTRIBUTING.md](CONTRIBUTING.md) and the [adapter guide](docs/ADAPTERS.md).
+
+Keep activation codes, full EID/ICCID values and raw protocol captures out of
+public reports. Use the app's reviewed diagnostic export when needed.
+
+## Build, license and contact
+
+[BUILDING.md](BUILDING.md) covers source builds and signing your own APK.
+[Read-only recovery](docs/READ_ONLY_RECOVERY.md) explains interrupted operations.
+
+[AGPL-3.0-only](COPYING), with the limited BoringSSL linking permission described
+in [LICENSING.md](LICENSING.md) · [Privacy](PRIVACY.txt)
 
 Built by sid · [support@sidnvy.com](mailto:support@sidnvy.com)
 
-8bercue is an independent project and is not affiliated with 5ber.
+8bercue is independent of the card vendors mentioned here. Names identify cards
+or compatibility reports and do not imply affiliation or endorsement.

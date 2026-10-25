@@ -1,0 +1,66 @@
+name: Phone / card compatibility
+description: Report a working combination or a reproducible card-access failure.
+title: "Compatibility: phone / ROM / card"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with [the read-only device check](https://github.com/sidnvy/8bercue/blob/main/docs/NEW_DEVICE_CHECK.md).
+        Working and failing combinations are both useful. Do not publish activation codes, full EID/ICCID, private keys or raw APDU/HTTP logs.
+  - type: input
+    id: app
+    attributes:
+      label: App version and source
+      description: Include versionCode if available; published Beta or self-built commit. No private signing material.
+      placeholder: 0.20.0-beta.2 / 50, published APK
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Phone, Android and ROM
+      description: Model, Android version and ROM/build identifier. Do not include serial, IMEI or account details.
+    validations:
+      required: true
+  - type: input
+    id: card
+    attributes:
+      label: Card product and firmware
+      description: Vendor/product/model and firmware if known, plus removable or built-in. Write unknown for missing details; omit EID/ICCID.
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Companion setup
+      options:
+        - On-device wireless ADB
+        - Computer / USB ADB
+        - Connection did not complete
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend shown in Compatibility check
+      options:
+        - Secure Element AIDL
+        - Secure Element HIDL
+        - Telephony
+        - OMAPI
+        - None / unknown
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Observed result and tested scope
+      description: Separate install/launch, companion connection, selected-card/profile reads, any individually tested writes and network service. An empty inventory may be valid. No write testing is needed for this report.
+      placeholder: Connected; selected the removable card; profile list read twice after app restart. No writes or network-service tests.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction or fixed failure category
+      description: Short steps and the stage/error shown by the app. A small reviewed diagnostic summary is enough; omit raw traces and private identifiers.
