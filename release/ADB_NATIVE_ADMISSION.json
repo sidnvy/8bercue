@@ -1,0 +1,13 @@
+{
+  "status": "ADMITTED",
+  "boringsslRevision": "571a7432a19592c620fa316abde47770dad4f82b",
+  "sourceArchiveSha256": "d44a73d4927b66f0d43b51f171a044a900b91eeb431763083915f33e64713a0e",
+  "libraries": [
+    "lib/arm64-v8a/libeuicc-drivers.so",
+    "lib/arm64-v8a/lib8bercue_adb_pairing.so"
+  ],
+  "permissionFile": "release/BORINGSSL-LINKING-PERMISSION.txt",
+  "permissionSha256": "938357fd12e424a390a63af1e5f8e0c697fd07d47f99424e9efe2de8714ceca4",
+  "publicationAuthorized": true,
+  "ownerDecision": "sid explicitly adopted the proposed limited linking permission on 2026-10-25; final APK publication remains conditional on acceptance."
+}

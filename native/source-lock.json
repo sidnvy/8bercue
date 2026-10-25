@@ -12,6 +12,12 @@
       "revision": "4818f043bda624b5738384eae3a0189b2bd1f5e1",
       "archive": "native/sources/cjson-4818f043bda624b5738384eae3a0189b2bd1f5e1.tar.gz",
       "sha256": "c720f7f3a52eab403a9145ccca99f0ccabe6c01c0677b28829f380f17075ea5a"
+    },
+    {
+      "component": "boringssl",
+      "revision": "571a7432a19592c620fa316abde47770dad4f82b",
+      "archive": "native/sources/boringssl-571a7432a19592c620fa316abde47770dad4f82b.tar.gz",
+      "sha256": "d44a73d4927b66f0d43b51f171a044a900b91eeb431763083915f33e64713a0e"
     }
   ],
   "patches": [

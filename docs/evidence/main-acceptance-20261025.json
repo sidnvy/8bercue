@@ -1,0 +1,42 @@
+{
+  "apkSha256": "fbbbd36396b72fa4f44c48d8291c0273f7d3eb6c1670477cf7f64660e10e478f",
+  "ownTlsReconnect": "PASS",
+  "protocolStages": {
+    "resolved local=true validPort=true": true,
+    "tls13_client_identity_presented": true,
+    "authenticated_management_binder_ready": true,
+    "shellUid=true": true
+  },
+  "workerUid": 2000,
+  "workerCount": 1,
+  "pairingPreferencesUnchanged": true,
+  "currentCard": {
+    "physicalSlot": 1,
+    "port": 0,
+    "maskedEidSuffix": "6947",
+    "profiles": {
+      "R&S": "enabled",
+      "Speedtest Travel": "disabled"
+    }
+  },
+  "settingsCategoryCount": 6,
+  "settingsTechnicalActionsVisible": false,
+  "englishNavigation": "PASS",
+  "diagnosticExportFormatChoice": "PASS",
+  "profileWrites": 0,
+  "sourceCommit": "3cd8ccf1b077b7073c37dae7b9f2980bfaf53ff8",
+  "reconnectReadOnlyCycles": 3,
+  "dataCleared": false,
+  "debugSettingsChanged": false,
+  "classification": "SIGNED_DEBUGGABLE_LAB_ONLY",
+  "productionReady": false,
+  "uiAutomationNotes": [
+    "Initial English script found Chinese app locale; retested using App UI language selection.",
+    "Cycle 2 card-sheet opening missed once; observed and resumed same connection."
+  ],
+  "chineseNavigation": "PASS; Settings/Appearance and language recreation observed",
+  "originalDisplayRestored": true,
+  "restoredLanguage": "zh-Hans",
+  "restoredTheme": "Light",
+  "finalAppPage": "Home"
+}

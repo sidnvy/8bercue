@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Rebuild every crypto object from pinned upstream source. Lab/contract only.
+# Rebuild every crypto object from bundled, hash-locked upstream source.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 revision=571a7432a19592c620fa316abde47770dad4f82b
 digest=d44a73d4927b66f0d43b51f171a044a900b91eeb431763083915f33e64713a0e
 ndk="${ANDROID_NDK_HOME:-${ANDROID_HOME:?}/ndk/27.3.13750724}"
+python3 - "$ndk/source.properties" <<'PYNDK'
+from pathlib import Path
+import re,sys
+if not re.search(r'^Pkg.Revision\s*=\s*27\.3\.13750724\s*$',Path(sys.argv[1]).read_text(),re.M):
+    raise SystemExit('Pinned Android NDK 27.3.13750724 required')
+PYNDK
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-curl -fsSL --retry 2 --connect-timeout 15 --max-time 150 \
-  "https://codeload.github.com/google/boringssl/tar.gz/$revision" -o "$work/source.tar.gz"
+cp "../native/sources/boringssl-$revision.tar.gz" "$work/source.tar.gz"
 python3 - "$work" "$digest" <<'PYVERIFY'
 import hashlib,pathlib,sys,tarfile
 root=pathlib.Path(sys.argv[1]); archive=root/'source.tar.gz'
@@ -54,4 +59,24 @@ if [[ "${STAGE_ADB_PAIRING_LAB:-0}" == 1 ]]; then
   install -m 0644 "$work/build/lib8bercue_adb_pairing.so" app/build/labJniLibs/arm64-v8a/
   cp "$work/build/inventory.json" app/build/adb-crypto-source-inventory.json
   install -m 0700 "$work/build/adb_pairing_crypto_contract" app/build/adb_pairing_crypto_contract
+fi
+
+# Only an explicit production staging request admits the fixed JNI library.
+if [[ "${STAGE_ADB_PAIRING_RELEASE:-0}" == 1 ]]; then
+  mkdir -p app/build/releaseJniLibs/arm64-v8a app/build/releaseAdbAssets/adb-pairing
+  "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded \
+    -o app/build/releaseJniLibs/arm64-v8a/lib8bercue_adb_pairing.so \
+    "$work/build/lib8bercue_adb_pairing.so"
+  python3 - <<'PYRECEIPT'
+import hashlib,json,pathlib
+root=pathlib.Path('.')
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+receipt=dict(schema=1,boringsslRevision='571a7432a19592c620fa316abde47770dad4f82b',
+ sourceArchiveSha256='d44a73d4927b66f0d43b51f171a044a900b91eeb431763083915f33e64713a0e',
+ jniSourceSha256=sha(root/'app/src/release/cpp/on_device_adb_pairing.cpp'),
+ librarySha256=sha(root/'app/build/releaseJniLibs/arm64-v8a/lib8bercue_adb_pairing.so'),
+ abi='arm64-v8a',ndk='27.3.13750724')
+(root/'app/build/releaseAdbAssets/adb-pairing/provenance.json').write_text(json.dumps(receipt,sort_keys=True)+'\n')
+print('PASS staged source-built production JNI with exact provenance receipt')
+PYRECEIPT
 fi
