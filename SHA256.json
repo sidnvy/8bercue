@@ -1,6 +1,6 @@
 {
   ".coderabbit.yaml": "e6da55337edc8ed32e60f94d2e05aad50adbf655459023a606b369d4b39e414b",
-  ".github/workflows/ci.yml": "318b30af3348664f14a0e7fed3ac36c29a44756042ff404a97fbb44d2b31d36e",
+  ".github/workflows/ci.yml": "0df8f83199c692b690f0c12972c45b6254548296f5e71de7cf0d0e710319e23d",
   ".github/workflows/release-beta.yml": "2bda830c693144e239c82473619edd572a993475a7832b879e7ba2542c9f989e",
   ".github/workflows/signer-smoke.yml": "d712bc81b6063c06daac393ab3865a74a683d9abb77aea249e157ee120bb9e29",
   ".gitignore": "dbd91fdb8e00eb595b63fde54f4a48f9e4468cd171cb181d3b3404286271cbdc",
