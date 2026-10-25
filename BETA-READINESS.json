@@ -1,22 +1,22 @@
 {
   "channel": "beta",
-  "tag": "v0.20.0-beta.1",
-  "apkVersion": "0.20.0-beta.1",
-  "versionCode": 49,
+  "tag": "v0.20.0-beta.2",
+  "apkVersion": "0.20.0-beta.2",
+  "versionCode": 50,
   "apkSha256": null,
   "signerCertificateSha256": "24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c",
   "authorization": "Owner authorized merging PRs 17 and 19, main acceptance, then a new release if tests pass on 2026-10-25.",
   "status": "PENDING_EXACT_SIGNED_APK_ACCEPTANCE",
   "productionReady": false,
   "requiredBetaChecks": {
-    "mergedMainCi": "PASS at 3cd8ccf; all three jobs",
+    "mergedMainCi": "PENDING notification-input fix",
     "mergedMainLabHardware": "See docs/evidence/main-acceptance-20261025.json; separate debug signer",
     "candidateUnsignedBuildLint": "PASS; engineering artifact only",
     "candidateNativeAdmissionMutations": "PASS; 48 actual ZIP policy checks including python -O",
     "nativeCopyrightPermission": "PASS; sid adopted fixed-revision linking permission on 2026-10-25",
     "protectedSigning": "PENDING final candidate",
     "sameSignerUpgradeAndLaunch": "PENDING exact production-signed candidate",
-    "freshOnboarding": "PENDING exact production-signed candidate",
+    "freshOnboarding": "APK49 fresh identity PASS; exact APK50 notification pairing/reconnect PENDING (preserve existing identity)",
     "sourceArchive": "PENDING sealed candidate source",
     "publicPromotion": "BLOCKED pending final acceptance"
   },
@@ -27,7 +27,7 @@
   "connectionAuthorization": "App-owned TLS 1.3 pairing/reconnect, fixed Connect only and authenticated typed Binder; computer alternative retains two-minute one-use window.",
   "deferredChecks": [
     "fresh install",
-    "Android 13 and other-ROM live qualification for APK48",
+    "Android 13 and other-ROM live qualification",
     "Android 9-12 language fallback",
     "download/notification/delete closure",
     "activation/deactivation and nickname changes",
@@ -36,5 +36,11 @@
     "Windows terminal quoting",
     "16KB actual device runtime"
   ],
-  "safety": "Unknown operation and persistent quarantine are retained; successful observation does not authorize writes."
+  "safety": "Unknown operation and persistent quarantine are retained; successful observation does not authorize writes.",
+  "supersededCandidate": {
+    "tag": "v0.20.0-beta.1",
+    "versionCode": 49,
+    "publication": "WITHHELD",
+    "reason": "Notification-content Activity pauses Android Settings and closes its pairing server; notification inline RemoteInput works."
+  }
 }

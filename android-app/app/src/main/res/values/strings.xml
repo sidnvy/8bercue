@@ -506,7 +506,7 @@
   <string name="nav_connection_ready">Your connection is ready. Return to your eSIMs to choose a card or manage it.</string>
   <string name="nav_view_esims">View my eSIMs</string>
   <string name="nav_pairing_steps">1. Open Wireless debugging in Android Settings.\n2. Choose Pair device with pairing code.\n3. Keep the code window open and enter the code in the 8bercue notification.</string>
-  <string name="nav_pairing_help">Wireless setup requires Android 12 or later and Wi-Fi. If the notification reply does not show a keyboard, tap the notification itself to enter the code in 8bercue. Keep the system pairing window open until pairing finishes.</string>
+  <string name="nav_pairing_help">Wireless setup requires Android 12 or later and Wi-Fi. Expand the 8bercue notification and choose Enter pairing code. Keep the system pairing window open until pairing finishes.</string>
   <string name="nav_authorization_scope">Android debugging gives 8bercue more access than an ordinary app. It uses this permission to connect to this phone’s card and perform the card operations you request. Pair only with this phone.</string>
   <string name="nav_start_setup">Start setup</string>
   <string name="nav_reconnect_help">Your pairing is remembered. Keep Wi-Fi and Wireless debugging enabled, then connect again when needed.</string>
@@ -545,9 +545,5 @@
   <string name="nav_pairing_code">Six-digit pairing code</string>
   <string name="nav_enter_code">Enter pairing code</string>
   <string name="nav_pairing_available">8bercue · Enter pairing code</string>
-  <string name="nav_pairing_notification_help">Reply with the code from Android Settings, or tap this notification to enter it.</string>
-  <string name="nav_pair_confirm">Pair</string>
-  <string name="nav_pair_code_prompt">Enter the six-digit code shown in Android Wireless debugging.</string>
-  <string name="nav_pair_code_incomplete">Enter all six digits.</string>
-  <string name="nav_pair_code_digits_only">Use digits only.</string>
+  <string name="nav_pairing_notification_help">Expand this notification and choose Enter pairing code. Keep the Android pairing window open.</string>
 </resources>

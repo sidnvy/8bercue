@@ -70,14 +70,16 @@ assert 'OnDeviceAdbPairingExchange.validCode(code)' in pairingService
 assert 'value.toString().toCharArray()' not in pairingService
 assert 'setCustomBigContentView(pad)' not in pairingService
 assert 'new RemoteInput.Builder(CODE_KEY)' in pairingService
-assert 'OnDeviceAdbPairingCodeActivity.class' in pairingService
 assert 'PendingIntent.FLAG_MUTABLE' in pairingService
 assert 'PendingIntent.FLAG_IMMUTABLE' in pairingService
-numberActivity=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingCodeActivity.java').read_text()
-assert 'InputType.TYPE_CLASS_NUMBER' in numberActivity
-assert 'InputMethodManager.SHOW_IMPLICIT' in numberActivity
-assert 'InputFilter.LengthFilter(6)' in numberActivity
-assert 'getWindow().setSoftInputMode' in numberActivity
+# A Settings onPause closes its pairing server. Never launch an Activity from
+# this notification; a floating dialog still pauses Settings on real Pixels.
+assert 'PendingIntent.getActivity' not in pairingService
+assert '.setContentIntent(' not in pairingService
+assert 'ACTION_CODE_FROM_ACTIVITY' not in pairingService
+manifest=Path('app/src/main/AndroidManifest.xml').read_text()
+assert 'OnDeviceAdbPairingCodeActivity' not in manifest
+assert not Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingCodeActivity.java').exists()
 assert "Arrays.fill(code," in pairingService
 restricted=Path('app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbRestrictedClient.java').read_text()
 for required in ('clientIdentityPresented()', 'ADB TLS required', 'fixedEntrypoint(', 'A_STLS', 'MAX_PACKETS'):

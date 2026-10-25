@@ -32,10 +32,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".OnDeviceAdbPairingCodeActivity"
-            android:exported="false" android:excludeFromRecents="true"
-            android:theme="@style/PairingCodeTheme"
-            android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
         <service android:name=".OnDeviceAdbPairingService" android:exported="false"
             android:foregroundServiceType="connectedDevice" />
         <activity android:name=".QrScanActivity" android:exported="false" android:screenOrientation="portrait" />

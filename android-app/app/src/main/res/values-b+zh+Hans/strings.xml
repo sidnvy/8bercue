@@ -507,7 +507,7 @@
   <string name="nav_connection_ready">连接已就绪。返回 eSIM 列表后，即可选择和管理卡片。</string>
   <string name="nav_view_esims">返回我的 eSIM</string>
   <string name="nav_pairing_steps">1. 在 Android 设置中打开「无线调试」。\n2. 选择「使用配对码配对设备」。\n3. 保持配对码窗口打开，通过 8bercue 通知输入配对码。</string>
-  <string name="nav_pairing_help">本机设置需要 Android 12 或更高版本，并连接 Wi-Fi。若通知回复无法显示键盘，可点击通知本身在 8bercue 中输入配对码。配对完成前请保持系统配对码窗口打开。</string>
+  <string name="nav_pairing_help">本机设置需要 Android 12 或更高版本，并连接 Wi-Fi。展开 8bercue 通知，点「输入配对码」。配对完成前请保持系统配对码窗口打开。</string>
   <string name="nav_authorization_scope">授权后，8bercue 可使用高于普通应用的 Android 系统调试权限，连接本机卡片并执行你明确选择的卡片操作。请只与本机配对。</string>
   <string name="nav_start_setup">开始设置</string>
   <string name="nav_reconnect_help">配对信息会保留。保持 Wi-Fi 与无线调试可用，需要时重新连接即可。</string>
@@ -546,9 +546,5 @@
   <string name="nav_pairing_code">六位配对码</string>
   <string name="nav_enter_code">输入配对码</string>
   <string name="nav_pairing_available">8bercue · 输入配对码</string>
-  <string name="nav_pairing_notification_help">通过通知回复输入 Android 设置中的配对码，也可点击本通知输入。</string>
-  <string name="nav_pair_confirm">配对</string>
-  <string name="nav_pair_code_prompt">输入 Android 无线调试中显示的六位配对码。</string>
-  <string name="nav_pair_code_incomplete">请输入完整的六位数字。</string>
-  <string name="nav_pair_code_digits_only">仅可输入数字。</string>
+  <string name="nav_pairing_notification_help">展开本通知，点「输入配对码」。请保持 Android 配对码窗口打开。</string>
 </resources>
