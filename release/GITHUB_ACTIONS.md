@@ -4,7 +4,7 @@ This provides **three independent workflows** for the public 8bercue repository.
 
 * **Android CI** runs on pull requests (including forks) and pushes to `main`: hermetic Java/Python regressions, tracked native package inspection, fresh ARM64 native rebuild with pinned NDK, unsigned Android build, release-surface checks and lint. It receives no release secrets and cannot publish. An unsigned main-branch engineering APK is retained briefly as a CI artifact, **not** as a user-downloadable release.
 * **Verify protected signer** runs only when explicitly dispatched on `main` and approved through the same protected `beta-release` environment. It reconstructs the locked native payload, signs a temporary release APK with environment secrets and verifies its exact certificate fingerprint and reporting configuration. It **never** uploads the signed APK, creates tags, or publishes a Release. Run this first after configuring GitHub environment secrets.
-* **Publish signed Beta** runs only by an owner's explicit `workflow_dispatch` on **main**, with an **existing** `vX.Y.Z-beta.N` Git tag whose commit is on `main`. This workflow rebuilds the ARM64 native payload from bundled source archives, runs tests, builds a signed release APK, validates the approved signer, checks the reporting configuration, packages corresponding source and notices, computes SHA256 checksums and creates a **prerelease**. Any existing release is immutable.
+* **Prepare signed Beta candidate** runs only by an owner's explicit `workflow_dispatch` on **main**, with an **existing** `vX.Y.Z-beta.N` Git tag whose commit is on `main`. This workflow rebuilds the ARM64 native payload from bundled source archives, runs tests, builds a signed release APK, validates the approved signer, checks the reporting configuration, packages corresponding source and notices, computes SHA256 checksums and creates a **draft prerelease**. Any existing release is immutable.
 
 ## One-time GitHub configuration
 
@@ -23,21 +23,21 @@ The environment **variable** `GLITCHTIP_DSN` (non-secret client config) is alrea
 
 **Credential custody decision:** Uploading the existing production signing keystore to GitHub Actions changes its trust boundary. Do this only with the release owner's explicit approval, after establishing off-device recovery custody. If this is not approved, leave these environment secrets absent: CI will work but publication intentionally fails closed. Do not create a new signing key merely to satisfy automation.
 
-GitHub Actions must be enabled on the repository. Optional: require the `Offline regression suite`, `Native ARM64 source rebuild`, and `Unsigned Android build and lint` checks in branch protection/rulesets before merging PRs.
+GitHub Actions must be enabled on the repository. Require the repository's necessary CI before merging. CodeRabbit is an advisory review aid, not an additional merge gate after maintainer review and required CI have passed.
 
 ## Preparing a new Beta release (manual owner gate)
 
-1. Merge reviewed changes to `main` after required checks pass. Update Android `versionName` and monotonically increasing `versionCode`. Add `release/RELEASE_NOTES_<versionName>.md`, and refresh dated Beta policies/readiness evidence for the **same** build. In `BETA-READINESS.json`, set the matching `tag`, `apkVersion`, and `versionCode`, and leave `apkSha256` empty until the tagged build supplies its digest. The workflow refuses an old APK hash and fills the published readiness asset with the new digest. Do not claim unperformed hardware tests.
+1. Merge reviewed changes to `main` after required checks pass. Update Android `versionName` and monotonically increasing `versionCode`. Add `release/RELEASE_NOTES_<versionName>.md`, and refresh dated Beta policies/readiness evidence for the **same** build. In `BETA-READINESS.json`, set the matching `tag`, `apkVersion`, and `versionCode`, and leave `apkSha256` empty until the tagged build supplies its digest. Reset old source/artifact pointers and prior acceptance statements when preparing a different candidate. The workflow refuses an old APK hash and fills the readiness asset with the new digest. Do not claim unperformed hardware tests.
 2. On the **reviewed source commit**, run `python3 android-app/tools/check_source_manifest.py --update`; commit the updated `SHA256.json` as part of the release-preparation changes. Source hashes must match **all** tracked files, including workflows, without hashing the manifest itself. Verify with `--check`.
 3. Create and push the tag `v<versionName>` pointing at the reviewed `main` commit. Never move existing release tags.
-4. In GitHub Actions → **Publish signed Beta** → **Run workflow**, select **main** and provide that tag. Approve the protected environment if prompted. Publishing is **not** triggered by a PR, regular merge, or creation of a tag alone.
-5. Inspect the output and the newly created prerelease, including the signer fingerprint, downloadable APK, corresponding source archive, notices, notes and `SHA256SUMS`. Then perform real-device post-release validation on the **downloaded** signed APK; no successful CI job substitutes for hardware qualification.
+4. In GitHub Actions → **Prepare signed Beta candidate** → **Run workflow**, select **main** and provide that tag. Approve the protected environment if prompted. Publishing is **not** triggered by a PR, regular merge, or creation of a tag alone.
+5. Inspect the output and the newly created prerelease, including the signer fingerprint, downloadable APK, corresponding source archive, notices, notes and `SHA256SUMS`. Perform real-device acceptance on the **downloaded draft** signed APK before public promotion; no successful CI job substitutes for hardware qualification. Finalize the acceptance summary and checksums without replacing APK/source/certificate bytes, then publish the prerelease and re-download its public assets to verify them.
 
-A release fails before publication when the source manifest is stale, version/tag mismatch, release notes absent, signing inputs missing, expected signer incorrect, native build/test/artifact checks fail, or the tag already has a release. The release job only needs `contents: write` to create the GitHub Release. PR workflows have `contents: read` and no secrets.
+Candidate preparation fails before public promotion when the source manifest is stale, version/tag mismatch, release notes absent, signing inputs missing, expected signer incorrect, native build/test/artifact checks fail, or the tag already has a release. The release job only needs `contents: write` to create the GitHub Release. PR workflows have `contents: read` and no secrets.
 
 ## Download behavior
 
-GitHub's `releases/latest` endpoint **excludes prereleases**. The 8bercue website already uses a Beta-aware GitHub Releases API resolver (`public/latest-release.js` in the separate website project). The CI workflow does not redeploy that website.
+GitHub's `releases/latest` endpoint **excludes prereleases**. Link users to the Releases list or a Beta-aware Releases API resolver. This workflow does not deploy a distribution website.
 
 ## Scope / limitations
 
