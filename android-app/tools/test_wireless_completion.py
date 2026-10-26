@@ -6,7 +6,7 @@ import os,pathlib,subprocess,tempfile
 root=pathlib.Path(__file__).resolve().parents[1]
 ui=(root/'app/src/main/java/dev/sid/fiveberinspector/MainActivity.java').read_text()
 manager=(root/'app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbWirelessManager.java').read_text()
-primary=ui[ui.index('  private void primaryConnect()'):ui.index('  private void home()')]
+primary=ui[ui.index('  private void primaryConnect()'):ui.index('  private void reconnectVerifiedRefresh()')]
 pair=manager[manager.index('    static void pair('):manager.index('    static boolean hasPaired(')]
 service=(root/'app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingService.java').read_text()
 handoff=service[service.index('    private void launchIfReady()'):service.index('    @Override public void onDestroy()')]
@@ -18,9 +18,7 @@ public class WirelessCompletionTest {
  public static void main(String[] args)throws Exception {
   Entry e=new Entry();LocalAdbBootstrap.ready=true;e.attach=true;e.primaryConnect();ok(e.backend!=null&&e.title.equals("connected"));
   e=new Entry();e.primaryConnect();ok(e.backend==null&&e.title.equals("3")&&e.detail.equals("4"));
-  e=new Entry();e.attach=true;e.reconnectVerifiedRefresh();ok(e.backend!=null&&e.title.equals("connected"));
   LocalAdbBootstrap.ready=false;e=new Entry();e.primaryConnect();ok(e.title.equals("2"));
-  e=new Entry();e.reconnectVerifiedRefresh();ok(e.backend==null&&e.title.equals("2"));
   OnDeviceAdbWirelessManager.paired=false;e=new Entry();e.primaryConnect();ok(e.preview);
   OnDeviceAdbWirelessManager.paired=true;e=new Entry();e.wireless=false;e.primaryConnect();ok(e.direct);
   Context c=new Context();c.prefs.values.put("serverFingerprint","legacy-fixture");c.prefs.values.put("pairedGuid","previous-fixture");
@@ -46,9 +44,9 @@ public class WirelessCompletionTest {
  }
  interface Job {JSONObject run()throws Exception;}
  static final class Entry {
-  boolean wireless=true,attach,preview,direct;Object backend;String title="",detail="";
+  boolean wireless=true,attach,preview,direct,recoveryReconnectNeeded;Object backend;String title="",detail="";
   String s(int value){return Integer.toString(value);}boolean wirelessOnboardingAvailable(){return wireless;}
-  void beginDirectBootstrap(){direct=true;}void showWirelessDiscoveryPreview(){preview=true;}
+  void rememberConnectionMethod(String method){}void reconnectVerifiedRefresh(){}void beginDirectBootstrap(){direct=true;}void showWirelessDiscoveryPreview(){preview=true;}
   void connectDirect(){if(attach){backend=new Object();title="connected";}}
   void status(String t,String d){title=t;detail=d;}
   void run(String label,boolean mutate,Job job,Consumer<JSONObject> result){try{JSONObject r=job.run();title="completed";result.accept(r);}catch(Exception x){throw new RuntimeException(x);}}

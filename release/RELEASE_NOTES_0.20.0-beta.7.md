@@ -17,6 +17,19 @@ Downloads, rename and delete are not inferred by this recovery path.
 Card selection uses short SIM labels rather than exposing the transport's
 Secure Element reader name.
 
+Connection setup now presents computer USB ADB and on-device wireless ADB as
+equal choices. If a Shizuku service is already running with ADB permissions
+(Shell UID 2000, server API 13 or later), Shizuku appears as an optional third
+method and requests authorization only after it is selected. Root-started
+Shizuku and Sui are not supported by this Shell backend.
+
+After a verified change requires a fresh management session, recovery respects
+the selected connection method. Wireless and already-authorized Shizuku can
+reconnect without requesting new permission. The computer method directs the
+user to run its fixed connection command again. A stopped or revoked service
+does not trigger another permission prompt or silently switch to a different
+method, and connection recovery never repeats the card change.
+
 VersionCode: **55**. Exact production-signed APK acceptance is pending. The
 protected workflow prepares a draft; publication requires testing that artifact.
 Detailed device acceptance remains in internal archives. Offline tests and local

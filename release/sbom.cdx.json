@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "8bercue",
-      "version": "0.19.0-beta.1",
+      "version": "0.20.0-beta.7",
       "bom-ref": "8bercue"
     }
   },
@@ -73,6 +73,114 @@
           "value": "Pinned REUSE metadata and original license files; archive includes uncompiled platform files."
         }
       ]
+    },
+    {
+      "type": "library",
+      "group": "dev.rikka.shizuku",
+      "name": "api",
+      "version": "13.1.5",
+      "bom-ref": "pkg:maven/dev.rikka.shizuku/api@13.1.5",
+      "purl": "pkg:maven/dev.rikka.shizuku/api@13.1.5",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4def9bde498ef8626614c2fc5db9af4749c86f16f6c33e3f5658d35e70bab59b"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "dev.rikka.shizuku",
+      "name": "provider",
+      "version": "13.1.5",
+      "bom-ref": "pkg:maven/dev.rikka.shizuku/provider@13.1.5",
+      "purl": "pkg:maven/dev.rikka.shizuku/provider@13.1.5",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b0f18cd9812464ec171c53cac93a819fe411718a3965c311f01eb4de265381b3"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/provider/13.1.5/provider-13.1.5.aar"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "dev.rikka.shizuku",
+      "name": "aidl",
+      "version": "13.1.5",
+      "bom-ref": "pkg:maven/dev.rikka.shizuku/aidl@13.1.5",
+      "purl": "pkg:maven/dev.rikka.shizuku/aidl@13.1.5",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "33fe7191cdd69fcb66d649264f3b0c47acb2f3d6343afc05b98dbbff6f221963"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/aidl/13.1.5/aidl-13.1.5.aar"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "dev.rikka.shizuku",
+      "name": "shared",
+      "version": "13.1.5",
+      "bom-ref": "pkg:maven/dev.rikka.shizuku/shared@13.1.5",
+      "purl": "pkg:maven/dev.rikka.shizuku/shared@13.1.5",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4659642c9339be0a26e9c65bb8648f7ad6d8f4a465f557993ccbc78802381635"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/shared/13.1.5/shared-13.1.5.aar"
+        }
+      ]
     }
   ],
   "dependencies": [
@@ -81,7 +189,11 @@
       "dependsOn": [
         "pkg:maven/com.google.zxing/core@3.5.3",
         "native:lpac",
-        "native:cjson"
+        "native:cjson",
+        "pkg:maven/dev.rikka.shizuku/api@13.1.5",
+        "pkg:maven/dev.rikka.shizuku/provider@13.1.5",
+        "pkg:maven/dev.rikka.shizuku/aidl@13.1.5",
+        "pkg:maven/dev.rikka.shizuku/shared@13.1.5"
       ]
     }
   ]
