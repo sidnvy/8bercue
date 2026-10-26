@@ -1347,11 +1347,46 @@ public final class MainActivity extends Activity {
     export.button(s(R.string.ui_cancel),false,export.dialog::dismiss);export.show();
   }
 
+  private void repairSystemEsimVisibility() {
+    if (backend==null || !companionManagement || OPERATIONS.running()) return;
+    final IProfileService session=backend;
+    run(s(R.string.esim_visibility_checking),false,
+        () -> new JSONObject(session.preflightSystemEsimVisibilityRepair()),
+        preflight -> {
+          if (backend!=session || !preflight.optBoolean("ok",false) || !preflight.optBoolean("supported",false)) {
+            status(s(R.string.esim_visibility_unavailable),s(R.string.esim_visibility_connect_companion));return;
+          }
+          Sheet confirm=new Sheet(s(R.string.esim_visibility_title));
+          confirm.copy(s(R.string.esim_visibility_warning));
+          confirm.button(s(R.string.esim_visibility_request),true,()->{
+            confirm.dialog.dismiss();
+            run(s(R.string.esim_visibility_requesting),false,
+                () -> {
+                  if(backend!=session)throw new IllegalStateException("Connection changed");
+                  return new JSONObject(session.requestSystemEsimVisibilityRepair());
+                },
+                result -> {
+                  status("refresh_requested".equals(result.optString("status"))
+                          ?s(R.string.esim_visibility_requested):s(R.string.esim_visibility_unavailable),
+                      "refresh_requested".equals(result.optString("status"))
+                          ?s(R.string.esim_visibility_verify):s(R.string.esim_visibility_connect_companion));
+                  render();
+                });
+          });
+          confirm.button(s(R.string.ui_cancel),false,confirm.dialog::dismiss);
+          confirm.show();
+        });
+  }
   private void advancedScreen() {
     add(text(s(R.string.nav_advanced_help),14,MUTED,false),20);
     add(text(s(R.string.ui_card),13,MUTED,true),24);
     LinearLayout card=navigationGroup(10);
     navigationItem(card,s(R.string.nav_card_information),s(R.string.nav_card_information_summary),"card",()->navigate(SettingsNavigation.CARD));
+    if(backend!=null&&companionManagement){
+      add(text(s(R.string.esim_visibility_section),13,MUTED,true),24);
+      LinearLayout systemEsim=navigationGroup(10);
+      navigationItem(systemEsim,s(R.string.esim_visibility_title),s(R.string.esim_visibility_summary),"card",this::repairSystemEsimVisibility);
+    }
     if(BuildConfig.DEBUG){
       add(text(s(R.string.nav_diagnostics_recovery),13,MUTED,true),24);
       LinearLayout diagnostics=navigationGroup(10);

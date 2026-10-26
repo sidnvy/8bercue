@@ -21,6 +21,24 @@ public final class ProfileUserService extends IProfileService.Stub {
     private String displayedCard;
     private String displayedLifecycleFingerprint;
 
+    @Override public String preflightSystemEsimVisibilityRepair() {
+        try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            return SystemEsimVisibilityRepair.preflight().put("ok",true).toString();
+        } catch (Throwable error) {
+            return safeOperationError("system-esim-preflight",error);
+        }
+    }
+
+    @Override public String requestSystemEsimVisibilityRepair() {
+        try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            return SystemEsimVisibilityRepair.requestRefresh().put("ok",true).toString();
+        } catch (Throwable error) {
+            return safeOperationError("system-esim-refresh",error);
+        }
+    }
+
     @Override
     public String getStatus() {
         try { ServiceCaller.requireApp(); } catch (Exception e) { return "Unauthorized service caller"; }
