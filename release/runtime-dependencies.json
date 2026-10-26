@@ -8,6 +8,38 @@
       "repository": "https://repo.maven.apache.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3.jar",
       "license": "Apache-2.0",
       "verification": "independent official repository download matches local build input"
+    },
+    {
+      "coordinate": "dev.rikka.shizuku:api:13.1.5",
+      "artifact": "api-13.1.5.aar",
+      "sha256": "4def9bde498ef8626614c2fc5db9af4749c86f16f6c33e3f5658d35e70bab59b",
+      "repository": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar",
+      "license": "MIT",
+      "verification": "independent official repository download matches local build input"
+    },
+    {
+      "coordinate": "dev.rikka.shizuku:provider:13.1.5",
+      "artifact": "provider-13.1.5.aar",
+      "sha256": "b0f18cd9812464ec171c53cac93a819fe411718a3965c311f01eb4de265381b3",
+      "repository": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/provider/13.1.5/provider-13.1.5.aar",
+      "license": "MIT",
+      "verification": "independent official repository download matches local build input"
+    },
+    {
+      "coordinate": "dev.rikka.shizuku:aidl:13.1.5",
+      "artifact": "aidl-13.1.5.aar",
+      "sha256": "33fe7191cdd69fcb66d649264f3b0c47acb2f3d6343afc05b98dbbff6f221963",
+      "repository": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/aidl/13.1.5/aidl-13.1.5.aar",
+      "license": "MIT",
+      "verification": "independent official repository download matches local build input"
+    },
+    {
+      "coordinate": "dev.rikka.shizuku:shared:13.1.5",
+      "artifact": "shared-13.1.5.aar",
+      "sha256": "4659642c9339be0a26e9c65bb8648f7ad6d8f4a465f557993ccbc78802381635",
+      "repository": "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/shared/13.1.5/shared-13.1.5.aar",
+      "license": "MIT",
+      "verification": "independent official repository download matches local build input"
     }
   ]
 }

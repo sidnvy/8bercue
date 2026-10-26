@@ -569,4 +569,6 @@
   <string name="nav_shizuku_permission_denied">未获得 Shizuku 授权。可重新选择连接方式再试。</string>
   <string name="nav_shizuku_unavailable">未能通过 Shizuku 完成连接。请保持其 ADB 权限服务运行，或选择其他连接方式。</string>
   <string name="nav_shizuku_connecting">正在通过 Shizuku 连接</string>
+  <string name="nav_reconnect_title">重新连接后继续</string>
+  <string name="nav_reconnect_using_selected_method">请通过所选方式重新连接后继续。使用电脑时，打开 USB ADB 入口，再运行一次页面中的命令。也可以选择其他连接方式。</string>
 </resources>

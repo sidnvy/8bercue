@@ -568,4 +568,6 @@
   <string name="nav_shizuku_permission_denied">Shizuku authorization was not granted. Choose a connection method to try again.</string>
   <string name="nav_shizuku_unavailable">Shizuku could not complete the connection. Keep its service running with ADB permissions, or choose another connection method.</string>
   <string name="nav_shizuku_connecting">Connecting through Shizuku</string>
+  <string name="nav_reconnect_title">Reconnect to continue</string>
+  <string name="nav_reconnect_using_selected_method">Reconnect using your chosen method to continue. With a computer, open the USB ADB option and run its command again. You can also choose a different method.</string>
 </resources>

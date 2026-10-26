@@ -14,7 +14,7 @@ root = Path(__file__).resolve().parents[1]
 ui = (root / 'app/src/main/java/dev/sid/fiveberinspector/MainActivity.java').read_text()
 page = ui[ui.index('  private void connectionAccessScreen()'):ui.index('  private void chooseShizukuConnection()')]
 home = ui[ui.index('    if(profiles==null){'):ui.index('    for(int i=0;i<profiles.length();i++){', ui.index('  private void home()'))]
-page += '\n void homeEntry(){Object profiles=null;' + home + '\n}' 
+page += '\n void homeEntry(){Object profiles=null;' + home + '\n}'
 names = sorted(set(re.findall(r'R\.string\.(\w+)', page)))
 resources = '\n'.join(f'static final int {name}={i};' for i, name in enumerate(names))
 labels = ','.join('"' + name + '"' for name in names)
@@ -36,7 +36,7 @@ public class SettingsPageTest {
   record Action(String label,boolean primary,Runnable click){}
   static final class Entry {
     static final int TEXT=1,MUTED=2;
-    Object backend;boolean shizukuPermissionPending;boolean wireless=true;String unavailable="";int permission=0;
+    Object backend;boolean recoveryReconnectNeeded;boolean shizukuPermissionPending;boolean wireless=true;String unavailable="";int permission=0;
     int requests,launches,reconnects,computer,chosen,shizuku,navigated=-1;
     final List<Action> actions=new ArrayList<>();final List<String> rows=new ArrayList<>();
     String s(int value){return LABELS[value];}Object text(String s){return s;}
@@ -48,7 +48,7 @@ public class SettingsPageTest {
     LinearLayout navigationGroup(int n){return new LinearLayout();}
     void navigationItem(LinearLayout group,String label,String summary,String icon,Runnable click){rows.add(label);actions.add(new Action(label,false,click));}
     void navigate(int n){navigated=n;}void primaryConnect(){reconnects++;}
-    void chooseShizukuConnection(){shizuku++;}void beginDirectBootstrap(){computer++;}void showConnectionHelp(){}void chooseCard(){chosen++;}
+    void rememberConnectionMethod(String method){}void chooseShizukuConnection(){shizuku++;}void beginDirectBootstrap(){computer++;}void showConnectionHelp(){}void chooseCard(){chosen++;}
     final class Sheet {
       final Dialog dialog=new Dialog();
       Sheet(String title){}void copy(String value){}void show(){}
@@ -99,6 +99,8 @@ ACTUAL_METHODS
     check(!e.rows.contains("nav_shizuku_connection"),"Unavailable Shizuku is not advertised");
     e=new Entry();e.backend=new Object();e.connectionAccessScreen();
     primary(e,"nav_view_esims").click().run();check(e.navigated==0&&e.rows.size()==1,"Connected page returns to cards without unnecessary authorization options");
+    e=new Entry();e.backend=new Object();e.recoveryReconnectNeeded=true;e.connectionAccessScreen();choices(e);
+    check(!e.actions.stream().anyMatch(a->a.label.equals("nav_view_esims")),"Paused live session exposes reconnect methods instead of a dead end");
     e=new Entry();e.unavailable="unsupported";e.connectionAccessScreen();
     check(e.rows.equals(List.of("ui_setup_help"))&&e.launches==0,"Unsupported device never offers a false authorization action");
     e=new Entry();e.permission=1;e.startWirelessPairing();

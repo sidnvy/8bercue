@@ -64,6 +64,14 @@ caller checks and typed management Binder used by the other methods still
 apply. The launcher is removed after the handoff; existing card operation
 consent, locks, journals and postflight checks do not change.
 
+After a verified card change that requires a fresh companion session, 8bercue
+reconnects through the method you selected. Existing Shizuku permission can be
+reused without another prompt; revocation or an unavailable service leaves
+access paused and offers the connection choices. It does not silently switch
+from your computer choice to an old wireless pairing. With the computer method,
+open its USB ADB guide and run the command again. Connection recovery never
+repeats the card change.
+
 See the [official Shizuku API guide](https://github.com/RikkaApps/Shizuku-API)
 for the distinction between ADB and root identities and the UserService API.
 

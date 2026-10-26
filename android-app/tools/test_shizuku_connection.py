@@ -143,9 +143,10 @@ public class ShizukuConsentTest {
  static class CompatibilityDiagnostics {enum Transport {ADB_COMPANION}static void started(Transport t){}}
  interface Job {JSONObject run()throws Exception;}interface Done {void accept(JSONObject v);}
  static class Entry {
-  boolean destroyed,resumed=true,shizukuPermissionPending,fallback,binderReadOnlyInventory,directManagement,companionManagement;
-  long shizukuPermissionUntil,navigationSession;Object backend;JSONObject compatibility;int renders,jobs;String title,detail;
+  boolean destroyed,resumed=true,recoveryReconnectNeeded,shizukuPermissionPending,fallback,binderReadOnlyInventory,directManagement,companionManagement;
+  long shizukuPermissionUntil,navigationSession;Object backend;JSONObject compatibility;int renders,jobs,recoveries;String title,detail;
   String s(int value){return Integer.toString(value);}void render(){renders++;}void status(String t,String d){title=t;detail=d;}
+  void rememberConnectionMethod(String method){}void reconnectVerifiedRefresh(){recoveries++;}
   Context getApplicationContext(){return new Context();}void clearDetailSelection(){}
   void connectDirect(){backend=CompanionBinderProvider.management();}
   void run(String label,boolean mutation,Job work,Done done){if(mutation)throw new AssertionError();jobs++;try{done.accept(work.run());}catch(Exception failure){throw new AssertionError(failure);}}
