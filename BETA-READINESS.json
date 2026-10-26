@@ -1,29 +1,27 @@
 {
   "channel": "beta",
-  "tag": "v0.20.0-beta.5",
-  "apkVersion": "0.20.0-beta.5",
-  "versionCode": 53,
+  "tag": "v0.20.0-beta.6",
+  "apkVersion": "0.20.0-beta.6",
+  "versionCode": 54,
   "apkSha256": null,
   "sourceCommit": null,
   "sourceArchiveSha256": null,
   "signerCertificateSha256": "24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c",
   "status": "CANDIDATE_PENDING_SIGNED_APK_ACCEPTANCE",
   "productionReady": false,
-  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.5",
+  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.6",
   "sourceSnapshotNote": "Candidate metadata. Exact protected-signed APK acceptance is pending; prior release acceptance does not apply to this artifact.",
   "validation": {
-    "offline": "Per-card journal isolation, legacy preservation, restart, worker-only quarantine retirement, actual service responses and repeated card-switch UI tests passed with controlled I/O. Exact-device acceptance remains pending.",
-    "signedApkAcceptance": "PENDING",
-    "previousApk52MotoObservation": "Moto edge 70 Android 17, two owner-identified Nekoko cards: one Tigo profile on SIM1 and zero profiles on SIM2; saved-identity reconnect passed. Original global recovery restriction reproduced. This does not qualify APK53."
+    "offline": "Download refusal classification, exact unchanged-inventory recovery, immutable history, per-card isolation and real service/UI entry tests. Exact signed artifact acceptance remains pending.",
+    "signedApkAcceptance": "PENDING"
   },
   "exactBuildWritesTested": [],
   "profileWritesSubmitted": 0,
   "deferredChecks": [
-    "Exact signed APK53 upgrade and independent management availability for current Moto cards while prior-card uncertainty remains",
-    "Original-card return and contextual recovery on APK53",
-    "Install/enable/disable/rename/delete and notification delivery on APK53",
-    "Pixel reconnect/navigation on APK53",
-    "Camera flow, TalkBack, large-font runtime, Windows command quoting and physical 16 KiB runtime"
+    "Exact signed APK54 same-signer upgrade and saved-identity reconnect",
+    "Exact signed APK54 recovery of an older unknown download, preserving original records",
+    "Exact signed APK54 actual public test-profile installation and notification delivery",
+    "Enable/disable/rename/delete, mobile data, other phones, camera, accessibility and physical 16 KiB runtime"
   ],
   "telemetry": "Crash reports optional/off by default; manual reporting requires preview confirmation",
   "nativeLinkingPermission": "Fixed-revision limited permission; see LICENSING.md"

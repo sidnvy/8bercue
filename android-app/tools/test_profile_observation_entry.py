@@ -67,6 +67,9 @@ public class ProfileObservationTest {
   boolean canReviewObservedLifecycle(String card)throws Exception{return realJournal==null
    ?operation.matches("enable|disable|rename|switch")&&outcome.matches("running|unknown|observed_unknown")
    :realJournal.canReviewObservedLifecycle(card);}
+  boolean canReviewUnchangedDownload(String card,String snapshot)throws Exception{return realJournal==null
+   ?operation.equals("download")&&outcome.matches("unknown|observed_unknown")
+   :realJournal.canReviewUnchangedDownload(card,snapshot);}
  }
  OperationJournal journal(){return new OperationJournal();}
  String safeOperationError(String stage,Throwable e){return new JSONObject().put("ok",false).toString();}
@@ -116,6 +119,8 @@ public class ProfileObservationTest {
    reset();scope="same_card";operation=kind;JSONObject r=read();check(!r.optBoolean("recoveryReviewEligible",true),"Lifecycle review cannot resolve "+kind);
   }
   reset();scope="same_card";outcome="verified";JSONObject currentVerified=read();check(!currentVerified.optBoolean("recoveryReviewEligible",true),"Uncertainty elsewhere in history cannot review a verified current record");
+  reset();scope="same_card";isolated=false;operation="download";
+  check(read().optBoolean("recoveryReviewEligible",false),"Unchanged download has a separate contextual review when no worker quarantine exists");
   reset();isolated=false;reconciliation=false;JSONObject healthy=read();check(healthy.has("profiles")&&healthy.optBoolean("writeQualified",false),"Healthy path unchanged");check(reads==1&&observations==0,"Healthy card needs no recovery receipt");
   reset();scope="same_card";enrolled=false;JSONObject unsupported=read();check(unsupported.has("profiles")&&!unsupported.optBoolean("writeQualified",true)&&!unsupported.optBoolean("recoveryReviewEligible",true),"Read-only card without management admission cannot offer an impossible review");
   reset();worker=true;JSONObject failed=read();check(!failed.optBoolean("ok",true)&&"RECOVERY_WORKER_ACTIVE".equals(failed.optString("recoveryError"))&&reads==0,"Unconfirmed worker still prevents reading");

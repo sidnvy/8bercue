@@ -83,7 +83,12 @@ public final class RecoveryReviewEntryTest {
         }
     }
     static class OperationJournal {
-        int reviews;
+        int reviews,downloads;
+        void abandonUnchangedDownload(String tx,String card,String snapshot,String digest,String authorization) {
+            if (!CardTransactionLock.locked || !ReadOnlyRecovery.quiescentProven)
+                throw new SecurityException("Download review not protected by worker/lock");
+            reviews++;downloads++;
+        }
         void reviewObservedLifecycle(String tx,String card,String snapshot,String digest,String authorization) {
             if (!CardTransactionLock.locked || !ReadOnlyRecovery.quiescentProven)
                 throw new SecurityException("Review not protected by worker/lock");
@@ -114,9 +119,12 @@ public final class RecoveryReviewEntryTest {
             this(token,card,"tx");
         }
         RecoveryReviewPlan(String token,String card,String transaction) {
+            this(token,card,transaction,"enable");
+        }
+        RecoveryReviewPlan(String token,String card,String transaction,String operation) {
             this.token=token;this.card=card;
             tx=transaction;reader="reader";snapshot="snap";recordDigest="digest";
-            operation="enable";alreadyReviewed=false;
+            this.operation=operation;alreadyReviewed=false;
         }
         void requireFresh(String candidate) {
             if (!token.equals(candidate)) throw new SecurityException("Expired");
@@ -149,7 +157,7 @@ public final class RecoveryReviewEntryTest {
         ReadOnlyRecovery.quiescentChecks=0;
         ReadOnlyRecovery.archiveCalls=0;
         ReadOnlyRecovery.quiescentProven=false;
-        journal.reviews=0;
+        journal.reviews=journal.downloads=0;
         observations=0;
         invalidations=0;
     }
@@ -210,6 +218,17 @@ public final class RecoveryReviewEntryTest {
         result=new JSONObject(service.confirmRecoveryReview("token"));
         check(result.optBoolean("ok",false),"quarantined recovery can pass only after confirmation");
         check(ReadOnlyRecovery.archiveCalls==1,"quarantine archive happens after quiescence");
+        reset(service);
+        service.pendingRecoveryReview=new RecoveryReviewPlan("token","original-card","tx","download");
+        actual=new RecoveryReviewPlan("observed-token","original-card","tx","download");
+        result=new JSONObject(service.confirmRecoveryReview("token"));
+        check(result.optBoolean("ok",false)&&"reviewed_abandoned".equals(result.optString("status")),"Unknown download gets its separate abandonment outcome");
+        check(journal.reviews==1&&journal.downloads==1,"Download uses unchanged-inventory review, not lifecycle acceptance");
+        check(ReadOnlyRecovery.quiescentChecks==2&&!CardTransactionLock.locked,"Download review proves quiescence under the same lock");
+        check(!result.optBoolean("priorOperationRetried",true),"Download was not retried");
+        reset(service);
+        actual=new RecoveryReviewPlan("observed-token","original-card","tx","download");
+        failed(service,"operation changed from lifecycle to download");
         System.out.println("PASS " + checks +
             " actual production confirmRecoveryReview entry assertions (stubbed device I/O)");
     }

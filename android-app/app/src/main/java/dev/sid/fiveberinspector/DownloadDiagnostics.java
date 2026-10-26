@@ -8,6 +8,7 @@ final class DownloadDiagnostics {
     static final String STATUS_CODE="not_reported|[0-9]{1,3}(\\.[0-9]{1,3}){1,3}";
     private String serverStatus="not_reported",subjectCode="not_reported",reasonCode="not_reported";
     private int httpStatus;
+    private String installCommands="not_reported";
     private boolean nativeStopped=true;
     synchronized void phase(String value){if(!value.matches(PHASES))throw new IllegalArgumentException("Invalid diagnostic phase");if(failure.equals("NONE"))phase=value;}
     synchronized void http(String endpoint){
@@ -48,6 +49,7 @@ final class DownloadDiagnostics {
         nativeCode(code);
     }
     synchronized void nativeStarted(){nativeStopped=false;}
+    synchronized void installCommands(int count){installCommands=count>=0&&count<=18000?Integer.toString(count):"not_reported";}
     synchronized void nativeStopped(boolean stopped){nativeStopped=stopped;if(!stopped)failure="NATIVE_STOP_UNCONFIRMED";}
     synchronized boolean nativeStopped(){return nativeStopped;}
     synchronized void failure(Throwable error){
@@ -65,6 +67,7 @@ final class DownloadDiagnostics {
         p.setProperty("downloadFailure",failure.equals("NONE")&&!resultPresent?"WORKER_RESULT_UNAVAILABLE":failure);
         p.setProperty("downloadHttpStatus",Integer.toString(httpStatus));p.setProperty("downloadNativeCode",nativeCode);
         p.setProperty("downloadWorkerStopped",Boolean.toString(workerStopped));p.setProperty("downloadNativeStopped",Boolean.toString(nativeStopped));
+        p.setProperty("downloadInstallCommands",installCommands);
         p.setProperty("downloadServerStatus",serverStatus);p.setProperty("downloadSubjectCode",subjectCode);p.setProperty("downloadReasonCode",reasonCode);return p;
     }
 }

@@ -471,6 +471,9 @@
 
 
     <string name="recovery_review_button">Review the current card state</string>
+    <string name="download_declined_before_install">The operator declined this activation code before installation. Your profiles are unchanged. Use another valid code; this attempt will not be retried automatically.</string>
+    <string name="download_not_installed">Not installed: </string>
+    <string name="recovery_download_warning">The previous download result is unknown. Continue only if the current eSIM list matches the list before that attempt. This keeps the original record and abandons that attempt without retrying it. Its activation code may have been consumed; do not reuse it. New actions will use the verified current card.</string>
     <string name="recovery_review_title">Accept the current card state?</string>
     <string name="recovery_review_warning">The previous enable, disable or rename result cannot be proven. Check the visible eSIM list first. This will NOT repeat the previous operation. If verification succeeds, an audit record will preserve its unknown outcome and allow new actions from the current card state. Do not continue if the card is unexpected.</string>
     <string name="recovery_review_changed">The current card profile inventory differs from the snapshot before that operation. Review each profile and enabled state before confirming.</string>

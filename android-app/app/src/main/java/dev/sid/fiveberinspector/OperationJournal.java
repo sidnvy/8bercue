@@ -202,6 +202,7 @@ public final class OperationJournal {
                 case "downloadSubjectCode":case "downloadReasonCode":pattern="not_reported|[0-9]{1,3}(\\.[0-9]{1,3}){1,3}";break;
                 case "downloadHttpStatus":pattern="0|[1-5][0-9]{2}";break;
                 case "downloadNativeCode":pattern="not_reported|-?[0-9]{1,4}";break;
+                case "downloadInstallCommands":pattern="not_reported|0|[1-9][0-9]{0,4}";break;
                 case "downloadWorkerStopped":case "downloadNativeStopped":pattern="true|false";break;
                 default:throw new IOException("Invalid diagnostic key");
             }
@@ -312,6 +313,21 @@ public final class OperationJournal {
             return false;
         try { requireReviewableHistory(current); return true; }
         catch(IOException unavailable) { return false; }
+    }
+
+    /** A separate download review must prove the exact pre-download inventory.
+     * It preserves the unknown remote/code outcome and never installs or retries anything.
+     */
+    public synchronized boolean canReviewUnchangedDownload(String card,String snapshot) throws IOException {
+        checkRecoveryFiles();Properties current=read();
+        if(!"2".equals(current.getProperty("schema"))
+            ||!"download".equals(current.getProperty("operation"))
+            ||!current.getProperty("status","").matches("unknown|observed_unknown")
+            ||card==null||!card.matches("[a-f0-9]{64}")||!card.equals(current.getProperty("card"))
+            ||snapshot==null||!snapshot.matches("[a-f0-9]{64}")||!snapshot.equals(current.getProperty("before"))
+            ||reviewed(current))return false;
+        try {requireReviewableHistory(current);return true;}
+        catch(IOException unavailable){return false;}
     }
 
     private void requireReviewableHistory(Properties current) throws IOException {
