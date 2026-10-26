@@ -1,21 +1,44 @@
-# Read-only recovery
+# Interrupted operations and read-only recovery
 
-An uncertain operation must not disable observation indefinitely. Version 46 separates exclusive read-only card access from mutation authorization. It preserves the persistent quarantine marker and original transaction bytes; it never retries a write or treats a readable card as proof that an earlier operation succeeded.
+A card operation can have an unknown outcome if communication stops after a
+command was submitted. Reconnecting or reading the card does not prove that the
+earlier command succeeded, and the app does not silently replay it.
 
-## Recovery path
+## Restore observation
 
-1. Open **Connect using computer** and run the same displayed command during the App-created window. An existing connected session is unchanged unless the app explicitly opens a recovery window. The Shell-to-App challenge, version/APK pin and authenticated typed Binder remain mandatory.
-2. When a persistent quarantine exists, the Shell client validates the marker and journal, serializes recovery attempts and inventories the phone's processes. It refuses recovery while any Shell native `lpac` worker or child of an old backend remains. It verifies each old backend's UID 2000, exact name, executable, package APK classpath and process start time, rechecks identity before requesting termination, and verifies exit. It never signals a native worker, another app or an unverified process. If process inspection is denied or inconsistent, access stays paused.
-3. Recovery must obtain the original kernel file lock. Neither the lock inode nor quarantine marker is unlinked. New immutable recovery receipts bind the marker, original transaction and installed APK digests; no card/Profile identifier or credential is stored in clear text.
-4. The authenticated backend reacquires that exclusive lock, verifies the complete eUICC identity against the unresolved transaction, reads the complete Profile inventory twice and requires identical fingerprints and stable reader/card identity. Failed cleanup, changed cards and unstable results remain blocked.
-5. Successful observation is displayed as **Read-only access restored**. The earlier outcome remains **unknown**, mutation controls stay unavailable, and all write entry points still require both an unblocked lock and reconciled history. No automatic enable, rollback, nickname, download, notification submission or deletion occurs.
+Reconnect through [wireless or computer setup](ADB_CONNECTION.md). The app reads
+the selected card automatically; **Refresh** repeats that read. No separate
+compatibility or recovery test is needed. Read-only recovery checks ownership
+of the existing service/workers, exclusive card access, the selected card identity
+and stable profile inventories. It does not signal unrelated processes, delete
+safety files, reset the HAL or retry the original write.
 
-The current recovery scope restores observation only. It does not resolve the earlier transaction's intent or provide authorization to resume writes. If a backend cannot be proved stopped, the kernel lock is busy, recovery evidence is invalid, or the same card is unavailable, retain records and investigate; do not clear app data or delete safety files.
+Successful observation can restore a fresh profile list while the earlier
+outcome remains unknown. A different card can also be viewed: it cannot establish
+what happened to the earlier card. Legacy records without card binding are kept
+as unbound uncertainty. Neither case clears the original record or permits writes.
+An active or unverified worker, unstable inventory or unavailable original lock
+still prevents a verified read. A card changed during the read must be selected
+and read again.
 
-## Qualification
+## Review an unknown lifecycle operation
 
-`bash android-app/tools/run_recovery_tests.sh` exercises worker identity, PID reuse, children/native workers, observed termination, process-table names containing spaces, malformed/symlink evidence, cross-process exclusion and preserved unknown journals. Provider tests cover explicit recovery windows, live Binder replacement rejection and single-use authenticated replacement.
+Eligible unknown enable/disable/rename/legacy-switch records can offer a separate
+**Review previous change** action in **Settings → Operation records**. The
+action appears only after a fresh read of the original bound card and requires
+explicit, short-lived user confirmation. The service persists a separate
+review disposition; the original journal/history is not rewritten as a verified
+success and the old operation is not replayed.
 
-The owner requested publication before device verification. Version-46 device results are recorded against the downloaded Release APK after publication. Earlier candidates and other devices are not acceptance evidence for that APK.
+A persistent quarantine is archived only after the required locked checks and
+review record are durable. A failed or interrupted review must not silently
+authorize a new write. Download, deletion and unresolved notification delivery
+need their own operation-specific reconciliation and are outside that lifecycle
+review.
 
-Beta 2 (47) fixes nested Shell scopes in the explicit Verify card and recovery entry. Beta 1 (46) successfully read the card but that entry still failed. APK47 live evidence must come from its published download.
+Do not clear app data or remove lock/journal/quarantine files to hide an unknown
+result. Preserve the records and use a short, sanitized problem report.
+
+Developers should run `bash android-app/tools/run_recovery_tests.sh` for changes
+to recovery/worker exclusion and `bash android-app/tools/run_bootstrap_tests.sh`
+for authenticated connection replacement. See [CONTRIBUTING.md](../CONTRIBUTING.md).

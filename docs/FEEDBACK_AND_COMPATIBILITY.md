@@ -1,27 +1,19 @@
-# Privacy-first bug reporting (0.19.1 Beta)
+# Feedback and diagnostics
 
-Based on the published 0.19.0-beta.1 application code; does not change the
-authenticated ADB command, eUICC operation authorization, or profile write path.
+Use **Settings → Help & feedback** for setup help, a problem report or diagnostic
+export. Export offers a ZIP or text summary; preview and confirmation precede
+sharing. Opening a report does not submit it.
 
-- No background analytics/metrics. The only persistent local switch is
-  opt-in minimized crash-summary reporting, off by default.
-- Local bounded stage/error ring; no card identifiers, APDUs, activation codes,
-  device IDs or raw logging.
-- Existing ADB connection screen: report affordance and 2-minute timeout/error
-  classification; opening the preview never uploads.
-- Missing Binder/failed read: report fields are fixed enum codes, not raw
-  exception strings. This cannot distinguish every ROM root cause.
-- Settings: manual feedback/email, Diagnostic ZIP export, crash consent toggle.
-- GlitchTip receives a one-time structured event only after explicit confirmation.
-  On failure, email support/offline ZIP remains available.
-- DSN is provided via \`glitchtipDsn\` Gradle user property, not committed. Builds
-  without the property have disabled remote submission; do not label those
-  builds telemetry-capable.
-- Native library allowlist remains untouched; use \`sentry-android-core\`.
-- Test with \`JAVA_HOME\`, \`ANDROID_HOME\`: Android Release build + Lint Release,
-  existing UI/ADB/compatibility offline tests, and release surface validation.
+There are no background analytics. Minimized crash reporting is optional and off
+by default under **Settings → Privacy & about**. Manual reporting remains a
+separate explicit action. Builds without a reporting destination can use offline
+export/email; see [reporting builds](../release/REPORTING_BUILD.md).
 
-**Non-goals:** Google Play release, automatic device data collection,
-hardware eUICC write/switch tests, retroactive changes to a published Beta tag.
+Compatibility diagnostics describe backend, reader, stage and fixed error
+categories. They do not include activation data, full card/profile identities,
+raw APDUs or raw vendor exception strings. A missing/denied service cannot always
+be distinguished by an API failure; reports retain that uncertainty.
 
-Beta3 (48) embeds the owner-provided client DSN. See `release/REPORTING_BUILD.md` for reproduction. Consent defaults remain unchanged; no account token is packaged.
+For a new phone or card, use [the device checklist](NEW_DEVICE_CHECK.md) and
+[issue template](../.github/ISSUE_TEMPLATE/device-compatibility.yml). Keep public
+reports short and exclude credentials, full EID/ICCID and unreviewed screenshots.

@@ -151,6 +151,14 @@ final class SystemHalAdapter {
    return true;
   }catch(ClassNotFoundException|NoSuchMethodException unsupported){return false;}
  }
+ private static boolean telephonySubscriptionRequests(Class<?> api)throws Exception{
+  try{
+   api.getMethod("iccOpenLogicalChannel",int.class,String.class,String.class,int.class);
+   api.getMethod("iccCloseLogicalChannel",int.class,int.class);
+   api.getMethod("iccTransmitApduLogicalChannel",int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
+   return true;
+  }catch(NoSuchMethodException unsupported){return false;}
+ }
  static TelephonySecureElementTransport openTelephony(String reader)throws Exception {
   int[] address=ReaderDescriptor.telephonyIndices(reader);
   Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
@@ -160,6 +168,9 @@ final class SystemHalAdapter {
    Class<?> request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
    return new TelephonySecureElementTransport(phone,api,request,address[0],address[1],token);
   }
+  if(address[1]!=0)throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_READER_INVENTORY);
+  if(!telephonySubscriptionRequests(api))
+   throw new SecureElementFailure(SecureElementFailure.Reason.SYSTEM_INTERFACE_UNAVAILABLE);
   int sub=subscriptionForSlot(phone,api,address[0]);
   if(sub<0)throw new SecureElementFailure(SecureElementFailure.Reason.NO_CARD);
   return new TelephonySecureElementTransport(phone,api,sub,token);
@@ -189,9 +200,8 @@ final class SystemHalAdapter {
   return readers;
  }
  private static java.util.List<String> subscriptionReaders(Class<?> api,Object phone)throws Exception {
-  api.getMethod("iccOpenLogicalChannel",int.class,String.class,String.class,int.class);
-  api.getMethod("iccCloseLogicalChannel",int.class,int.class);
-  api.getMethod("iccTransmitApduLogicalChannel",int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
+  if(!telephonySubscriptionRequests(api))
+   throw new SecureElementFailure(SecureElementFailure.Reason.SYSTEM_INTERFACE_UNAVAILABLE);
   java.util.List<String> readers=new java.util.ArrayList<>();
   Object raw=api.getMethod("getUiccSlotsInfo").invoke(phone);
   Object[] slots=raw instanceof Object[]?(Object[])raw:raw instanceof java.util.Collection?((java.util.Collection<?>)raw).toArray():null;

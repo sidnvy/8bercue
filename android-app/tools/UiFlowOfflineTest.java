@@ -27,6 +27,12 @@ public final class UiFlowOfflineTest {
   check(RecoveryUiPolicy.needsCardChoice("AMBIGUOUS_EUICC"),"Unselected multi-card is a selection step, not a lost write");
   check(!RecoveryUiPolicy.needsCardChoice("CHANNEL_CLEANUP_FAILED"),"Unconfirmed cleanup still blocks recovery");
   check(RecoveryUiPolicy.blocks(true,true,false,"verified"),"A past unknown record still blocks even after current success");
+  check(RecoveryUiPolicy.keepsPending(false,true),"Unresolved notification must retain pending even after a clean operation journal");
+  check(RecoveryUiPolicy.keepsPending(true,false),"Unknown operation must retain pending");
+  check(!RecoveryUiPolicy.keepsPending(false,false),"Only complete operation and notification review can dismiss pending");
+  check(RecoveryUiPolicy.blocks(true,false,false,"unknown"),"A read-only snapshot cannot unlock an unknown operation");
+  check(!RecoveryUiPolicy.blocks(true,false,false,"reviewed_observed"),"Audited lifecycle review can clear the UI block");
+  check(RecoveryUiPolicy.blocks(true,true,false,"reviewed_observed"),"Historical uncertainty still blocks after current review");
   check(UiStatusPolicy.visible(false,false,false,true,"Card unavailable"),"Connected Binder must not hide card-access failure");
   check(UiStatusPolicy.visible(false,false,false,true,"Choose a card"),"Card-selection guidance stays visible");
   check(UiStatusPolicy.visible(true,false,false,true,"Card connected"),"Worker progress stays visible");
@@ -50,6 +56,15 @@ public final class UiFlowOfflineTest {
   selected.clear();check(!selected.matches(inventory,backend,profile,2),"Background/navigation clears permission to submit");
   for(String op:new String[]{"switch","disable","rename"})check(ProfileActionPolicy.executesDirectly(op),"Explicit reversible click authorizes single prepare/execute");
   for(String op:new String[]{"delete","download","cleanup",null,"arbitrary"})check(!ProfileActionPolicy.executesDirectly(op),"Irreversible/unknown action never skips confirmation");
+  for(int unsafe:new int[]{1,3,4,-1,999})check(SettingsNavigation.restore(unsafe,true)==0,"Recreation cannot restore credentials, profile selection or an unknown destination");
+  check(SettingsNavigation.restore(6,true)==SettingsNavigation.CONNECTION,"Recreation cannot resume a stale computer command window");
+  check(SettingsNavigation.restore(SettingsNavigation.LAB,false)==SettingsNavigation.ADVANCED,"Release cannot restore a laboratory destination");
+  check(SettingsNavigation.restore(SettingsNavigation.APPEARANCE,false)==SettingsNavigation.APPEARANCE,"Language recreation retains the preference page");
+  check(SettingsNavigation.restore(SettingsNavigation.RECOVERY,false)==5,"Release restores old recovery page to contextual operation records");
+  check(SettingsNavigation.restore(SettingsNavigation.RECOVERY,true)==SettingsNavigation.RECOVERY,"Debug recovery tool remains available");
+  check(SettingsNavigation.parent(SettingsNavigation.CARD)==SettingsNavigation.ADVANCED,"Card information returns to Advanced");
+  check(SettingsNavigation.parent(SettingsNavigation.RECOVERY)==SettingsNavigation.ADVANCED,"Recovery returns to Advanced");
+  check(SettingsNavigation.parent(SettingsNavigation.CONNECTION)==2,"Connection opened from Settings returns to Settings");
   System.out.println("PASS "+checks+" UI/command regression assertions");
   if(args.length==1)System.out.println(command);
  }

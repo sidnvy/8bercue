@@ -1,4 +1,4 @@
-name: Publish signed Beta
+name: Prepare signed Beta candidate
 
 # Explicit owner-selected Git tag only. A push to main or a fork PR cannot publish.
 on:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   publish-beta:
-    name: Signed APK, validation, GitHub prerelease
+    name: Signed APK, validation, draft GitHub prerelease
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -41,6 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 android-app/tools/verify_release_admission.py
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || {
             echo "Only versioned beta tags are accepted"; exit 1;
           }
@@ -52,6 +53,7 @@ jobs:
             echo "Release tag does not point to a commit on main"; exit 1;
           }
           git checkout --detach "$tag_sha"
+          python3 android-app/tools/verify_release_admission.py
           python3 - <<'PY'
           import os, re
           from pathlib import Path
@@ -127,6 +129,7 @@ jobs:
           python3 android-app/tools/test_reconcile_identity.py
           python3 android-app/tools/test_feedback_privacy_contract.py
           bash android-app/tools/build_android_lpac.sh
+          STAGE_ADB_PAIRING_RELEASE=1 bash android-app/tools/build_adb_crypto_source.sh
 
       - name: Restore keystore only inside protected runner
         shell: bash
@@ -154,6 +157,7 @@ jobs:
             android-app/app/build/outputs/apk/release/app-release.apk \
             --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
             --expected-signer-sha256 "$APPROVED_CERT_SHA256" --require-reporting
+          python3 android-app/tools/test_adb_release_artifact.py android-app/app/build/outputs/apk/release/app-release.apk
 
       - name: Stage immutable release assets and checksums
         shell: bash
@@ -196,7 +200,7 @@ jobs:
           print("Staged",len(files),"assets plus SHA256SUMS")
           PY
 
-      - name: Publish once as prerelease (no latest/stable promotion)
+      - name: Prepare draft prerelease for exact signed APK acceptance
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -207,6 +211,6 @@ jobs:
           fi
           gh release create "$RELEASE_TAG" "$RUNNER_TEMP/8bercue-dist/"* \
             --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --prerelease \
+            --verify-tag --prerelease --draft \
             --title "8bercue ${{ steps.version.outputs.version }} (Beta)" \
             --notes-file "${{ steps.version.outputs.notes }}"

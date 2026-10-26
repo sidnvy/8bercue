@@ -100,7 +100,9 @@ public final class CompanionBinderProvider extends ContentProvider {
         if(pid<2)return;
         if(shellPidFile()==null)return;
         trustedShellPid=pid;
-        byte[] payload=(pid+"\n"+bootId()+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String boot=bootId();
+        if("offline".equals(boot))return;
+        byte[] payload=(pid+"\n"+boot+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         java.io.File file=shellPidFile();
         java.nio.file.Path path=file.toPath(),tmp=path.resolveSibling(file.getName()+".tmp");
         try{
@@ -125,10 +127,8 @@ public final class CompanionBinderProvider extends ContentProvider {
             String[] lines=new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8).trim().split("\n");
             if(lines.length<2)return -1;
             int pid=Integer.parseInt(lines[0].trim());
-            if(!bootId().equals(lines[1].trim())){
-                if(!shellPidAlive(pid))return -1;
-                rememberShell(pid);
-            }
+            String currentBoot=bootId();
+            if("offline".equals(currentBoot)||!currentBoot.equals(lines[1].trim())||!shellPidAlive(pid))return -1;
             trustedShellPid=pid;
         }catch(Exception ignored){trustedShellPid=-1;}
         return trustedShellPid;

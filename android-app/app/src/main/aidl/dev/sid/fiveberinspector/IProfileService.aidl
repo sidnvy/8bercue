@@ -15,12 +15,15 @@ interface IProfileService {
     String getOperationStatus() = 11;
     String reconcileOperation() = 12;
     String getCardInfo() = 13;
-    // Full ICCID only for explicit copy; routine listProfiles stays masked.
-    String getProfileIccid(int profileIndex) = 18;
-    String getCardEid() = 19;
     String prepareNotificationCleanup() = 14;
     String executeNotificationCleanup(String opaqueToken) = 15;
     String prepareCardSelection() = 16;
     String selectCard(String opaqueChoice) = 17;
+    // Explicit, single-use read-only review of an uncertain lifecycle operation.
+    String prepareRecoveryReview() = 18;
+    String confirmRecoveryReview(String opaqueToken) = 19;
+    // Full identifiers only for explicit copy; routine listProfiles stays masked.
+    String getProfileIccid(int profileIndex, String selectionId) = 20;
+    String getCardEid() = 21;
     void destroy() = 16777114;
 }

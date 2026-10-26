@@ -86,12 +86,26 @@ final class ReadOnlyRecovery {
   try{if(isolated){CardTransactionLock.validateMarker(MARKER);RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());}}
   catch(Exception failure){CardTransactionLock.release();throw new Failure("RECOVERY_WORKER_ACTIVE");}
  }
- static void observed(String card,String fingerprint)throws Exception{
-  if(!CardTransactionLock.persistentQuarantine())return;
+ /** A verified read is observation of the selected card, not recovery of another
+  * card's lost operation. Keep both its journal and the global write quarantine. */
+ static String observed(String card,String fingerprint)throws Exception{
+  if(!CardTransactionLock.persistentQuarantine())return "none";
+  if(!CardTransactionLock.ownedByCurrentThread()||card==null||fingerprint==null
+      ||!card.matches("[a-f0-9]{64}")||!fingerprint.matches("[a-f0-9]{64}"))
+   throw new Failure("RECOVERY_EVIDENCE_INVALID");
   Properties journal=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state")).read();
-  if(!card.equals(journal.getProperty("card")))throw new Failure("RECOVERY_CARD_CHANGED");
+  if(!journal.getProperty("status","").matches("unknown|observed_unknown|running"))
+   throw new Failure("RECOVERY_EVIDENCE_INVALID");
+  String scope=scope(journal,card);
+  String phase="same_card".equals(scope)?"stable_inventory_read_only"
+      :"other_card".equals(scope)?"other_card_inventory_read_only":"unbound_inventory_read_only";
   CardTransactionLock.validateMarker(MARKER);
-  receipt("stable_inventory_read_only",NativeLpacBundle.digest(MARKER.toFile()),OperationJournal.recordDigest(journal),card,fingerprint,0);
+  receipt(phase,NativeLpacBundle.digest(MARKER.toFile()),OperationJournal.recordDigest(journal),card,fingerprint,0);
+  return scope;
+ }
+ static String scope(Properties journal,String card){
+  return !"2".equals(journal.getProperty("schema"))?"unbound"
+      :card.equals(journal.getProperty("card"))?"same_card":"other_card";
  }
  private static void receipt(String phase,String marker,String journal,String card,String inventory,int retired)throws Exception{
   Path directory=ROOT.resolve("read-only-recovery");
@@ -108,6 +122,30 @@ final class ReadOnlyRecovery {
    java.nio.ByteBuffer buffer=java.nio.ByteBuffer.wrap(bytes.toByteArray());while(buffer.hasRemaining())file.write(buffer);file.force(true);
   }
   try(FileChannel parent=FileChannel.open(directory,StandardOpenOption.READ)){parent.force(true);}
+ }
+ /** No journal disposition may be persisted before this worker and lock check. */
+ static void requireReviewQuiescent()throws Exception{
+  if(!CardTransactionLock.ownedByCurrentThread()||CardTransactionLock.isQuarantined())
+   throw new Failure("RECOVERY_WORKER_ACTIVE");
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+  Thread.sleep(200);
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+ }
+ /** Archive the original quarantine only during a deliberate, authenticated lifecycle review.
+  * Must be called while ReadOnlyRecovery.acquire() owns the original file lock. */
+ static void archiveAfterReview(String card,String journalDigest,String snapshot,String authorization)throws Exception{
+  if(!CardTransactionLock.ownedByCurrentThread()||CardTransactionLock.isQuarantined())
+   throw new Failure("RECOVERY_WORKER_ACTIVE");
+  OperationJournal journal=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state"));
+  Properties operation=journal.read();
+  if(!card.equals(operation.getProperty("card"))||!journalDigest.equals(OperationJournal.recordDigest(operation))
+    ||!snapshot.equals(journal.reviewedLifecycleSnapshot()))
+   throw new Failure("RECOVERY_EVIDENCE_INVALID");
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+  Thread.sleep(200);
+  RecoveryProcessGuard.quiescent(HOST.snapshot(),android.os.Process.myPid());
+  QuarantineReview.archive(ROOT.resolve("card-transaction.lock"),card,journalDigest,snapshot,
+      authorization,NativeLpacBundle.digest(new File(NativeLpacBundle.installedApk())));
  }
  static String code(Throwable cause){
   for(int i=0;cause!=null&&i<12;i++,cause=cause.getCause())if(cause instanceof Failure)return ((Failure)cause).code;

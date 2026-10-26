@@ -37,6 +37,10 @@ jobs:
           python3 android-app/tools/test_localization.py
           python3 android-app/tools/test_reconcile_identity.py
           python3 android-app/tools/test_feedback_privacy_contract.py
+          python3 android-app/tools/verify_release_admission.py
+          python3 android-app/tools/test_release_admission.py
+          python3 -O android-app/tools/test_release_admission.py
+          python3 android-app/tools/test_adb_staging.py
       - name: Verify tracked ARM64 native payload
         run: python3 android-app/tools/verify_native_release.py --require-page-size 16384
 
@@ -61,6 +65,8 @@ jobs:
           "$SDKMANAGER" --install "ndk;27.3.13750724"
       - name: Rebuild bundled native sources and check ELF payloads
         run: bash android-app/tools/build_android_lpac.sh
+      - name: Compile pinned upstream BoringSSL source and ADB contract (not a release artifact)
+        run: bash android-app/tools/build_adb_crypto_source.sh
 
   android-build:
     name: Unsigned Android build and lint
@@ -85,14 +91,18 @@ jobs:
           echo "SDKMANAGER=$manager" >> "$GITHUB_ENV"
       - name: Install verified Android SDK components
         run: |
-          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0"
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
+      - name: Test on-device wireless ADB discovery contracts
+        run: bash android-app/tools/test_wireless_adb_discovery.sh
       - name: Build unsigned APK and run lint
         run: |
           set -euo pipefail
+          STAGE_ADB_PAIRING_RELEASE=1 bash android-app/tools/build_adb_crypto_source.sh
           bash android-app/gradlew -p android-app :app:assembleRelease :app:lintRelease --console=plain --no-daemon
           python3 android-app/tools/verify_artifact.py \
             android-app/app/build/outputs/apk/release/app-release-unsigned.apk \
             --build-tools "$ANDROID_HOME/build-tools/35.0.0" --allow-unsigned
+          python3 android-app/tools/test_adb_release_artifact.py android-app/app/build/outputs/apk/release/app-release-unsigned.apk
       - name: Keep main-branch engineering APK (never a production release)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

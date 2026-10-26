@@ -102,7 +102,7 @@ final class CompanionProfileRpc {
                 result = parse(backend.getCardEid());
                 break;
             case "getProfileIccid":
-                result = parse(backend.getProfileIccid(index(request)));
+                result = parse(backend.getProfileIccid(index(request), text(request, "selectionId", 128, true)));
                 break;
             case "getOperationStatus":
                 result = parse(backend.getOperationStatus());
@@ -115,6 +115,12 @@ final class CompanionProfileRpc {
                 break;
             case "selectCard":
                 result = parse(backend.selectCard(token(request)));
+                break;
+            case "prepareRecoveryReview":
+                result = parse(backend.prepareRecoveryReview());
+                break;
+            case "confirmRecoveryReview":
+                result = parse(backend.confirmRecoveryReview(token(request)));
                 break;
             case "prepareSwitch":
                 result = parse(backend.prepareSwitch(index(request)));

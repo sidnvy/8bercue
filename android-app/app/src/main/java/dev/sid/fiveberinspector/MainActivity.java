@@ -7,13 +7,12 @@ import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.text.InputType;
-import android.util.Log;
 import android.view.*;
 import android.widget.*;
 import java.util.concurrent.*;
 import org.json.*;
 
-/** Three-screen local manager. No credential or transaction replay on recreation. */
+/** Local manager with grouped settings. No credential or transaction replay on recreation. */
 public final class MainActivity extends Activity {
   static int BG, SURFACE, TEXT, MUTED, ACCENT, LINE, TONAL, ON_TONAL, ERROR;
   private boolean darkTheme;
@@ -26,7 +25,7 @@ public final class MainActivity extends Activity {
   private TextView connectionCountdown;
   private String connectionFeedback = "";
   private boolean restoreDetailAfterRead;
-  private boolean recoveryReconnectNeeded,recoveryBootstrap;
+  private boolean recoveryReconnectNeeded,recoveryBootstrap,recoveryReviewEligible;
   private final java.util.ArrayList<String> recentResults = new java.util.ArrayList<>();
   private static final int QR = 40, IMAGE = 41, DIAGNOSTIC_EXPORT = 42;
   private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
@@ -37,6 +36,7 @@ public final class MainActivity extends Activity {
   private boolean fallback, companionManagement, destroyed, resumed, needsConnectionRead;
   private android.net.Uri pendingImport;
   private int screen;
+  private int connectionReturnScreen=2,computerReturnScreen=SettingsNavigation.CONNECTION;
   private JSONObject inventory = new JSONObject(), cardInfo = new JSONObject(), compatibility = new JSONObject();
   private LinearLayout content, statusBox;
   private TextView statusTitle, statusDetail;
@@ -117,18 +117,21 @@ public final class MainActivity extends Activity {
   @Override
   public void onCreate(Bundle saved) {
     super.onCreate(saved);
-    title = s(R.string.ui_connect_your_card); detail = s(R.string.ui_connect_using_your_computer_to_check_this_card);
+    title = s(R.string.ui_connect_your_card); detail = s(R.string.nav_connection_needed);
     if (Build.VERSION.SDK_INT >= 33)
       getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
           android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
     applyPalette();
     getWindow().setStatusBarColor(BG);
     getWindow().setNavigationBarColor(BG);
-    if (saved != null)
-      screen = saved.getInt("screen", 0) == 2 ? 2 : 0;
+    if (saved != null) {
+      screen=SettingsNavigation.restore(saved.getInt("screen",0),BuildConfig.DEBUG);
+      connectionReturnScreen=saved.getBoolean("connectionFromHome",false)?0:2;
+      computerReturnScreen=saved.getBoolean("computerFromHome",false)?0:SettingsNavigation.CONNECTION;
+    }
     SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.APP_STARTED);
     if (getPreferences(0).getBoolean("pending", false))
-      notice = s(R.string.ui_pending_connect_first);
+      notice = s(R.string.ui_card_and_operation_state_need_verification_open_settings_verify);
     render();
   }
   @Override
@@ -153,6 +156,8 @@ public final class MainActivity extends Activity {
   @Override
   public void onSaveInstanceState(Bundle out) {
     out.putInt("screen", screen);
+    out.putBoolean("connectionFromHome",connectionReturnScreen==0);
+    out.putBoolean("computerFromHome",computerReturnScreen==0);
     super.onSaveInstanceState(out);
   }
   @Override
@@ -184,10 +189,11 @@ public final class MainActivity extends Activity {
     clipboard.setPrimaryClip(clip);
   }
   private void copyIccid() {
-    if (OPERATIONS.running() || backend == null || selectedProfile < 0) return;
+    if (OPERATIONS.running() || backend == null || selectedProfile < 0 || selectedProfileKey.isEmpty()) return;
     final IProfileService service = backend;
     final int index = selectedProfile;
-    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getProfileIccid(index)), r -> {
+    final String selectionId = selectedProfileKey;
+    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getProfileIccid(index, selectionId)), r -> {
       String iccid = r.optBoolean("ok", false) ? r.optString("iccid", "") : null;
       if (iccid != null && iccid.matches("[0-9]{19,20}")) {
         copyPlain(s(R.string.iccid_clipboard_label), iccid);
@@ -234,7 +240,7 @@ public final class MainActivity extends Activity {
         backend=null;compatibility=new JSONObject();navigationSession++;clearDetailSelection();
         compatibilityFailure(CompatibilityDiagnostics.Stage.BINDER,
             CompatibilityDiagnostics.Failure.SERVICE_DISCONNECTED);
-        statusPreservingOutcome(s(R.string.ui_connection_lost), s(R.string.ui_start_the_computer_connection_again_pending_operations_will_not));render();
+        statusPreservingOutcome(s(R.string.ui_connection_lost), s(R.string.nav_connection_lost));render();
       }),0);
       backend=service;directManagement=true;companionManagement=true;fallback=false;
       recoveryBootstrap=false;
@@ -267,6 +273,7 @@ public final class MainActivity extends Activity {
     try { connectionCommand=ConnectionCommand.forApk(getApplicationInfo().sourceDir); }
     catch(IllegalArgumentException invalid){status(s(R.string.ui_command_unavailable),s(R.string.ui_reinstall_the_verified_apk_before_connecting));render();return;}
     CompatibilityDiagnostics.started(CompatibilityDiagnostics.Transport.ADB_COMPANION);
+    if(screen!=6)computerReturnScreen=screen==0?0:SettingsNavigation.CONNECTION;
     connectionDeadline=android.os.SystemClock.elapsedRealtime()+120000;connectionExpired=false;connectionFeedback="";statusPreservingOutcome(s(R.string.ui_waiting_for_computer),s(R.string.ui_copy_the_command_below_and_run_it_within_two_minutes));screen=6;render();
   }
 
@@ -281,7 +288,7 @@ public final class MainActivity extends Activity {
   private void connect() {
     if (!managementUnavailable().isEmpty()) { status(s(R.string.ui_device_not_supported_by_this_build),managementUnavailable());return; }
     connectExistingCompanion();
-    if(backend==null)status(s(R.string.ui_connect_your_card),s(R.string.ui_choose_connect_using_computer_and_copy_and_run_its_adb_command));
+    if(backend==null)status(s(R.string.ui_connect_your_card),s(R.string.nav_connection_needed));
   }
   private interface Job {
     JSONObject run() throws Exception;
@@ -375,7 +382,7 @@ public final class MainActivity extends Activity {
           if (BuildConfig.DEBUG) android.util.Log.i("FiveberCompanionPilot",
               "protocol_v2=" + generic);
           JSONObject profiles = generic
-              ? ShellCompanionClient.service("listProfiles",null,null,null,null,null)
+              ? ShellCompanionClient.service("listProfiles",null,null,null,null,null,null)
               : ShellCompanionClient.list();
           if (!profiles.optBoolean("ok", true) || !profiles.has("profiles"))
             throw new IllegalStateException(s(R.string.ui_companion_inventory_not_verified));
@@ -437,9 +444,13 @@ public final class MainActivity extends Activity {
         () -> s != null ? new JSONObject(s.listProfiles()) : ShellCompanionClient.list(), r -> {
           compatibility=r.optJSONObject("compatibility")==null?new JSONObject():r.optJSONObject("compatibility");
           if (!r.optBoolean("ok", true)) {
+            if(r.optString("recoveryError").isEmpty()&&RecoveryUiPolicy.needsCardChoice(r.optString("capabilityError",""))){
+              inventory=new JSONObject();notificationCleanupAvailable=false;recoveryReviewEligible=false;clearDetailSelection();
+              status(s(R.string.ui_choose_a_card),s(R.string.ui_more_than_one_euicc_is_readable_select_the_card_you_want_to_mana));render();return;
+            }
             compatibilityFailure(CompatibilityDiagnostics.Stage.INVENTORY,
                 CompatibilityDiagnostics.Failure.INVENTORY_READ_FAILED);
-            inventory=new JSONObject();notificationCleanupAvailable=false;clearDetailSelection();
+            inventory=new JSONObject();notificationCleanupAvailable=false;recoveryReviewEligible=false;clearDetailSelection();
             if(!r.optString("recoveryError").isEmpty()){
               recoveryReconnectNeeded=true;
               getPreferences(0).edit().putBoolean("pending",true).commit();
@@ -451,14 +462,13 @@ public final class MainActivity extends Activity {
                   (compatibility.length()>0?s(R.string.ui_open_compatibility_check_for_the_result_of_each_channel):""));
             render();return;
           }
-          String priorCard=inventory.optString("reader","")+"|"+inventory.optString("eidMasked","");
-          String nextCard=r.optString("reader","")+"|"+r.optString("eidMasked","");
-          if(!priorCard.equals(nextCard))cardInfo=new JSONObject();
           inventory = r;
           recoveryReconnectNeeded=false;
-          if("READ_ONLY_RECOVERED".equals(r.optString("recoveryState"))){
+          recoveryReviewEligible=r.optBoolean("recoveryReviewEligible",false);
+          String recoveryState=r.optString("recoveryState");
+          if("READ_ONLY_RECOVERED".equals(recoveryState)||"READ_ONLY_CURRENT_CARD".equals(recoveryState)){
             getPreferences(0).edit().putBoolean("pending",true).commit();
-            notice=s(R.string.recovery_observed_unknown,operationLabel(r.optString("previousOperation")));
+            notice=s(R.string.recovery_view_only_summary);
           }
           if (screen==3 || screen==4 || restoreDetailAfterRead) {
             JSONArray rows=inventory.optJSONArray("profiles");int found=-1;
@@ -476,7 +486,8 @@ public final class MainActivity extends Activity {
     final IProfileService s = backend;
     if (s == null)
       return;
-    run(s(R.string.ui_checking_recovery), false, () -> new JSONObject(s.getOperationStatus()), r -> {
+    recoveryReviewEligible=false; // A fresh current-card read determines whether a review is possible.
+    run(s(R.string.ui_reading_your_esims), false, () -> new JSONObject(s.getOperationStatus()), r -> {
       if (!r.optBoolean("ok", false)) {
         if(RecoveryUiPolicy.needsCardChoice(r.optString("capabilityError",""))){
           inventory=new JSONObject();notificationCleanupAvailable=false;clearDetailSelection();
@@ -500,12 +511,16 @@ public final class MainActivity extends Activity {
       notificationCleanupAvailable = r.optBoolean("notificationCleanupAvailable", false);
       String phase = r.optString("status", r.optString("stage", "unknown"));
       boolean recoveryBlocked = RecoveryUiPolicy.blocks(true, r.optBoolean("requiresReconciliation", true), r.optBoolean("reviewRequired", true), phase);
-      if (recoveryBlocked) getPreferences(0).edit().putBoolean("pending", true).commit();
-      else getPreferences(0).edit().remove("pending").commit();
-      if (recoveryBlocked)
-        notice = s(R.string.ui_recovery_check) + safeState(phase)
-            + s(R.string.ui_use_verify_card_and_recovery_before_making_more_changes);
-      if (r.optBoolean("notificationReviewRequired", false))
+      boolean notificationReviewRequired = r.optBoolean("notificationReviewRequired", false);
+      if(RecoveryUiPolicy.keepsPending(recoveryBlocked,notificationReviewRequired)){
+        getPreferences(0).edit().putBoolean("pending",true).commit();
+      }else{
+        // Both durable journal and notification delivery must be reconciled before
+        // dismissing the local pending state. Card-specific write policy still applies.
+        getPreferences(0).edit().remove("pending").commit();
+      }
+      if(recoveryBlocked)notice=s(R.string.recovery_view_only_summary);
+      if (notificationReviewRequired)
         notice += (notice.isEmpty() ? "" : "\n") + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       refresh();
     });
@@ -513,34 +528,69 @@ public final class MainActivity extends Activity {
   private void reconcile() {
     final IProfileService s = backend;
     if (s == null) {
-      Log.i("EightberUi", "reconcile stopped no-backend");
       connect();
       return;
     }
-    Log.i("EightberUi", "reconcile started");
     run(s(R.string.ui_verifying_card_and_recovery), false, () -> new JSONObject(s.reconcileOperation()), r -> {
       if(!r.optBoolean("ok",false)){
         getPreferences(0).edit().putBoolean("pending",true).commit();
-        Log.i("EightberUi", "reconcile stopped ok=false status="+r.optString("status")
-            +" recoveryError="+r.optString("recoveryError")+" error="+r.optString("error")
-            +" stage="+r.optString("stage"));
         status(s(R.string.recovery_access_paused),recoveryFailure(r.optString("recoveryError")));render();return;
       }
       boolean review = RecoveryUiPolicy.blocks(r.optBoolean("ok", false), r.optBoolean("requiresReconciliation", false), r.optBoolean("reviewRequired", true), r.optString("status", "unknown"));
-      Log.i("EightberUi", "reconcile decision status="+r.optString("status")
-          +" reviewRequired="+r.optBoolean("reviewRequired")
-          +" requiresReconciliation="+r.optBoolean("requiresReconciliation")
-          +" closed="+r.optString("closed")
-          +" blocks="+review+" pendingCleared="+!review);
       notice = review ? s(R.string.ui_card_read_completed_the_previous_operation_still_requires_review)
-                      : "unstarted_download".equals(r.optString("closed"))
-                          ? s(R.string.ui_download_stopped_before_the_server_the_card_is_unchanged)
                       : "reviewed_abandoned".equals(r.optString("status"))
                           ? s(R.string.ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve)
                           : s(R.string.ui_read_only_reconciliation_completed_check_the_current_profile_inv);
       if (!review)
         getPreferences(0).edit().remove("pending").commit();
       refresh();
+    });
+  }
+  /**
+   * Separate from read-only verification: a one-use, explicit consent to accept
+   * the currently observed inventory without claiming the previous write succeeded.
+   */
+  private void reviewUnknownLifecycle() {
+    final IProfileService service=backend;
+    if(service==null||OPERATIONS.running())return;
+    final long reviewNavigation=navigationSession;
+    run(s(R.string.recovery_review_checking),false,
+        ()->new JSONObject(service.prepareRecoveryReview()),proposal->{
+      if(backend!=service||navigationSession!=reviewNavigation)return;
+      if(!proposal.optBoolean("ok",false)){
+        notice=s(R.string.recovery_review_failed);render();return;
+      }
+      String token=proposal.optString("token","");
+      if(!OperationTokens.isValid(token)){
+        notice=s(R.string.recovery_review_failed);render();return;
+      }
+      Sheet review=new Sheet(s(R.string.recovery_review_title));
+      review.copy(s(R.string.recovery_review_warning));
+      review.copy(proposal.optBoolean("inventoryChanged",true)
+          ?s(R.string.recovery_review_changed):s(R.string.recovery_review_unchanged));
+      review.button(s(R.string.recovery_review_confirm),true,()->{
+        review.dialog.dismiss();
+        if(backend!=service||navigationSession!=reviewNavigation)return;
+        run(s(R.string.recovery_review_checking),false,
+            ()->new JSONObject(service.confirmRecoveryReview(token)),result->{
+          // The asynchronous result belongs only to the session that started it.
+          // A detached Binder or a new navigation must never clear pending.
+          if(backend!=service||navigationSession!=reviewNavigation){
+            getPreferences(0).edit().putBoolean("pending",true).commit();
+            return;
+          }
+          if(!result.optBoolean("ok",false)||!"reviewed_observed".equals(result.optString("status"))){
+            getPreferences(0).edit().putBoolean("pending",true).commit();
+            notice=s(R.string.recovery_review_failed);render();return;
+          }
+          recoveryReviewEligible=false;
+          getPreferences(0).edit().remove("pending").commit();
+          notice=s(R.string.recovery_review_completed);
+          checkRecovery();
+        });
+      });
+      review.button(s(R.string.ui_cancel),false,review.dialog::dismiss);
+      review.show();
     });
   }
   private String recoveryFailure(String code){
@@ -615,19 +665,14 @@ public final class MainActivity extends Activity {
               || (r.optBoolean("installed", false)
                   && "installed_disabled".equals(r.optString("status")));
           boolean review = r.optBoolean("reviewRequired", !verified);
-          boolean unstarted = op.equals("download") && "not_completed".equals(r.optString("status"))
-              && r.optBoolean("inventoryUnchanged", false) && !r.optBoolean("reviewRequired", true);
-          if (op.equals("download") && !unstarted) {
+          if (op.equals("download")) {
             verified = InstallResultPolicy.verified(r.optString("status"),
                 r.isNull("installed") ? null : r.optBoolean("installed", false),
                 r.isNull("enabled") ? null : r.optBoolean("enabled", true),
                 r.optBoolean("reviewRequired", true));
             review = review || !verified;
           }
-          if (unstarted) { verified = false; review = false; }
-          notice = unstarted
-              ? s(R.string.ui_download_stopped_before_the_server_the_card_is_unchanged)
-              : verified && !review
+          notice = verified && !review
               ? (op.equals("download")
                         ? s(R.string.ui_esim_installed_and_independently_verified_it_remains_disabled_yo)
                         : s(R.string.ui_operation_verified_by_a_fresh_card_read_review_the_updated_inven))
@@ -643,14 +688,13 @@ public final class MainActivity extends Activity {
           }
           if (r.has("notificationStatus") && verified && !review)
             notice += "\n" + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
-          if ((verified && !review) || unstarted)
+          if (verified && !review)
             getPreferences(0).edit().remove("pending").commit();
           if (r.optBoolean("restartRequired", false) || !r.optBoolean("notificationWorkerStopped", true)) {
             getPreferences(0).edit().putBoolean("pending", true).commit();
             notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
-          recentResults.add(0, (unstarted ? s(R.string.ui_connection_not_completed)
-              : verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
+          recentResults.add(0, (verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;
@@ -737,9 +781,10 @@ public final class MainActivity extends Activity {
   private void navigate(int destination) {
     if(OPERATIONS.running())return;
     if (screen == 1 && destination != 1) { clearCredentials();pendingImport = null;draft.changed(); }
+    if(destination==SettingsNavigation.CONNECTION&&screen!=SettingsNavigation.CONNECTION&&screen!=6)connectionReturnScreen=screen==0?0:2;
     navigationSession++;
     if (destination != 1) { draft.form = false;showConfirmation = false; }
-    if (!getPreferences(0).getBoolean("pending", false)) { notice = "";title = backend != null ? s(R.string.ui_card_connected) : s(R.string.ui_connect_your_card);detail = backend != null ? "" : s(R.string.ui_connect_using_your_computer); }
+    if (!getPreferences(0).getBoolean("pending", false)) { notice = "";title = backend != null ? s(R.string.ui_card_connected) : s(R.string.ui_connect_your_card);detail = backend != null ? "" : s(R.string.nav_connection_needed); }
     selectedProfile=-1;selectedIccid="";selectedProfileKey="";detailProfile=null;
     screen = destination;
     render();
@@ -752,7 +797,9 @@ public final class MainActivity extends Activity {
     if(OPERATIONS.running())return;
     if(screen==4){screen=3;navigationSession++;render();return;}
     if (screen == 1 && draft.form) { clearCredentials();activation = null;confirmation = null;draft.form = false;showConfirmation = false;pendingImport = null;draft.changed();navigationSession++;render(); }
-    else if (screen != 0) navigate(0);
+    else if(screen==SettingsNavigation.CONNECTION)navigate(connectionReturnScreen);
+    else if(screen==6)navigate(computerReturnScreen);
+    else if (screen != 0) navigate(SettingsNavigation.parent(screen));
     else finish();
   }
   private void render() {
@@ -771,8 +818,8 @@ public final class MainActivity extends Activity {
     root.setBackgroundColor(BG);
     PageHeader.applyInsets(root);
     root.addView(new PageHeader(this,
-        screen == 0 ? "8bercue" : screen == 1 ? s(R.string.ui_add_esim) : screen == 3 ? s(R.string.ui_esim_details) : screen == 4 ? s(R.string.ui_rename_esim) : screen == 5 ? s(R.string.ui_operation_records) : screen == 6 ? s(R.string.ui_connect_your_phone) : s(R.string.ui_settings),
-        screen == 1 && draft.form ? s(R.string.ui_back_to_add_methods) : s(R.string.ui_back_to_my_esims),
+        screenTitle(),
+        screen == 1 && draft.form ? s(R.string.ui_back_to_add_methods) : s(R.string.nav_back),
         screen == 0 ? null : this::handleBack,
         screen == 0 ? () -> navigate(2) : null));
     ScrollView scroll = new ScrollView(this);
@@ -784,9 +831,9 @@ public final class MainActivity extends Activity {
     FrameLayout workspace=new FrameLayout(this);
     workspace.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
     root.addView(workspace,new LinearLayout.LayoutParams(-1,0,1));
-    if(screen==0&&inventory.has("profiles")&&!binderReadOnlyInventory&&!getPreferences(0).getBoolean("pending",false)){
+    if(screen==0&&inventory.has("profiles")&&!binderReadOnlyInventory){
       Button fab=action(s(R.string.ui_add_esim_134),false,()->navigate(1));fab.setTextColor(ON_TONAL);fab.setBackground(rounded(TONAL,16));fab.setElevation(dp(2));
-      FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(-2,dp(56),Gravity.BOTTOM|Gravity.END);placement.setMargins(dp(24),dp(16),dp(24),dp(16));workspace.addView(fab,placement);
+      FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(-2,dp(56),Gravity.BOTTOM|Gravity.END);placement.setMargins(dp(24),dp(16),dp(24),dp(16));workspace.addView(fab,placement);availability(fab,!getPreferences(0).getBoolean("pending",false));
       content.setPadding(dp(24),0,dp(24),dp(100));
     }
     setContentView(root);
@@ -812,44 +859,61 @@ public final class MainActivity extends Activity {
     else if(screen==4) renameScreen();
     else if(screen==5) recordsScreen();
     else if(screen==6) connectionScreen();
+    else if(screen==SettingsNavigation.CONNECTION)connectionAccessScreen();
+    else if(screen==SettingsNavigation.APPEARANCE)appearanceScreen();
+    else if(screen==SettingsNavigation.SUPPORT)supportScreen();
+    else if(screen==SettingsNavigation.ADVANCED)advancedScreen();
+    else if(screen==SettingsNavigation.PRIVACY)privacyScreen();
+    else if(screen==SettingsNavigation.CARD)cardInformationScreen();
+    else if(screen==SettingsNavigation.RECOVERY)recoveryScreen();
+    else if(screen==SettingsNavigation.LAB)laboratoryScreen();
     else settings();
     updateStatusRegion();
   }
+  private boolean wirelessOnboardingAvailable() {
+    return Build.VERSION.SDK_INT >= 31 && LabSupport.wirelessEligible()
+        && OnDeviceAdbNativeCrypto.available();
+  }
+  private String primaryConnectionLabel() {
+    if (!wirelessOnboardingAvailable()) return s(R.string.ui_connect_using_computer);
+    return OnDeviceAdbWirelessManager.hasPaired(this)
+        ? s(R.string.wireless_adb_live_connect) : s(R.string.wireless_adb_live_entry);
+  }
+  private void primaryConnect() {
+    if (!wirelessOnboardingAvailable()) { beginDirectBootstrap();return; }
+    if (!OnDeviceAdbWirelessManager.hasPaired(this)) {showWirelessDiscoveryPreview();return;}
+    run(s(R.string.wireless_adb_live_reconnecting),false,()->{
+      LocalAdbBootstrap.Result attempt=LocalAdbBootstrap.start(this);
+      return new JSONObject().put("ready",attempt.ready)
+          .put("description",attempt.description);
+    },r->{
+      if(r.optBoolean("ready")) {
+        connectDirect();
+        if(backend==null) status(s(R.string.ui_connection_not_completed),
+                                s(R.string.wireless_adb_attach_pending));
+      } else status(s(R.string.wireless_adb_live_unavailable),
+                  r.optString("description",s(R.string.wireless_adb_live_unavailable)));
+    });
+  }
+
   private void home() {
     if (!managementUnavailable().isEmpty()) {
       add(text(s(R.string.ui_installation_supported_management_unavailable),20,TEXT,true),24);
       add(text(managementUnavailable()),12);return;
     }
-    boolean pending=getPreferences(0).getBoolean("pending",false);
-    LinearLayout card=box();
-    card.addView(text(cardLabel(),20,TEXT,true));
-    JSONArray homeProfiles=inventory.optJSONArray("profiles");
-    if(homeProfiles!=null)card.addView(text(cardInventorySummary(homeProfiles.length()),14,MUTED,false),margin(8));
-    else if(backend!=null)card.addView(text(s(R.string.ui_storage_hint_settings),13,MUTED,false),margin(8));
-    card.addView(identifierRow(s(R.string.ui_eid).trim(),inventory.optString("eidMasked",s(R.string.ui_not_checked)),backend!=null?s(R.string.ui_copy_eid):null,this::copyEid),margin(12));
-    card.addView(text(homeCardStatusLine(pending),14,MUTED,false),margin(10));
-    LinearLayout cardActions=new LinearLayout(this);cardActions.setOrientation(LinearLayout.VERTICAL);
-    if(backend==null)stackedAction(cardActions,s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap);
-    else{
-      if(pending&&!OPERATIONS.running())stackedAction(cardActions,s(R.string.ui_verify_card_and_recovery),true,this::reconcile);
-      stackedAction(cardActions,s(R.string.ui_choose_card),false,this::chooseCard);
-    }
-    card.addView(cardActions,margin(16));
-    add(card,18);
-    LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.setMinimumHeight(dp(48));
+    LinearLayout card=navigationGroup(18);
+    String cardSummary=binderReadOnlyInventory?s(R.string.nav_diagnostic_only):inventory.has("profiles")?s(R.string.nav_card_connected_summary,inventory.optJSONArray("profiles").length()):s(backend==null?R.string.nav_card_not_connected:R.string.nav_card_choose_summary);
+    if(backend!=null)navigationItem(card,compactCardTitle(),cardSummary,"card",this::chooseCard);
+    else {card.setPadding(dp(20),dp(18),dp(20),dp(18));card.addView(text(s(R.string.nav_your_card),18,TEXT,true));card.addView(text(cardSummary,13,MUTED,false),margin(6));}
+    LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
     heading.addView(text(s(R.string.ui_your_esims),22,TEXT,false),new LinearLayout.LayoutParams(0,-2,1));
-    heading.addView(textButton(s(R.string.ui_refresh),this::refresh));add(heading,20);
-    JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){
-      add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.ui_choose_a_card_or_refresh)),15);
-      if(backend!=null){
-        LinearLayout emptyActions=new LinearLayout(this);emptyActions.setOrientation(LinearLayout.VERTICAL);
-        stackedAction(emptyActions,s(R.string.ui_choose_card),false,this::chooseCard);
-        stackedAction(emptyActions,s(R.string.ui_refresh),false,this::refresh);
-        add(emptyActions,16);
-      }
-      return;
+    if(backend!=null||inventory.has("profiles")){
+      Button refresh=action(s(R.string.ui_refresh),false,this::refresh);refresh.setTextSize(13);refresh.setBackgroundColor(Color.TRANSPARENT);
+      heading.addView(refresh,new LinearLayout.LayoutParams(dp(88),dp(48)));
     }
+    add(heading,22);
+    JSONArray profiles=inventory.optJSONArray("profiles");
+    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.nav_card_choose_summary)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));
@@ -859,8 +923,8 @@ public final class MainActivity extends Activity {
       boolean on="enabled".equalsIgnoreCase(profile.optString("state"));TextView state=text(on?s(R.string.ui_enabled):"disabled".equalsIgnoreCase(profile.optString("state"))?s(R.string.ui_disabled):s(R.string.ui_unknown),11,on?ACCENT:MUTED,false);state.setPadding(dp(8),dp(4),dp(8),dp(4));state.setBackground(rounded(SURFACE,8));row.addView(state);
       row.setContentDescription(s(R.string.profile_accessibility,profileName(profile),state.getText()));row.setFocusable(true);ripple(row);row.setOnClickListener(v->{if(!OPERATIONS.running())showProfile(index,profile,row);});taskControls.add(row);add(row,0);addDivider();
     }
-    if(profiles.length()==0)add(text(getPreferences(0).getBoolean("pending",false)?s(R.string.ui_add_unlocks_after_check):s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
-    add(text(s(R.string.ui_enabled_describes_the_card_state_network_service_has_not_been_ch),12,MUTED,false),20);
+    if(profiles.length()==0)add(text(s(R.string.ui_no_profiles_yet_add_an_esim_to_get_started)),20);
+
 
   }
   private String cardLabel(){String reader=inventory.optString("reader","");String description=inventory.optString("description","");return description.isEmpty()?(reader.isEmpty()?s(R.string.ui_select_an_euicc):reader+s(R.string.ui_euicc)):readerDescription(reader,description);}
@@ -870,7 +934,8 @@ public final class MainActivity extends Activity {
     JSONObject p=detailProfile;if(p==null){add(text(s(R.string.ui_refresh_the_card_and_select_a_profile)),24);return;}
     add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),16);
     add(text(profileName(p),28,TEXT,false),28);
-    add(identifierRow(s(R.string.ui_iccid).trim(),selectedIccid,backend!=null?s(R.string.ui_copy_iccid):null,this::copyIccid),12);
+    add(action(s(R.string.ui_copy_iccid),backend!=null,this::copyIccid),8);
+    add(text(selectedIccid),6);
     boolean enabled="enabled".equalsIgnoreCase(p.optString("state"));boolean disabled="disabled".equalsIgnoreCase(p.optString("state"));
     Switch toggle=new Switch(this);toggle.setText(s(R.string.ui_use_this_esim));toggle.setTextSize(20);toggle.setTextColor(ON_TONAL);toggle.setPadding(dp(20),dp(18),dp(20),dp(18));toggle.setMinHeight(dp(80));toggle.setBackground(rounded(TONAL,24));toggle.setChecked(enabled);toggle.setContentDescription(s(R.string.ui_use_this_esim));
     toggle.setThumbTintList(android.content.res.ColorStateList.valueOf(darkTheme?0xffffdbcC:Color.WHITE));toggle.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{ACCENT,MUTED}));
@@ -883,13 +948,27 @@ public final class MainActivity extends Activity {
     Button rename=action(s(R.string.ui_rename),false,()->{if(detailCurrent()){screen=4;navigationSession++;render();}});availability(rename,canEdit&&p.optBoolean("canRename",false));add(rename,28);
     Button delete=action(s(R.string.ui_delete_esim_166),false,()->{if(detailCurrent())prepare("delete",selectedProfile,"");});delete.setTextColor(ERROR);availability(delete,canEdit&&disabled&&p.optBoolean("canDelete",false));add(delete,12);
     if(enabled)add(text(s(R.string.ui_turn_off_this_esim_before_deleting_it),12,MUTED,false),4);
-    if(!canEdit)add(text(s(R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
+    if(!canEdit)add(text(s(getPreferences(0).getBoolean("pending",false)?R.string.recovery_view_only_summary:R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
     add(text(s(R.string.ui_about_this_esim),16,TEXT,true),28);detailFact(s(R.string.ui_operator),p.optString("provider",p.optString("name",s(R.string.ui_not_reported))));detailFact("ICCID",selectedIccid);detailFact(s(R.string.ui_card),cardLabel());
     add(text(s(R.string.ui_card_state_only_network_service_has_not_been_checked),12,MUTED,false),20);
   }
   private void detailFact(String label,String value){LinearLayout row=new LinearLayout(this);row.setPadding(0,dp(14),0,dp(14));row.addView(text(label,13,MUTED,false),new LinearLayout.LayoutParams(0,-2,1));TextView v=text(mask(value),13,TEXT,false);v.setGravity(Gravity.END);row.addView(v,new LinearLayout.LayoutParams(0,-2,2));add(row,0);addDivider();}
   private void renameScreen(){if(detailProfile==null)return;add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),18);add(text(profileName(detailProfile)+" · "+selectedIccid),22);EditText name=input(s(R.string.ui_nickname),false);name.setText(detailProfile.optString("nickname",""));add(name,22);add(text(s(R.string.ui_leave_blank_to_use_the_operator_name),12,MUTED,false),10);add(action(s(R.string.ui_save),true,()->{if(!detailCurrent())return;String value=name.getText().toString().trim();if(value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>64||value.matches("(?s).*[\\p{Cntrl}].*")){name.setError(s(R.string.ui_use_at_most_64_utf_8_bytes_without_control_characters));return;}hideKeyboard();prepare("rename",selectedProfile,value);}),28);add(action(s(R.string.ui_cancel),false,()->{screen=3;navigationSession++;render();}),8);}
-  private void recordsScreen(){add(text(s(R.string.ui_operation_results),22,TEXT,false),24);add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);for(String value:recentResults)add(text(value,16,TEXT,false),18);if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);add(action(s(R.string.ui_verify_card_and_recovery),false,this::reconcile),24);add(action(s(R.string.ui_export_safe_diagnostics),false,this::exportDiagnostics),12);}
+  private void recordsScreen(){
+    add(text(s(R.string.ui_operation_results),22,TEXT,false),24);
+    add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);
+    for(String value:recentResults)add(text(value,16,TEXT,false),18);
+    if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);
+    if(getPreferences(0).getBoolean("pending",false)){
+      add(text(s(R.string.recovery_record_summary)),20);
+      if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
+    }
+    if(notificationCleanupAvailable){
+      add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus))),20);
+      add(action(s(R.string.ui_review_notification_cleanup),false,this::prepareNotificationCleanup),12);
+    }
+    add(action(s(R.string.nav_help_feedback),false,()->navigate(SettingsNavigation.SUPPORT)),12);
+  }
   private void connectionScreen(){
     add(text(s(R.string.ui_connect_with_adb),28,TEXT,false),28);
     add(text(s(R.string.ui_one_command_no_extra_script_shizuku_or_root)),12);
@@ -995,7 +1074,7 @@ public final class MainActivity extends Activity {
     add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_checked)),12,MUTED,false),18);
     if (backend == null) {
       add(text(s(R.string.ui_connect_your_card_to_review_and_install_you_can_enter_or_scan_yo), 14, MUTED, false), 18);
-      add(action(s(R.string.ui_open_connection_settings), false, () -> navigate(2)), 10);
+      add(action(s(R.string.ui_open_connection_settings), false, () -> navigate(SettingsNavigation.CONNECTION)), 10);
     }
     if (!draft.form) {
       add(text(s(R.string.ui_how_would_you_like_to_add_your_esim), 16, MUTED, false), 22);
@@ -1060,7 +1139,7 @@ public final class MainActivity extends Activity {
     });
   }
   private void showCompatibility() {
-    Sheet check=new Sheet(s(R.string.ui_compatibility_check));
+    Sheet check=new Sheet(s(R.string.nav_connection_details));
     if(compatibility.length()==0)check.copy(s(R.string.ui_connect_the_shell_service_then_refresh_to_check_this_card_no_car));
     else {
       check.fact(s(R.string.ui_selected_card_channel),compatibility.optString("route",s(R.string.ui_no_verified_card_connection)));
@@ -1070,57 +1149,165 @@ public final class MainActivity extends Activity {
           : s(R.string.ui_profile_reading_has_not_been_verified_no_compatibility_check_cha));
     }
     check.copy(s(R.string.ui_order_secure_element_hal_aidl_then_hidl_telephony_then_omapi_mul));
-    if(backend!=null)check.button(s(R.string.ui_choose_card),false,()->{check.dialog.dismiss();chooseCard();});
-    check.button(s(R.string.ui_run_read_only_check),false,()->{check.dialog.dismiss();if(backend!=null||fallback)refresh();else status(s(R.string.ui_connect_first),s(R.string.ui_use_connect_using_computer_then_run_the_compatibility_check));});
+    if(BuildConfig.DEBUG&&backend!=null)check.button(s(R.string.ui_choose_card),false,()->{check.dialog.dismiss();chooseCard();});
+    if(BuildConfig.DEBUG)check.button(s(R.string.ui_run_read_only_check),false,()->{check.dialog.dismiss();if(backend!=null||fallback)refresh();else status(s(R.string.ui_connect_first),s(R.string.nav_connection_needed));});
     check.button(s(R.string.ui_done),false,check.dialog::dismiss);check.show();
   }
   private void settings() {
-    boolean pending=getPreferences(0).getBoolean("pending",false);
-    sectionHeading(s(R.string.ui_connection), 8);
-    LinearLayout connectionPanel=box();
-    connectionPanel.addView(text(directManagement && backend != null ? s(R.string.ui_computer_connection_active)
-          : companionManagement ? s(R.string.ui_local_companion_connected)
-          : binderReadOnlyInventory ? s(R.string.ui_read_only_diagnostic_connection)
-          : backend != null ? s(R.string.ui_computer_connection_active)
-          : fallback ? s(R.string.ui_read_only_companion_connected) : s(R.string.ui_not_connected), 16, TEXT, true));
-    connectionPanel.addView(text(s(R.string.ui_card_connection)+compatibility.optString("route",s(R.string.ui_not_checked_in_this_connection)),14,MUTED,false),margin(8));
-    LinearLayout connectActions=new LinearLayout(this);connectActions.setOrientation(LinearLayout.VERTICAL);
-    if(backend==null)stackedAction(connectActions,s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap);
-    else stackedAction(connectActions,s(R.string.ui_connect_using_computer),false,this::beginDirectBootstrap);
-    stackedAction(connectActions,s(R.string.ui_compatibility_check),false,this::showCompatibility);
-    stackedAction(connectActions,s(R.string.ui_setup_help),false,()->{
-      Sheet help=new Sheet(s(R.string.ui_connect_your_card));
-      help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
-      help.copy(s(R.string.ui_after_connection_open_compatibility_check_a_connected_service_al));
-      help.copy(s(R.string.ui_reconnect_after_a_phone_restart_app_update_or_service_terminatio));
-      help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
-    });
-    if(CompatibilityDiagnostics.lastFailure()!=null)
-      stackedAction(connectActions,s(R.string.ui_feedback_2),false,this::offerCompatibilityReport);
-    if(LabSupport.socketEligible()){
-      Button legacy=action(s(R.string.ui_use_legacy_local_companion),false,this::selectLegacyCompanion);
-      availability(legacy,useCompanion());
-      LinearLayout.LayoutParams legacyLp=new LinearLayout.LayoutParams(-1,-2);legacyLp.topMargin=dp(8);
-      connectActions.addView(legacy,legacyLp);
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.nav_connection),connectionSummary(),"connection",()->navigate(SettingsNavigation.CONNECTION));
+    navigationItem(group,s(R.string.nav_appearance),s(R.string.nav_appearance_summary,AppLanguage.label(this),s(darkTheme?R.string.ui_theme_dark:R.string.ui_theme_light)),"appearance",()->navigate(SettingsNavigation.APPEARANCE));
+    navigationItem(group,s(R.string.ui_operation_records),s(getPreferences(0).getBoolean("pending",false)?R.string.nav_verification_needed:R.string.nav_session_records),"records",()->navigate(5));
+    navigationItem(group,s(R.string.nav_help_feedback),"","help",()->navigate(SettingsNavigation.SUPPORT));
+    navigationItem(group,s(R.string.nav_advanced),"","settings",()->navigate(SettingsNavigation.ADVANCED));
+    navigationItem(group,s(R.string.nav_privacy_about),"","privacy",()->navigate(SettingsNavigation.PRIVACY));
+  }
+
+  private String connectionSummary() {
+    if(binderReadOnlyInventory||fallback)return s(R.string.nav_diagnostic_only);
+    if(backend!=null)return s(R.string.ui_connected);
+    return s(wirelessOnboardingAvailable()&&!OnDeviceAdbWirelessManager.hasPaired(this)
+        ?R.string.nav_not_set_up:R.string.ui_not_connected);
+  }
+
+  private void connectionAccessScreen() {
+    boolean wireless=wirelessOnboardingAvailable();
+    boolean paired=wireless&&OnDeviceAdbWirelessManager.hasPaired(this);
+    LinearLayout summary=box();
+    summary.addView(text(s(backend!=null?R.string.ui_connected:wireless?R.string.nav_authorize_phone:R.string.ui_connect_using_computer),21,TEXT,true));
+    if(backend==null)summary.addView(text(connectionSummary(),14,MUTED,false),margin(8));
+    add(summary,20);
+    if(!managementUnavailable().isEmpty())add(text(managementUnavailable()),20);
+    else if(backend!=null){
+      add(text(s(R.string.nav_connection_ready)),20);
+      add(action(s(R.string.nav_view_esims),true,()->navigate(0)),24);
+    }else if(wireless){
+      add(text(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps)),20);
+      if(!paired)add(text(s(R.string.nav_authorization_scope),13,MUTED,false),14);
+      add(action(s(paired?R.string.wireless_adb_live_connect:R.string.nav_start_setup),true,
+          paired?this::primaryConnect:this::startWirelessPairing),24);
+    }else{
+      add(text(s(R.string.nav_computer_required)),20);
+      add(action(s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap),24);
     }
-    connectionPanel.addView(connectActions,margin(16));
-    add(connectionPanel,12);
-    sectionHeading(s(R.string.ui_card), 24);
-    LinearLayout cardPanel=box();
-    cardPanel.addView(text(cardLabel(),20,TEXT,true));
-    JSONArray settingsProfiles=inventory.optJSONArray("profiles");
-    cardPanel.addView(text(settingsProfiles==null?s(R.string.ui_profiles)+s(R.string.ui_not_checked):cardInventorySummary(settingsProfiles.length()),14,MUTED,false),margin(8));
-    if(settingsProfiles!=null&&cardInfo.length()==0)cardPanel.addView(text(s(R.string.ui_storage_hint_settings),13,MUTED,false),margin(4));
-    cardPanel.addView(identifierRow(s(R.string.ui_eid).trim(),mask(inventory.optString("eidMasked", cardInfo.optString("eidMasked", s(R.string.ui_not_checked)))),backend!=null?s(R.string.ui_copy_eid):null,this::copyEid),margin(12));
-    LinearLayout cardActions=new LinearLayout(this);cardActions.setOrientation(LinearLayout.VERTICAL);
-    if(backend!=null){
-      if(pending&&!OPERATIONS.running())stackedAction(cardActions,s(R.string.ui_verify_card_and_recovery),true,this::reconcile);
-      stackedAction(cardActions,s(R.string.ui_choose_card),false,this::chooseCard);
-      stackedAction(cardActions,cardInfo.length()==0?s(R.string.ui_read_card_information):s(R.string.ui_refresh_card_information),false,this::readCardInformation);
-      if(cardInfo.length()>0)stackedAction(cardActions,s(R.string.ui_capability_details),false,this::showCardCapabilities);
-    }else cardPanel.addView(text(pending?s(R.string.ui_pending_connect_first):s(R.string.ui_connect_your_card_first),13,MUTED,false),margin(8));
-    cardPanel.addView(cardActions,margin(16));
-    add(cardPanel,12);
+    LinearLayout help=navigationGroup(28);
+    navigationItem(help,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
+    if(wireless)navigationItem(help,s(R.string.nav_other_connections),"","connection",this::showOtherConnections);
+  }
+
+  private void startWirelessPairing() {
+    if(!wirelessOnboardingAvailable()||OPERATIONS.running())return;
+    if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7312);
+      return;
+    }
+    launchUserApprovedPairingFlow();
+  }
+
+  private void showConnectionHelp() {
+    Sheet help=new Sheet(s(R.string.ui_setup_help));
+    if(wirelessOnboardingAvailable()){
+      help.copy(s(R.string.nav_pairing_steps));
+      help.copy(s(R.string.nav_authorization_scope));
+      help.copy(s(R.string.nav_pairing_help));
+    }else help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
+    help.copy(s(R.string.nav_reconnect_help));
+    help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
+  }
+
+  private void showOtherConnections() {
+    Sheet other=new Sheet(s(R.string.nav_other_connections));
+    other.copy(s(R.string.nav_computer_alternative));
+    other.button(s(R.string.ui_connect_using_computer),false,()->{other.dialog.dismiss();beginDirectBootstrap();});
+    if(wirelessOnboardingAvailable()&&OnDeviceAdbWirelessManager.hasPaired(this))
+      other.button(s(R.string.nav_pair_again),false,()->{other.dialog.dismiss();startWirelessPairing();});
+    if(LabSupport.socketEligible())other.button(s(R.string.ui_use_legacy_local_companion),false,()->{other.dialog.dismiss();selectLegacyCompanion();});
+    other.button(s(R.string.ui_cancel),false,other.dialog::dismiss);other.show();
+  }
+
+  private void appearanceScreen() {
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.language_title),AppLanguage.label(this),"appearance",this::chooseLanguage);
+    navigationItem(group,s(R.string.ui_appearance),s(darkTheme?R.string.ui_theme_dark:R.string.ui_theme_light),"appearance",()->{
+      getPreferences(0).edit().putBoolean("darkTheme",!darkTheme).apply();applyPalette();render();
+    });
+  }
+
+  private void supportScreen() {
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
+    if(backend!=null||compatibility.length()>0||CompatibilityDiagnostics.lastFailure()!=null)
+      navigationItem(group,s(R.string.nav_connection_details),"","connection",this::showCompatibility);
+    navigationItem(group,s(R.string.nav_report_problem),s(R.string.nav_report_summary),"help",this::reportProblem);
+    navigationItem(group,s(R.string.nav_export_diagnostics),s(R.string.nav_export_summary),"records",this::chooseDiagnosticExport);
+    if(CompatibilityDiagnostics.lastFailure()!=null)
+      navigationItem(group,s(R.string.ui_feedback_2),"","connection",this::offerCompatibilityReport);
+  }
+
+  private void chooseDiagnosticExport() {
+    Sheet export=new Sheet(s(R.string.nav_export_diagnostics));
+    export.copy(s(R.string.ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a));
+    export.button(s(R.string.ui_feedback_4),false,()->{export.dialog.dismiss();saveDiagnosticZip();});
+    export.button(s(R.string.nav_share_summary),false,()->{export.dialog.dismiss();exportDiagnostics();});
+    export.button(s(R.string.ui_cancel),false,export.dialog::dismiss);export.show();
+  }
+
+  private void advancedScreen() {
+    add(text(s(R.string.nav_advanced_help),14,MUTED,false),20);
+    add(text(s(R.string.ui_card),13,MUTED,true),24);
+    LinearLayout card=navigationGroup(10);
+    navigationItem(card,s(R.string.nav_card_information),s(R.string.nav_card_information_summary),"card",()->navigate(SettingsNavigation.CARD));
+    if(BuildConfig.DEBUG){
+      add(text(s(R.string.nav_diagnostics_recovery),13,MUTED,true),24);
+      LinearLayout diagnostics=navigationGroup(10);
+      navigationItem(diagnostics,s(R.string.ui_compatibility_check),s(R.string.nav_compatibility_summary),"help",this::showCompatibility);
+      navigationItem(diagnostics,s(R.string.nav_verify_state),s(R.string.nav_verify_summary),"records",()->navigate(SettingsNavigation.RECOVERY));
+      add(text(s(R.string.nav_laboratory),13,MUTED,true),24);
+      LinearLayout lab=navigationGroup(10);
+      navigationItem(lab,s(R.string.nav_lab_tools),s(R.string.nav_lab_only),"lab",()->navigate(SettingsNavigation.LAB));
+    }
+  }
+
+  private void cardInformationScreen() {
+    add(text(cardLabel(),18,TEXT,true),20);
+    add(text(s(R.string.ui_eid_269) + mask(cardInfo.optString("eidMasked", inventory.optString("eidMasked", s(R.string.ui_not_checked))))), 10);
+    if(backend!=null)add(action(s(R.string.ui_copy_eid),false,this::copyEid),8);
+    add(text(s(R.string.ui_profiles) + (inventory.optJSONArray("profiles") == null ? s(R.string.ui_not_checked) : inventory.optJSONArray("profiles").length())), 8);
+    add(text(s(R.string.ui_storage) + (cardInfo.length() == 0 ? s(R.string.ui_not_checked) : storage())), 8);
+    add(action(cardInfo.length() == 0 ? s(R.string.ui_read_card_information) : s(R.string.ui_refresh_card_information), false, () -> {
+      IProfileService service = backend;
+      if (service == null) { status(s(R.string.ui_connect_your_card_first), s(R.string.ui_card_information_needs_the_authorized_service));return; }
+      run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getCardInfo()), r -> {
+        if (!r.optBoolean("ok", false)) { status(s(R.string.ui_card_information_unavailable), s(R.string.ui_reconnect_and_refresh_the_card));return; }
+        cardInfo = r;status(s(R.string.ui_card_information_checked), s(R.string.ui_only_details_reported_by_your_card_are_shown));render();
+      });
+    }), 16);
+    if (cardInfo.length() > 0) add(action(s(R.string.ui_capability_details), false, () -> {
+      Sheet info = new Sheet(s(R.string.ui_card_capabilities));
+      info.copy(cardInfo.optBoolean("capabilitiesSupported", false) ? capabilitySummary() : s(R.string.ui_optional_capabilities_were_not_reported_by_this_reader));
+      info.button(s(R.string.ui_done), false, info.dialog::dismiss);info.show();
+    }), 10);
+
+  }
+
+  private void recoveryScreen() {
+    if(!BuildConfig.DEBUG){navigate(5);return;}
+    add(text(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a)),20);
+    add(action(s(R.string.ui_verify_card_and_recovery),getPreferences(0).getBoolean("pending",false),this::reconcile),24);
+    if(recoveryReviewEligible&&getPreferences(0).getBoolean("pending",false))
+      add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
+    if (!notificationStatus.isEmpty()) {
+      add(text(s(R.string.ui_operator_notification), 19, TEXT, true), 24);
+      add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus)), 14, MUTED, false), 8);
+      if (notificationCleanupAvailable) add(action(s(R.string.ui_review_notification_cleanup), false, this::prepareNotificationCleanup), 12);
+    }
+
+    if(LabSupport.socketEligible())add(action(s(R.string.ui_recover_local_companion),false,this::recoverFallback),16);
+  }
+
+  private void laboratoryScreen() {
+    if(!BuildConfig.DEBUG){navigate(SettingsNavigation.ADVANCED);return;}
+    add(text(s(R.string.nav_lab_only),14,MUTED,false),20);
     if (BuildConfig.DEBUG) add(action(s(R.string.ui_check_direct_binder_companion_read_only), false, () -> {
       run(s(R.string.ui_checking_local_binder), false, () -> {
         ICompanionProbe probe = CompanionBinderProvider.service();
@@ -1185,40 +1372,77 @@ public final class MainActivity extends Activity {
         }
       });
     }), 12);
-    sectionHeading(s(R.string.language_title), 28);
-    add(action(s(R.string.language_current,AppLanguage.label(this)),false,this::chooseLanguage),12);
-    sectionHeading(s(R.string.ui_appearance), 28);
-    add(action(darkTheme?s(R.string.ui_theme_dark):s(R.string.ui_theme_light),false,()->{getPreferences(0).edit().putBoolean("darkTheme",!darkTheme).apply();applyPalette();render();}),12);
-    sectionHeading(s(R.string.ui_support), 28);
-    LinearLayout supportPanel=box();
-    LinearLayout supportActions=new LinearLayout(this);supportActions.setOrientation(LinearLayout.VERTICAL);
-    stackedAction(supportActions,s(R.string.ui_operation_records),false,()->{screen=5;navigationSession++;render();});
-    if(!notificationStatus.isEmpty()){
-      supportPanel.addView(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus)),14,MUTED,false),margin(4));
-      if(notificationCleanupAvailable)stackedAction(supportActions,s(R.string.ui_review_notification_cleanup),false,this::prepareNotificationCleanup);
-    }
-    stackedAction(supportActions,s(R.string.ui_recovery_advanced),false,()->{
-      Sheet advanced = new Sheet(s(R.string.ui_recovery_advanced_285));
-      advanced.copy(s(R.string.ui_an_interrupted_operation_may_have_an_unknown_outcome_reconnect_a));
-      advanced.button(s(R.string.ui_verify_card_and_recovery), false, () -> { advanced.dialog.dismiss();reconcile(); });
-      if (LabSupport.socketEligible()) advanced.button(s(R.string.ui_recover_local_companion), false, () -> { advanced.dialog.dismiss();recoverFallback(); });
-      advanced.button(s(R.string.ui_export_safe_diagnostics), false, this::exportDiagnostics);
-      advanced.copy(s(R.string.ui_diagnostics_exclude_activation_codes_profile_names_identifiers_a));
-      advanced.button(s(R.string.ui_done), false, advanced.dialog::dismiss);advanced.show();
-    });
-    stackedAction(supportActions,s(R.string.ui_feedback_3),false,this::reportProblem);
-    stackedAction(supportActions,s(R.string.ui_feedback_4),false,this::saveDiagnosticZip);
-    stackedAction(supportActions,s(R.string.ui_feedback_5)+(SafeTelemetry.allowed(this)?s(R.string.ui_feedback_6):s(R.string.ui_feedback_7))+"  ›",false,this::chooseCrashReporting);
-    supportPanel.addView(supportActions,margin(notificationStatus.isEmpty()?0:8));
-    add(supportPanel,12);
-    if (BuildConfig.DEBUG) add(action(s(R.string.ui_feedback_8),false,
-        () -> status(SafeTelemetry.smoke(this) ? s(R.string.ui_feedback_9) : s(R.string.ui_feedback_10),
-            s(R.string.ui_feedback_11))), 12);
-    add(action(s(R.string.ui_privacy_information), false, () -> showBundledText(s(R.string.ui_privacy_information), "legal/privacy.txt")), 20);
-    add(action(s(R.string.ui_third_party_notices), false, () -> showBundledText(s(R.string.ui_third_party_notices), "legal/third-party-notices.txt")), 12);
-    add(text(s(R.string.ui_independent_project_not_an_official_5ber_product), 12, MUTED, false), 20);
-    add(text("8bercue " + BuildConfig.VERSION_NAME, 12, MUTED, false), 12);
+
+    if(LabSupport.wirelessEligible()&&Build.VERSION.SDK_INT>=30)
+      add(action(s(R.string.nav_wireless_diagnostics),false,this::showWirelessEndpointDiagnostics),16);
+    add(action(s(R.string.ui_feedback_8),false,
+        ()->status(SafeTelemetry.smoke(this)?s(R.string.ui_feedback_9):s(R.string.ui_feedback_10),s(R.string.ui_feedback_11))),12);
   }
+
+  private void privacyScreen() {
+    LinearLayout group=navigationGroup(20);
+    navigationItem(group,s(R.string.nav_crash_reports),s(SafeTelemetry.allowed(this)?R.string.nav_enabled:R.string.nav_disabled),"privacy",this::chooseCrashReporting);
+    navigationItem(group,s(R.string.ui_privacy_information),"","privacy",()->showBundledText(s(R.string.ui_privacy_information),"legal/privacy.txt"));
+    navigationItem(group,s(R.string.ui_third_party_notices),"","records",()->showBundledText(s(R.string.ui_third_party_notices),"legal/third-party-notices.txt"));
+    add(text("8bercue "+BuildConfig.VERSION_NAME,14,MUTED,false),28);
+    add(text(s(R.string.ui_independent_project_not_an_official_5ber_product),12,MUTED,false),10);
+  }
+
+  private LinearLayout navigationGroup(int top) {
+    LinearLayout group=box();group.setPadding(0,dp(4),0,dp(4));add(group,top);return group;
+  }
+
+  private void navigationItem(LinearLayout group,String label,String summary,String icon,Runnable click) {
+    label=label.replaceFirst("\\s*[›»]\\s*$","");
+    if(group.getChildCount()>0){
+      View divider=new View(this);divider.setBackgroundColor(LINE);
+      LinearLayout.LayoutParams line=new LinearLayout.LayoutParams(-1,dp(1));line.setMargins(dp(58),0,dp(18),0);group.addView(divider,line);
+    }
+    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(dp(18),dp(16),dp(14),dp(16));row.setMinimumHeight(dp(78));
+    ImageView glyph=new ImageView(this);glyph.setImageDrawable(new UiIcon(icon,TEXT));glyph.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(glyph,new LinearLayout.LayoutParams(dp(24),dp(24)));
+    LinearLayout labels=new LinearLayout(this);labels.setOrientation(LinearLayout.VERTICAL);labels.setPadding(dp(16),0,dp(10),0);
+    TextView heading=text(label,16,TEXT,true);heading.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);labels.addView(heading);
+    if(!summary.isEmpty()){TextView subtitle=text(summary,12,MUTED,false);subtitle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);labels.addView(subtitle,margin(4));}
+    row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+    ImageView next=new ImageView(this);next.setImageDrawable(new UiIcon("next",MUTED));next.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(next,new LinearLayout.LayoutParams(dp(18),dp(18)));
+    row.setFocusable(true);row.setContentDescription(label+(summary.isEmpty()?"":", "+summary));
+    row.setAccessibilityDelegate(new View.AccessibilityDelegate(){
+      @Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){
+        super.onInitializeAccessibilityNodeInfo(host,info);info.setClassName(Button.class.getName());
+      }
+    });
+    ripple(row);row.setOnClickListener(v->{if(!OPERATIONS.running())click.run();});taskControls.add(row);
+    group.addView(row,new LinearLayout.LayoutParams(-1,-2));
+  }
+
+  private String compactCardTitle() {
+    String description=inventory.optString("description","");
+    return s(description.startsWith("Removable eUICC")?R.string.nav_removable_card:
+        description.startsWith("Built-in eUICC")?R.string.nav_builtin_card:R.string.nav_your_card);
+  }
+  private String screenTitle() {
+    return switch(screen){
+      case 0 -> "8bercue";
+      case 1 -> s(R.string.ui_add_esim);
+      case 3 -> s(R.string.ui_esim_details);
+      case 4 -> s(R.string.ui_rename_esim);
+      case 5 -> s(R.string.ui_operation_records);
+      case 6 -> s(R.string.ui_connect_your_phone);
+      case SettingsNavigation.CONNECTION -> s(R.string.nav_connection);
+      case SettingsNavigation.APPEARANCE -> s(R.string.nav_appearance);
+      case SettingsNavigation.SUPPORT -> s(R.string.nav_help_feedback);
+      case SettingsNavigation.ADVANCED -> s(R.string.nav_advanced);
+      case SettingsNavigation.PRIVACY -> s(R.string.nav_privacy_about);
+      case SettingsNavigation.CARD -> s(R.string.nav_card_information);
+      case SettingsNavigation.LAB -> s(R.string.nav_lab_tools);
+      case SettingsNavigation.RECOVERY -> s(R.string.nav_verify_state);
+      default -> s(R.string.ui_settings);
+    };
+  }
+
   private void showBundledText(String title, String asset) {
     if(AppLanguage.isChinese(this)&&asset.equals("legal/privacy.txt"))asset="legal/privacy-zh-Hans.txt";
     try (java.io.InputStream input = getAssets().open(asset)) {
@@ -1268,11 +1492,142 @@ public final class MainActivity extends Activity {
     recovery.button(s(R.string.ui_continue), true, () -> {
       recovery.dialog.dismiss();run(s(R.string.ui_recovering_local_companion), false, () -> {
         LocalAdbBootstrap.Result r = LocalAdbBootstrap.start(getApplicationContext());
-        return new JSONObject().put("ready", r.ready).put("authorization", r.needsAuthorization);
-      }, r -> { if (r.optBoolean("ready")) probeFallback();else status(s(R.string.ui_recovery_not_complete), r.optBoolean("authorization") ? s(R.string.ui_approve_android_s_rsa_prompt_then_try_recovery_again) : s(R.string.ui_check_the_supported_adb_setup_and_reconnect)); });
+        return new JSONObject().put("ready", r.ready).put("authorization", r.needsAuthorization).put("description", r.description);
+      }, r -> { if (r.optBoolean("ready")) {
+        connectDirect();
+        if (backend == null) status(s(R.string.ui_recovery_not_complete), s(R.string.wireless_adb_attach_pending));
+      } else status(s(R.string.ui_recovery_not_complete), r.optString("description", s(R.string.ui_check_the_supported_adb_setup_and_reconnect))); });
     });
     recovery.button(s(R.string.ui_cancel), false, recovery.dialog::dismiss);recovery.show();
   }
+  private void launchUserApprovedPairingFlow() {
+    try {
+      startForegroundService(OnDeviceAdbPairingService.startIntent(this));
+      startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+    } catch (Exception unavailable) {
+      status(s(R.string.ui_check_unavailable), s(R.string.wireless_adb_start_unavailable));
+    }
+  }
+
+  @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants) {
+    super.onRequestPermissionsResult(requestCode,permissions,grants);
+    if(requestCode==7312) {
+      if(grants.length>0 && grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)
+        launchUserApprovedPairingFlow();
+      else status(s(R.string.ui_check_unavailable),
+              s(R.string.wireless_adb_notifications_required));
+    }
+  }
+
+  /** Preview only: discover local TLS ports without pairing or touching adbd. */
+  private void showWirelessDiscoveryPreview() {
+    if (Build.VERSION.SDK_INT < 30 || !LabSupport.wirelessEligible()) return;
+    navigate(SettingsNavigation.CONNECTION);
+  }
+
+  /** Explicit diagnostic tools, visible only in laboratory builds. */
+  private void showWirelessEndpointDiagnostics() {
+    if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 30 || !LabSupport.wirelessEligible()) return;
+    Sheet sheet = new Sheet(s(OnDeviceAdbNativeCrypto.available()
+            ? R.string.wireless_adb_live_title : R.string.wireless_adb_preview_title));
+    boolean realPairing=Build.VERSION.SDK_INT>=31 && OnDeviceAdbNativeCrypto.available();
+    sheet.copy(s(realPairing ? R.string.wireless_adb_live_help : R.string.wireless_adb_preview_help));
+    final TextView pairing = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
+    final TextView connecting = text(s(R.string.wireless_adb_preview_searching), 14, MUTED, false);
+    sheet.body.addView(pairing, margin(14));
+    sheet.body.addView(connecting, margin(6));
+    sheet.copy(s(R.string.wireless_adb_preview_not_auth));
+    final java.util.ArrayList<OnDeviceAdbDiscovery> searches = new java.util.ArrayList<>();
+    OnDeviceAdbDiscovery.Observer observer = new OnDeviceAdbDiscovery.Observer() {
+      @Override public void found(OnDeviceAdbDiscovery.Endpoint e) {
+        handler.post(() -> {
+          if (!sheet.dialog.isShowing() || destroyed) return;
+          TextView label = e.purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting;
+          label.setText(s(e.purpose == OnDeviceAdbDiscovery.Purpose.PAIRING
+              ? R.string.wireless_adb_preview_pair : R.string.wireless_adb_preview_connect, e.port));
+        });
+      }
+      @Override public void lost(OnDeviceAdbDiscovery.Purpose purpose) {
+        handler.post(() -> {
+          if (sheet.dialog.isShowing() && !destroyed)
+            (purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting)
+                .setText(s(R.string.wireless_adb_preview_lost));
+        });
+      }
+      @Override public void failed(OnDeviceAdbDiscovery.Purpose purpose) {
+        handler.post(() -> {
+          if (sheet.dialog.isShowing() && !destroyed)
+            (purpose == OnDeviceAdbDiscovery.Purpose.PAIRING ? pairing : connecting)
+                .setText(s(R.string.wireless_adb_preview_error));
+        });
+      }
+    };
+    if (realPairing) {
+      sheet.button(s(R.string.wireless_adb_identity_prepare), false, () -> {
+        sheet.dialog.dismiss();
+        run(s(R.string.wireless_adb_identity_prepare), false, () -> {
+          OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
+          if(identity.pairingPublicKey().length < 600)
+            throw new java.security.GeneralSecurityException("Invalid ADB public-key format");
+          return new JSONObject().put("ready",true);
+        }, result -> status(s(R.string.wireless_adb_identity_ready),s(R.string.ui_no_changes_were_made)));
+      });
+      sheet.button(s(R.string.wireless_adb_exporter_verify), false, () -> {
+        sheet.dialog.dismiss();
+        run(s(R.string.wireless_adb_exporter_checking), false, () -> {
+          try {
+            OnDeviceAdbIdentity identity=OnDeviceAdbIdentity.getOrCreate(this);
+            return new JSONObject().put("ok",OnDeviceAdbTlsContext.syntheticTlsSelfTest(identity));
+          } catch (Exception problem) {
+            if (BuildConfig.DEBUG)
+              android.util.Log.w("EightberTlsSmoke","Synthetic TLS exporter failed",problem);
+            return new JSONObject().put("ok",false)
+                    .put("stage",problem.getClass().getSimpleName());
+          }
+        }, reply -> status(reply.optBoolean("ok")
+                ? s(R.string.wireless_adb_exporter_verified) : s(R.string.wireless_adb_exporter_unavailable),
+                reply.optBoolean("ok") ? s(R.string.wireless_adb_exporter_synthetic)
+                    : s(R.string.wireless_adb_failure_stage,reply.optString("stage","Unknown"))));
+      });
+      sheet.button(s(R.string.wireless_adb_pairing_start), true, () -> {
+        if (Build.VERSION.SDK_INT >= 33
+            && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+          sheet.dialog.dismiss();
+          requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 7312);
+          return;
+        }
+        sheet.dialog.dismiss();
+        launchUserApprovedPairingFlow();
+      });
+    }
+    sheet.button(s(R.string.wireless_adb_preview_scan), true, () -> {
+      for (OnDeviceAdbDiscovery search : searches) search.close();
+      searches.clear();
+      pairing.setText(s(R.string.wireless_adb_preview_searching));
+      connecting.setText(s(R.string.wireless_adb_preview_searching));
+      for (OnDeviceAdbDiscovery.Purpose purpose : OnDeviceAdbDiscovery.Purpose.values()) {
+        OnDeviceAdbDiscovery discovery = new OnDeviceAdbDiscovery(this, purpose, observer);
+        searches.add(discovery);
+        discovery.start();
+      }
+    });
+    sheet.button(s(R.string.wireless_adb_preview_settings), false, () -> {
+      sheet.dialog.dismiss();
+      Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+      try { startActivity(intent); }
+      catch (android.content.ActivityNotFoundException unavailable) {
+        status(s(R.string.ui_check_unavailable), s(R.string.wireless_adb_preview_error));
+      }
+    });
+    sheet.button(s(R.string.ui_done), false, sheet.dialog::dismiss);
+    sheet.dialog.setOnDismissListener(ignored -> {
+      for (OnDeviceAdbDiscovery search : searches) search.close();
+      searches.clear();
+    });
+    sheet.show();
+  }
+
   private String capabilitySummary() {
     StringBuilder result = new StringBuilder();
     String[][] fields = {{"profileVersion", s(R.string.ui_profile_spec)}, {"gsmaVersion", s(R.string.ui_gsma_spec)},
@@ -1480,45 +1835,12 @@ public final class MainActivity extends Activity {
     boolean running = OPERATIONS.running();
     boolean pending = getPreferences(0).getBoolean("pending", false);
     if (busyProgress != null) busyProgress.setVisibility(running ? View.VISIBLE : View.GONE);
-    statusBox.setVisibility(UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
+    boolean idleConnection=!running&&!pending&&notice.isEmpty()&&backend==null&&title.equals(s(R.string.ui_connect_your_card));
+    statusBox.setVisibility(!idleConnection&&UiStatusPolicy.visible(running,pending,!notice.isEmpty(),backend!=null,canonicalTitle())?View.VISIBLE:View.GONE);
     statusBox.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    boolean canVerify = pending && !running && backend != null;
-    boolean canConnect = backend == null && !running;
-    statusBox.setClickable(canVerify || canConnect);
-    statusBox.setFocusable(canVerify || canConnect);
-    if (canVerify || canConnect) {
-      android.util.TypedValue ripple = new android.util.TypedValue();
-      getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
-      statusBox.setForeground(getDrawable(ripple.resourceId));
-      final boolean connectAction=canConnect,verifyAction=canVerify;
-      statusBox.setOnClickListener(v -> {
-        if (connectAction) beginDirectBootstrap();
-        else reconcile();
-      });
-      statusBox.setContentDescription(null);
-      statusBox.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-        @Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){
-          super.onInitializeAccessibilityNodeInfo(host,info);
-          if(connectAction)info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
-              android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK,s(R.string.ui_connect_using_computer)));
-          else if(verifyAction)info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
-              android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK,s(R.string.ui_verify_card_and_recovery)));
-        }
-      });
-    } else {
-      statusBox.setForeground(null);
-      statusBox.setOnClickListener(null);
-      statusBox.setContentDescription(null);
-      statusBox.setAccessibilityDelegate(null);
-    }
-    statusTitle.setText(running ? OPERATIONS.title()
-        : canConnect ? s(R.string.ui_connect_your_card)
-        : canVerify ? s(R.string.ui_verify_card_and_recovery)
-        : !notice.isEmpty() ? s(R.string.ui_update) : title);
-    statusDetail.setText(running ? detail
-        : !notice.isEmpty() ? notice
-        : canConnect ? (pending ? s(R.string.ui_pending_connect_first) : detail)
-        : detail + (pending && backend != null ? s(R.string.ui_safety_verification_is_required_use_settings_verify_card_and_rec) : ""));
+    statusTitle.setText(running ? OPERATIONS.title() : pending&&inventory.has("profiles")
+        ? s(R.string.recovery_view_only_title) : !notice.isEmpty() ? pending ? s(R.string.ui_needs_verification) : s(R.string.ui_update) : title);
+    statusDetail.setText(running ? detail : !notice.isEmpty() ? notice : detail);
   }
   private void status(String a, String b) {
     notice = "";title = a;detail = b;updateStatusRegion();
@@ -1547,101 +1869,6 @@ public final class MainActivity extends Activity {
                   : InputType.TYPE_TEXT_FLAG_CAP_SENTENCES));
     return e;
   }
-  private void sectionHeading(String title, int top) {
-    add(text(title, 19, TEXT, true), top);
-  }
-  private void stackedAction(LinearLayout parent, String label, boolean primary, Runnable click) {
-    Button b = action(label, primary, click);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.topMargin = dp(8);
-    parent.addView(b, lp);
-  }
-  private LinearLayout identifierRow(String label, String value, String copyLabel, Runnable copy) {
-    LinearLayout block = new LinearLayout(this);
-    block.setOrientation(LinearLayout.VERTICAL);
-    block.addView(text(label, 12, MUTED, true));
-    LinearLayout row = new LinearLayout(this);
-    row.setOrientation(LinearLayout.HORIZONTAL);
-    row.setGravity(Gravity.CENTER_VERTICAL);
-    row.setMinimumHeight(dp(48));
-    row.addView(text(value, 15, TEXT, false),
-        new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-    if (copyLabel != null && copy != null)
-      row.addView(textButton(copyLabel, copy));
-    block.addView(row, margin(4));
-    return block;
-  }
-  private String homeCardStatusLine(boolean pending) {
-    if (backend == null)
-      return s(R.string.ui_connect_to_check_this_card);
-    if (!inventory.has("profiles"))
-      return s(R.string.ui_choose_a_card_or_refresh);
-    if (pending)
-      return s(R.string.ui_connected_check_before_changes);
-    return s(R.string.ui_card_connected_read_verified);
-  }
-  private String cardInventorySummary(int count) {
-    String line = s(R.string.ui_home_profiles_count, count);
-    if (cardInfo.length() > 0) {
-      long bytes = cardInfo.optLong("freeNonvolatileMemoryBytes", cardInfo.optLong("freeNonvolatileBytes", -1));
-      if (bytes >= 0)
-        line += " · " + storage();
-    }
-    return line;
-  }
-  private void readCardInformation() {
-    IProfileService service = backend;
-    if (service == null) {
-      status(s(R.string.ui_connect_your_card_first), s(R.string.ui_card_information_needs_the_authorized_service));
-      return;
-    }
-    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getCardInfo()), r -> {
-      if (!r.optBoolean("ok", false)) {
-        status(s(R.string.ui_card_information_unavailable), s(R.string.ui_reconnect_and_refresh_the_card));
-        return;
-      }
-      cardInfo = r;
-      status(s(R.string.ui_card_information_checked), s(R.string.ui_only_details_reported_by_your_card_are_shown));
-      render();
-    });
-  }
-  private void showCardCapabilities() {
-    Sheet info = new Sheet(s(R.string.ui_card_capabilities));
-    info.copy(cardInfo.optBoolean("capabilitiesSupported", false)
-        ? capabilitySummary()
-        : s(R.string.ui_optional_capabilities_were_not_reported_by_this_reader));
-    info.button(s(R.string.ui_done), false, info.dialog::dismiss);
-    info.show();
-  }
-  private Button textButton(String label, Runnable click) {
-    Button b = new Button(this);
-    b.setStateListAnimator(null);
-    b.setElevation(0);
-    b.setText(label);
-    b.setTextSize(14);
-    b.setAllCaps(false);
-    b.setTextColor(ACCENT);
-    b.setMinHeight(dp(48));
-    b.setMinimumHeight(dp(48));
-    b.setPadding(dp(12), dp(8), dp(12), dp(8));
-    android.util.TypedValue ripple = new android.util.TypedValue();
-    getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true);
-    b.setBackgroundResource(ripple.resourceId);
-    taskControls.add(b);
-    b.setEnabled(!OPERATIONS.running());
-    b.setAlpha(OPERATIONS.running() ? .45f : 1f);
-    b.setOnClickListener(v -> {
-      if (!OPERATIONS.running()) {
-        if (!getPreferences(0).getBoolean("pending", false)) {
-          notice = "";
-          updateStatusRegion();
-        }
-        click.run();
-      } else
-        status(OPERATIONS.title(), s(R.string.ui_please_wait_for_the_current_operation_to_finish));
-    });
-    return b;
-  }
   private Button action(String label, boolean primary, Runnable click) {
     Button b = button(label, primary);
     taskControls.add(b);
@@ -1669,12 +1896,12 @@ public final class MainActivity extends Activity {
     b.setTextSize(14);
     b.setAllCaps(false);
     b.setTextColor(primary ? (darkTheme?0xff5c1b00:Color.WHITE) : TEXT);
-    b.setMinHeight(dp(48));
-    b.setPadding(dp(24), dp(10), dp(24), dp(10));
+    b.setMinHeight(dp(52));
+    b.setPadding(dp(12), dp(10), dp(12), dp(10));
     GradientDrawable d = new GradientDrawable();
-    d.setColor(primary ? ACCENT : SURFACE);
+    d.setColor(primary ? ACCENT : BG);
     if (!primary) d.setStroke(dp(1), LINE);
-    d.setCornerRadius(dp(12));
+    d.setCornerRadius(dp(28));
     b.setBackground(d);
     return b;
   }
@@ -1694,8 +1921,7 @@ public final class MainActivity extends Activity {
     l.setPadding(dp(18), dp(18), dp(18), dp(18));
     GradientDrawable d = new GradientDrawable();
     d.setColor(SURFACE);
-    d.setCornerRadius(dp(16));
-    d.setStroke(dp(1), LINE);
+    d.setCornerRadius(dp(28));
     l.setBackground(d);
     return l;
   }

@@ -13,7 +13,7 @@ final class CompanionProfileBackend extends IProfileService.Stub {
                           boolean mayHaveStartedWrite) {
         try {
             JSONObject reply = ShellCompanionClient.service(
-                method, index, nickname, token, activation, confirmation);
+                method, index, nickname, token, activation, confirmation, null);
             if (reply.length() == 0) throw new IllegalStateException("Empty response");
             return reply.toString();
         } catch (Exception failure) {
@@ -36,7 +36,7 @@ final class CompanionProfileBackend extends IProfileService.Stub {
 
     @Override public String getStatus() {
         try {
-            return ShellCompanionClient.service("getStatus",null,null,null,null,null)
+            return ShellCompanionClient.service("getStatus",null,null,null,null,null,null)
                     .optString("status", "Companion status unavailable");
         } catch (Exception e) { return "Companion disconnected"; }
     }
@@ -47,11 +47,27 @@ final class CompanionProfileBackend extends IProfileService.Stub {
     @Override public String listProfiles() { return result("listProfiles"); }
     @Override public String getCardInfo() { return result("getCardInfo"); }
     @Override public String getCardEid() { return result("getCardEid"); }
-    @Override public String getProfileIccid(int index) {
-        return result("getProfileIccid", index, null, null, null, null, false);
+    @Override public String getProfileIccid(int index, String selectionId) {
+        try {
+            JSONObject reply = ShellCompanionClient.service(
+                "getProfileIccid", index, null, null, null, null, selectionId);
+            if (reply.length() == 0) throw new IllegalStateException("Empty response");
+            return reply.toString();
+        } catch (Exception failure) {
+            try {
+                return new JSONObject().put("ok", false).put("status", "not_started")
+                    .put("reviewRequired", false).put("error", failure.getClass().getSimpleName()).toString();
+            } catch (Exception ignored) {
+                return "{\"ok\":false,\"status\":\"not_started\",\"reviewRequired\":false}";
+            }
+        }
     }
     @Override public String getOperationStatus() { return result("getOperationStatus"); }
     @Override public String reconcileOperation() { return result("reconcileOperation"); }
+    @Override public String prepareRecoveryReview() { return result("prepareRecoveryReview"); }
+    @Override public String confirmRecoveryReview(String token) {
+        return result("confirmRecoveryReview",null,null,token,null,null,false);
+    }
     @Override public String prepareSwitch(int index) {
         return result("prepareSwitch",index,null,null,null,null,false);
     }

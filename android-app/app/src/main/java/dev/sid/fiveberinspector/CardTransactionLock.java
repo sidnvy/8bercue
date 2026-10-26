@@ -79,4 +79,5 @@ public final class CardTransactionLock {
    throw new IOException("Invalid quarantine evidence");
  }
  public static synchronized boolean isActive(){return owner!=null;}
+ static synchronized boolean ownedByCurrentThread(){return owner==Thread.currentThread()&&lock!=null&&lock.isValid();}
 }

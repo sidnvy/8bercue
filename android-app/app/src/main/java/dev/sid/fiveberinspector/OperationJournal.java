@@ -84,7 +84,7 @@ public final class OperationJournal {
     public synchronized String statusAfterReadOnlyReconciliation() throws IOException {
         Properties current=read();
         checkRecoveryFiles();
-        return reviewed(current) ? "reviewed_abandoned" : current.getProperty("status", "unknown");
+        return reviewed(current) ? ("download".equals(current.getProperty("operation")) ? "reviewed_abandoned" : "reviewed_observed") : current.getProperty("status", "unknown");
     }
     public synchronized String observe(String card,String snapshot) throws IOException {
         Properties p=read();
@@ -177,14 +177,22 @@ public final class OperationJournal {
             throw new IOException("Invalid recovery record");
         Properties resolution=new Properties();try(InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)){resolution.load(in);}
         java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList("schema","txId","recordDigest","card","observedSnapshot","disposition","remoteOutcome","authorization","reviewedAt"));
-        if(!resolution.stringPropertyNames().equals(keys)||!"1".equals(resolution.getProperty("schema"))
-            ||!"download".equals(original.getProperty("operation"))||!"2".equals(original.getProperty("schema"))
-            ||!original.getProperty("status","").matches("unknown|observed_unknown")
+        String operation=original.getProperty("operation","");
+        boolean download="download".equals(operation)&&"1".equals(resolution.getProperty("schema"));
+        boolean lifecycle=operation.matches("enable|disable|rename|switch")
+            &&"2".equals(resolution.getProperty("schema"));
+        if(!resolution.stringPropertyNames().equals(keys)||!(download||lifecycle)
+            ||!"2".equals(original.getProperty("schema"))
+            ||!(download ? original.getProperty("status","").matches("unknown|observed_unknown")
+                : original.getProperty("status","").matches("running|unknown|observed_unknown"))
             ||!tx.equals(resolution.getProperty("txId"))||!recordDigest(original).equals(resolution.getProperty("recordDigest"))
             ||!original.getProperty("card","").equals(resolution.getProperty("card"))
-            ||!original.getProperty("before","").equals(resolution.getProperty("observedSnapshot"))
-            ||!"abandoned_unknown_no_profile_delta".equals(resolution.getProperty("disposition"))
-            ||!"unknown_do_not_reuse_code".equals(resolution.getProperty("remoteOutcome"))
+            ||!(download ? original.getProperty("before","").equals(resolution.getProperty("observedSnapshot"))
+                : resolution.getProperty("observedSnapshot","").matches("[a-f0-9]{64}"))
+            ||!(download ? "abandoned_unknown_no_profile_delta".equals(resolution.getProperty("disposition"))
+                : "accepted_observed_lifecycle_unknown".equals(resolution.getProperty("disposition")))
+            ||!(download ? "unknown_do_not_reuse_code".equals(resolution.getProperty("remoteOutcome"))
+                : "unknown_operation_not_replayed".equals(resolution.getProperty("remoteOutcome")))
             ||!resolution.getProperty("authorization","").matches("[a-f0-9]{64}")
             ||!resolution.getProperty("reviewedAt","").matches("[0-9]{1,20}"))
             throw new IOException("Recovery evidence does not match original transaction");
@@ -262,6 +270,70 @@ public final class OperationJournal {
         resolution.setProperty("recordDigest",expectedRecordDigest);resolution.setProperty("card",card);resolution.setProperty("observedSnapshot",snapshot);
         resolution.setProperty("disposition","abandoned_unknown_no_profile_delta");resolution.setProperty("remoteOutcome","unknown_do_not_reuse_code");
         resolution.setProperty("authorization",authorization);resolution.setProperty("reviewedAt",Long.toString(System.currentTimeMillis()));
+        persist(resolutions().resolve(tx+".properties").toFile(),resolution);
+    }
+
+    /** Read an authenticated, immutable lifecycle review when a crash left quarantine active. */
+    public synchronized String reviewedLifecycleSnapshot() throws IOException {
+        Properties current=read();
+        if(!current.getProperty("operation","").matches("enable|disable|rename|switch")
+            ||!reviewed(current))
+            throw new IOException("No completed lifecycle review");
+        Path path=resolutions().resolve(current.getProperty("txId")+".properties");
+        Properties resolution=new Properties();
+        try(InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)){resolution.load(in);}
+        return resolution.getProperty("observedSnapshot");
+    }
+
+    /**
+     * User-authorized acceptance of a stable inventory after an unknown lifecycle result.
+     * This DOES NOT verify or replay the old operation. The caller must hold the exclusive
+     * card lock, confirm worker quiescence, make two same-card reads, and obtain user consent.
+     * Download and delete are deliberately excluded: their effects need separate handling.
+     */
+    public synchronized void reviewObservedLifecycle(String tx,String card,String snapshot,
+            String expectedRecordDigest,String authorization) throws IOException {
+        checkRecoveryFiles();
+        Properties current=read();
+        if(tx==null||!tx.equals(current.getProperty("txId"))||!"2".equals(current.getProperty("schema"))
+            ||!current.getProperty("operation","").matches("enable|disable|rename|switch")
+            ||!current.getProperty("status","").matches("running|unknown|observed_unknown")
+            ||card==null||!card.matches("[a-f0-9]{64}")||!card.equals(current.getProperty("card"))
+            ||snapshot==null||!snapshot.matches("[a-f0-9]{64}")
+            ||expectedRecordDigest==null||!expectedRecordDigest.equals(recordDigest(current))
+            ||authorization==null||!authorization.matches("[a-f0-9]{64}")||reviewed(current))
+            throw new IOException("Lifecycle review is stale or ineligible");
+        Path history=file.toPath().getParent().resolve("history");
+        if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("Missing original transaction history");
+        boolean found=false;int count=0;
+        try(DirectoryStream<Path> entries=Files.newDirectoryStream(history)) {
+            for(Path entry:entries) {
+                if(++count>256||entry.getFileName().toString().endsWith(".pending"))
+                    throw new IOException("Incomplete journal history");
+                Properties prior=readRecord(entry,false);
+                if(!entry.getFileName().toString().equals(prior.getProperty("txId")+".properties"))
+                    throw new IOException("History identity mismatch");
+                if(tx.equals(prior.getProperty("txId"))) {
+                    if(!prior.equals(current))throw new IOException("Current/history disagreement");
+                    found=true;
+                }else if(uncertain(prior.getProperty("status"))&&!reviewed(prior))
+                    throw new IOException("Another unresolved transaction");
+            }
+        }
+        if(!found)throw new IOException("Original transaction history missing");
+        Files.createDirectories(resolutions());
+        Files.setPosixFilePermissions(resolutions(),PosixFilePermissions.fromString("rwx------"));
+        Properties resolution=new Properties();
+        resolution.setProperty("schema","2");
+        resolution.setProperty("txId",tx);
+        resolution.setProperty("recordDigest",expectedRecordDigest);
+        resolution.setProperty("card",card);
+        resolution.setProperty("observedSnapshot",snapshot);
+        resolution.setProperty("disposition","accepted_observed_lifecycle_unknown");
+        resolution.setProperty("remoteOutcome","unknown_operation_not_replayed");
+        resolution.setProperty("authorization",authorization);
+        resolution.setProperty("reviewedAt",Long.toString(System.currentTimeMillis()));
         persist(resolutions().resolve(tx+".properties").toFile(),resolution);
     }
 

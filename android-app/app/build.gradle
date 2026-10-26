@@ -10,8 +10,8 @@ android {
         applicationId 'dev.sid.fiveberinspector'
         minSdk 28
         targetSdk 36
-        versionCode 48
-        versionName '0.19.1-beta.3'
+        versionCode 52
+        versionName '0.20.0-beta.4'
         manifestPlaceholders = [glitchtipDsn: providers.gradleProperty('glitchtipDsn').orElse('').get()]
     }
 
@@ -58,6 +58,25 @@ android {
             debuggable false
             ndk { abiFilters 'arm64-v8a' }
             if (signingConfigs.findByName('release') != null) signingConfig signingConfigs.release
+        }
+        // Explicit test-only variant. Built only on an authorized lab device,
+        // and never included by main/release CI or publication workflows.
+        lab {
+            initWith release
+            signingConfig signingConfigs.debug
+            debuggable true
+            matchingFallbacks = ['release']
+        }
+    }
+
+    sourceSets {
+        release {
+            jniLibs.srcDirs += ['build/releaseJniLibs']
+            assets.srcDirs += ['build/releaseAdbAssets']
+        }
+        lab {
+            java.srcDirs += ['src/release/java']
+            jniLibs.srcDirs += ['build/labJniLibs']
         }
     }
 
