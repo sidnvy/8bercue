@@ -48,6 +48,13 @@ public final class CardScopedJournalOfflineTest {
   deny(()->OperationJournal.forCard(unbound.toFile(),B).requiresReconciliation(),"Unbound legacy uncertainty fails closed");
   Files.writeString(mixed.resolve("operation.pending"),"incomplete");
   deny(()->OperationJournal.forCard(mixed.toFile(),C).requiresReconciliation(),"Interrupted unbound durability commit fails closed");
+  Path rollback=Files.createTempDirectory("card-clock-rollback-");OperationJournal clock=new OperationJournal(rollback.toFile());clock.begin(intent(A));clock.finish("unknown");
+  Properties pointer=clock.read();pointer.setProperty("startedAt","1");store(rollback.resolve("operation.properties"),pointer);store(rollback.resolve("history").resolve(pointer.getProperty("txId")+".properties"),pointer);
+  Properties earlier=clock.read();String earlierId=UUID.randomUUID().toString();earlier.setProperty("txId",earlierId);earlier.setProperty("startedAt","9999999999999");earlier.setProperty("status","verified");store(rollback.resolve("history").resolve(earlierId+".properties"),earlier);
+  check(pointer.getProperty("txId").equals(OperationJournal.forCard(rollback.toFile(),A).read().getProperty("txId")),"Legacy current pointer survives wall-clock rollback");
+  Path linkedHistory=Files.createTempDirectory("card-linked-history-");OperationJournal linked=OperationJournal.forCard(linkedHistory.toFile(),B);
+  Files.createSymbolicLink(linkedHistory.resolve("cards").resolve(B).resolve("history"),mixed.resolve("history"));
+  deny(()->linked.readTransaction(id),"History lookup cannot follow a symlink across card journals");
   Path symlink=Files.createTempDirectory("card-symlink-");Files.createSymbolicLink(symlink.resolve("cards"),root.resolve("cards"));
   deny(()->OperationJournal.forCard(symlink.toFile(),B),"Symlink journal root rejected");
   System.out.println("PASS "+checks+" actual card-scoped journal, restart, legacy and isolation assertions");

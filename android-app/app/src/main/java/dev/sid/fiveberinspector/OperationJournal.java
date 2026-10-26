@@ -91,14 +91,15 @@ public final class OperationJournal {
             return current;
         }
         Properties prior=legacy.read();
-        if(belongs(prior))current=prior;
-        for(Properties record:legacyHistory())if("idle".equals(current.getProperty("status"))
+        java.util.List<Properties> history=legacyHistory();
+        if(belongs(prior))return prior; // The current pointer wins even after a wall-clock rollback.
+        for(Properties record:history)if("idle".equals(current.getProperty("status"))
             ||new java.math.BigInteger(record.getProperty("startedAt")).compareTo(new java.math.BigInteger(current.getProperty("startedAt")))>0)current=record;
         return current;
     }
     private static Properties readRecord(Path path, boolean allowMissing) throws IOException {
         Properties p = new Properties();
-        if(Files.isSymbolicLink(path))throw new IOException("Unsafe journal record");
+        if(Files.isSymbolicLink(path)||!path.toFile().getCanonicalFile().equals(path.toFile().getAbsoluteFile()))throw new IOException("Unsafe journal record");
         if (!Files.exists(path,LinkOption.NOFOLLOW_LINKS)) { if(!allowMissing)throw new IOException("Missing history record"); p.setProperty("status", "idle"); return p; }
         if (!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS) || Files.size(path)>4096)throw new IOException("Journal invalid");
         try (InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)) { p.load(in); }
