@@ -470,6 +470,9 @@
     <string name="wireless_adb_live_unavailable">"安全连接尚未就绪，请打开无线 ADB 设置核对配对状态"</string>
 
     <string name="recovery_review_button">核对当前卡片状态</string>
+    <string name="download_declined_before_install">运营商在安装前拒绝了此激活码，卡片配置未变化。请使用其他有效激活码；本次不会自动重试。</string>
+    <string name="download_not_installed">未安装：</string>
+    <string name="recovery_download_warning">上次下载结果未知。只有当前 eSIM 列表与那次下载前一致，才能继续。此操作会保留原始记录，放弃那次下载，且不会重试。激活码可能已消耗，请勿重复使用。后续操作将以核验后的当前卡片为准。</string>
     <string name="recovery_review_title">确认接受当前卡片状态？</string>
     <string name="recovery_review_warning">无法证明上次启用、停用或重命名是否成功。请先检查当前 eSIM 列表。此操作不会重试之前的写入；只有安全核验通过，才会保留原始未知结果和审核记录，并允许从当前卡片状态开始新操作。如果卡片或内容不符合预期，请勿继续。</string>
     <string name="recovery_review_changed">当前 Profile 列表与上次操作前的状态不同。确认前请检查各个 Profile 及启用状态。</string>

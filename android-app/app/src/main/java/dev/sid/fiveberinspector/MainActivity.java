@@ -529,11 +529,12 @@ public final class MainActivity extends Activity {
         notice=s(R.string.recovery_review_failed);render();return;
       }
       String token=proposal.optString("token","");
+      final boolean download="download".equals(proposal.optString("operation"));
       if(!OperationTokens.isValid(token)){
         notice=s(R.string.recovery_review_failed);render();return;
       }
       Sheet review=new Sheet(s(R.string.recovery_review_title));
-      review.copy(s(R.string.recovery_review_warning));
+      review.copy(s(download?R.string.recovery_download_warning:R.string.recovery_review_warning));
       review.copy(proposal.optBoolean("inventoryChanged",true)
           ?s(R.string.recovery_review_changed):s(R.string.recovery_review_unchanged));
       review.button(s(R.string.recovery_review_confirm),true,()->{
@@ -547,13 +548,13 @@ public final class MainActivity extends Activity {
             getPreferences(0).edit().putBoolean("pending",true).commit();
             return;
           }
-          if(!result.optBoolean("ok",false)||!"reviewed_observed".equals(result.optString("status"))){
+          if(!result.optBoolean("ok",false)||!(download?"reviewed_abandoned":"reviewed_observed").equals(result.optString("status"))){
             getPreferences(0).edit().putBoolean("pending",true).commit();
             notice=s(R.string.recovery_review_failed);render();return;
           }
           recoveryReviewEligible=false;
           getPreferences(0).edit().remove("pending").commit();
-          notice=s(R.string.recovery_review_completed);
+          notice=s(download?R.string.ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve:R.string.recovery_review_completed);
           checkRecovery();
         });
       });
@@ -633,14 +634,16 @@ public final class MainActivity extends Activity {
               || (r.optBoolean("installed", false)
                   && "installed_disabled".equals(r.optString("status")));
           boolean review = r.optBoolean("reviewRequired", !verified);
+          boolean notInstalled=op.equals("download")&&"not_completed".equals(r.optString("status"))
+              &&!r.optBoolean("reviewRequired",true)&&!r.isNull("installed")&&!r.optBoolean("installed",true);
           if (op.equals("download")) {
             verified = InstallResultPolicy.verified(r.optString("status"),
                 r.isNull("installed") ? null : r.optBoolean("installed", false),
                 r.isNull("enabled") ? null : r.optBoolean("enabled", true),
                 r.optBoolean("reviewRequired", true));
-            review = review || !verified;
+            review = !notInstalled&&(review || !verified);
           }
-          notice = verified && !review
+          notice = notInstalled?s(R.string.download_declined_before_install):verified && !review
               ? (op.equals("download")
                         ? s(R.string.ui_esim_installed_and_independently_verified_it_remains_disabled_yo)
                         : s(R.string.ui_operation_verified_by_a_fresh_card_read_review_the_updated_inven))
@@ -656,13 +659,13 @@ public final class MainActivity extends Activity {
           }
           if (r.has("notificationStatus") && verified && !review)
             notice += "\n" + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
-          if (verified && !review)
+          if ((verified || notInstalled) && !review)
             getPreferences(0).edit().remove("pending").commit();
           if (r.optBoolean("restartRequired", false) || !r.optBoolean("notificationWorkerStopped", true)) {
             getPreferences(0).edit().putBoolean("pending", true).commit();
             notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
-          recentResults.add(0, cardLabel()+" · "+(verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
+          recentResults.add(0, cardLabel()+" · "+(notInstalled?s(R.string.download_not_installed):verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;

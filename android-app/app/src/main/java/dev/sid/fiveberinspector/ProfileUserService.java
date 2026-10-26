@@ -145,7 +145,8 @@ public final class ProfileUserService extends IProfileService.Stub {
                 .put("recoveryScope",recoveryScope).put("changesBlocked",true)
                 .put("previousOperation",previous.getProperty("operation", "")).put("previousOutcome",previous.getProperty("status","unknown"))
                 .put("recoveryReviewEligible","same_card".equals(recoveryScope)&&displayedLifecycleFingerprint!=null&&EnrolledWritePolicy.isAllowed(target.identityHash)
-                    &&record.canReviewObservedLifecycle(target.identityHash));
+                    &&(record.canReviewObservedLifecycle(target.identityHash)
+                        ||(!isolated&&record.canReviewUnchangedDownload(target.identityHash,displayedFingerprint))));
             Log.i("EightberShell", "listProfiles success reader="+target.reader+" count="+reply.optInt("count",-1));
             return reply.toString();
         } catch (Throwable ex) {
@@ -229,7 +230,11 @@ public final class ProfileUserService extends IProfileService.Stub {
                 java.util.Properties diagnostics=new java.util.Properties();
                 JSONObject detail=result.optJSONObject("downloadDiagnostics");
                 if(detail!=null)for(java.util.Iterator<String> keys=detail.keys();keys.hasNext();) {String key=keys.next();diagnostics.setProperty(key,detail.getString(key));}
-                record.finish(verified && !uncertain ? "verified" : "unknown",diagnostics);
+                boolean notInstalled="download".equals(operation.operation)
+                    &&"not_completed".equals(result.optString("status"))&&!uncertain
+                    &&DownloadOutcomePolicy.notInstalled(result.optBoolean("nativeSuccess",true),
+                        result.optBoolean("workerStopped",false),result.optBoolean("inventoryUnchanged",false),diagnostics);
+                record.finish(verified && !uncertain ? "verified" : notInstalled ? "not_completed" : "unknown",diagnostics);
                 return result.toString();
             } catch (Throwable e) {
                 try { record.finish("unknown"); } catch (Exception persistenceFailure) { CardTransactionLock.quarantine(); }
@@ -321,11 +326,13 @@ public final class ProfileUserService extends IProfileService.Stub {
     /** Caller already holds ReadOnlyRecovery's original cross-process lock. */
     private RecoveryReviewPlan observeLifecycleForReview(OperationJournal journal) throws Exception {
         java.util.Properties record=journal.read();
+        boolean download="download".equals(record.getProperty("operation"));
         boolean alreadyReviewed="reviewed_observed".equals(journal.statusAfterReadOnlyReconciliation());
         if(!"2".equals(record.getProperty("schema"))||
-            !record.getProperty("operation","").matches("enable|disable|rename|switch")||
+            !record.getProperty("operation","").matches("enable|disable|rename|switch|download")||
             !record.getProperty("status","").matches("running|unknown|observed_unknown")||
-            !journal.canReviewObservedLifecycle(record.getProperty("card"))||
+            (!download&&!journal.canReviewObservedLifecycle(record.getProperty("card")))||
+            (download&&(alreadyReviewed||CardTransactionLock.persistentQuarantine()))||
             !(journal.requiresReconciliation()||alreadyReviewed)||
             (alreadyReviewed&&!CardTransactionLock.persistentQuarantine()))
             throw new SecurityException("No eligible unresolved lifecycle operation");
@@ -335,15 +342,19 @@ public final class ProfileUserService extends IProfileService.Stub {
             throw new SecurityException("Recovery must use the original permitted card");
         NativeLpacBundle.ensureInstalled();
         PhoneNativeLpac.listProfiles();
-        String initial=ProfileLifecycleGuard.fingerprint(
-            PortableProfileLifecycle.rows(CardProfileInventory.list()));
+        java.util.List<CardProfileInventory.Entry> first=CardProfileInventory.list();
+        String initial=download?inventoryFingerprint(first):ProfileLifecycleGuard.fingerprint(
+            PortableProfileLifecycle.rows(first));
         Thread.sleep(300);
-        String confirmed=ProfileLifecycleGuard.fingerprint(
-            PortableProfileLifecycle.rows(CardProfileInventory.list()));
+        java.util.List<CardProfileInventory.Entry> second=CardProfileInventory.list();
+        String confirmed=download?inventoryFingerprint(second):ProfileLifecycleGuard.fingerprint(
+            PortableProfileLifecycle.rows(second));
         FiveberReaderSelector.Target same=FiveberReaderSelector.discover();
         if(!initial.equals(confirmed)||!same.identityHash.equals(card.identityHash)||
             !same.reader.equals(card.reader))
             throw new ReadOnlyRecovery.Failure("RECOVERY_INVENTORY_UNSTABLE");
+        if(download&&!journal.canReviewUnchangedDownload(card.identityHash,confirmed))
+            throw new SecurityException("Download review requires the unchanged original inventory and complete history");
         if(alreadyReviewed&&!confirmed.equals(journal.reviewedLifecycleSnapshot()))
             throw new SecurityException("Card changed after durable review; manual investigation required");
         return new RecoveryReviewPlan(record.getProperty("txId"),card.identityHash,
@@ -402,14 +413,18 @@ public final class ProfileUserService extends IProfileService.Stub {
                 // Commit the review FIRST. With a persistent quarantine, the marker still
                 // blocks writes until separately archived. If interrupted, a fresh explicit
                 // consent and identical inventory can resume archival without altering history.
-                if(!expected.alreadyReviewed)
-                    record.reviewObservedLifecycle(expected.tx,expected.card,expected.snapshot,
-                        expected.recordDigest,authorization);
+                if(!expected.alreadyReviewed) {
+                    if("download".equals(expected.operation))
+                        record.abandonUnchangedDownload(expected.tx,expected.card,expected.snapshot,
+                            expected.recordDigest,authorization);
+                    else record.reviewObservedLifecycle(expected.tx,expected.card,expected.snapshot,
+                            expected.recordDigest,authorization);
+                }
                 if(CardTransactionLock.persistentQuarantine())
                     ReadOnlyRecovery.archiveAfterReview(expected.card,expected.recordDigest,
                         expected.snapshot,authorization);
                 invalidatePreviews();
-                return new JSONObject().put("ok",true).put("status","reviewed_observed")
+                return new JSONObject().put("ok",true).put("status","download".equals(expected.operation)?"reviewed_abandoned":"reviewed_observed")
                     .put("originalOutcome","unknown").put("previousOperation",expected.operation)
                     .put("priorOperationRetried",false).put("safetyRecordsPreserved",true).toString();
             }finally{CardTransactionLock.release();}

@@ -154,7 +154,10 @@ public final class PhoneProfileDownload {
                 diagnostics.nativeStopped(stopped);
                 if(stopped)child.set(null);
             }
-            if(bridge!=null){bridge.close();if(bridge.cleanupFailed())unsafeChannel.set(true);}
+            if(bridge!=null){
+                diagnostics.installCommands(bridge.installCommands());
+                bridge.close();if(bridge.cleanupFailed())unsafeChannel.set(true);
+            }
         }
     }
     private static String readBoundedLine(BufferedReader reader) throws IOException {
