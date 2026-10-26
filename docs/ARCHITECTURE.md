@@ -8,8 +8,13 @@ separate layers. Support in one layer does not establish support in the others.
 
 ```mermaid
 flowchart TD
-    UI[Android app] --> Consent[User authorizes ADB connection]
-    Consent --> Companion[Shell companion - UID 2000]
+    UI[Android app] --> Choice[User chooses connection method]
+    Choice --> Wireless[On-device wireless ADB]
+    Choice --> USB[Computer ADB]
+    Choice --> Shizuku[Authorized Shell-mode Shizuku]
+    Wireless --> Companion[Shell companion - UID 2000]
+    USB --> Companion
+    Shizuku --> Companion
     Companion --> Binder[Authenticated typed management service]
     Binder --> Discovery[Read-only capability discovery]
     Discovery --> HAL[Secure Element AIDL or HIDL]
@@ -22,8 +27,9 @@ flowchart TD
 ```
 
 The visible app remains an ordinary app. User-authorized ADB starts a local
-companion as Android Shell, UID 2000. Shell has more system access than an
-ordinary app on some ROMs; it is not root. An authenticated, versioned Binder
+companion as Android Shell, UID 2000; an already-running Shell-mode Shizuku
+service is an optional way to launch the same companion. Shell has more system
+access than an ordinary app on some ROMs; it is not root. An authenticated, versioned Binder
 interface exposes scoped management operations to the app. A process merely
 starting does not establish that the Binder or the card is ready.
 
@@ -33,6 +39,22 @@ remembered app key. The code is not a permanent password. The app discovers loca
 services and uses the fixed companion entrypoint, rather than exposing a general
 ADB command terminal. USB setup starts the same service through an App-created,
 short-lived challenge. See [connection setup](ADB_CONNECTION.md).
+
+## Three separate boundaries
+
+| Boundary | Question it answers | What it does not establish |
+| --- | --- | --- |
+| Android authorization | May the local companion run as Shell and use this system interface? | Root access, an unlocked card or a working operator subscription |
+| Card access and management | Can that interface open ISD-R and perform the requested card operation? | A valid activation code or permission to download any operator profile |
+| Operator provisioning | Will the SM-DP+ server and eUICC authenticate and accept this profile package? | Compatibility of every Android card interface or mobile network service |
+
+ADB wireless pairing establishes trust between this app's ADB client and the
+phone's debugging service. The later TLS connection protects that transport.
+Profile download uses a separate HTTPS connection to SM-DP+ plus the eUICC's
+RSP authentication and bound profile package. An ADB pairing key does not replace
+the card's certificates or operator authorization. The app acts as an LPA
+client; it does not install itself as Android's system-selected LPA. See
+[AOSP's eSIM architecture](https://source.android.com/docs/core/connect/esim-overview).
 
 ## What ARA-M controls
 
@@ -90,8 +112,11 @@ scoped management paths. HIDL currently permits reads only.
 Card selection is pinned to the full verified identity and reader for the
 service session. Each operation rechecks identity and inventory. Writes retain
 explicit intent/consent, operation-specific policies, exclusive locking, durable
-journals and independent postflight observation. Unknown results stop further
-writes and are not silently retried. [Recovery](READ_ONLY_RECOVERY.md) restores
+journals and independent postflight observation. Unresolved results stop further writes on the affected card and are not
+silently retried. Exact recorded enable/disable intent can be confirmed by two
+stable, complete reads of that same card; this creates a separate observation
+receipt and preserves the original unknown record. Other cases retain their
+operation-specific recovery requirements. [Recovery](READ_ONLY_RECOVERY.md) restores
 observation separately from resolving an interrupted operation.
 
 Implementation entry points:
@@ -121,3 +146,12 @@ and observe quiescence twice under the same lock. Its quarantine marker is then
 archived with a worker-only receipt. This establishes that work has stopped; it
 does not resolve any card's unknown operation. Notification delivery and cleanup
 use the selected card's transaction history as well.
+
+## Multiple profiles versus multiple enabled profiles
+
+Storing several profiles on one card is different from enabling several at the
+same time. This manager currently models one enabled profile per card. MEP needs
+compatible eUICC firmware, modem/slot routing and Android port support; it cannot
+be added by removing the single-profile guard or sending a second enable. A
+phone supporting MEP for its built-in eUICC does not establish that its removable
+slot supports it. See [AOSP MEP architecture](https://source.android.com/docs/core/connect/esim-mep).

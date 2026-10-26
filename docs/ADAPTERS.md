@@ -45,7 +45,10 @@ a ROM patch. A new adapter should document its own actual permission basis.
 - Enumerate actual readers; validate names and bounded inventories.
 - Open only the intended management applet and close only owned channels.
 - Do not call HAL init/reset or replace shared callbacks.
-- Stop on uncertain cleanup; do not continue through another backend or card.
+- During discovery, stop on uncertain cleanup; do not continue through another
+  backend or card. Submitted enable/disable REFRESH cleanup has its own bounded
+  independent postflight and session-retirement rules; an adapter must not
+  invent a retry or skip that lifecycle policy.
 - Bind the selected reader to the complete verified card identity. Equal masked
   suffixes do not establish that two cards are the same.
 - Require explicit selection when more than one card is verified.
@@ -66,3 +69,20 @@ on the actual ROM. State the exact tested app version and scope; simulated
 passes do not qualify real hardware. A device report does not need raw APDUs,
 identifiers or a long acceptance diary. Follow [CONTRIBUTING.md](../CONTRIBUTING.md)
 for a concise PR.
+
+## From a device result to a contribution
+
+| Observation | First place to investigate | Useful contribution |
+| --- | --- | --- |
+| No discoverable interface | `SystemHalAdapter`, VINTF declarations and trusted system API lookup | Reusable discovery/binding support with missing/denied cases |
+| Interface found, card cannot be read | Transport open/transmit/close behavior and `FiveberReaderSelector` failure stage | Focused adapter fix or a scoped failure report |
+| One backend reads but writes are unavailable | `ReaderDescriptor` and operation-specific transport policies | Document the actual operation boundary; read success alone is not grounds to admit writes |
+| Changing a profile loses the session | `ScopedLifecycleHalBridge`, `PortableProfileLifecycle` and `ReadOnlyRecovery` | Reproduce cleanup/postflight behavior without resending the card command |
+| An existing adapter works on a new phone | No runtime change required | A compatibility row with app/ROM/card, backend and tested scope |
+
+For a code PR, explain which interface differs, why its use is permitted on the
+ROM, how the adapter remains bounded, and what was verified on the resulting APK.
+Keep any transaction/recovery change separate from a transport-only fix unless
+it is necessary to solve the same observed fault. Follow the check selection in
+[CONTRIBUTING.md](../CONTRIBUTING.md); compatibility, recovery and bootstrap
+changes have different relevant regression suites.

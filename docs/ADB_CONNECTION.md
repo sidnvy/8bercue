@@ -83,5 +83,7 @@ explicit selection; a changed/missing selected card stops access instead of
 silently using another one.
 
 Do not clear app data, remove unrelated pairings or change debugging/network
-settings as a generic recovery step. Existing unknown card outcomes require
-[recovery review](READ_ONLY_RECOVERY.md), not another write attempt.
+settings as a generic recovery step. For an earlier uncertain card outcome, the app first tries automatic exact
+observation where supported; other cases retain their own review requirements.
+See [interrupted operations and recovery](READ_ONLY_RECOVERY.md) before trying
+another card change.
