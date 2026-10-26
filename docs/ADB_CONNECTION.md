@@ -1,8 +1,9 @@
 # Connect 8bercue
 
 The app talks to a local companion running as Android Shell (UID 2000). Authorize
-it through on-device wireless ADB or a trusted computer with USB ADB. Neither
-method grants root. Card access is checked separately after connection.
+it through on-device wireless ADB, a trusted computer with USB ADB, or an
+already-running Shizuku service with ADB permissions. None of these methods
+grants root. Card access is checked separately after connection.
 
 ## Wireless setup on the phone
 
@@ -43,6 +44,28 @@ The command resolves the installed APK on the phone and starts its fixed
 connection entrypoint. It downloads no separate helper and requires no Python
 runtime. The terminal confirms an authenticated Binder connection or reports a
 bounded failure. A successful launch attempt alone is not treated as success.
+
+## Shizuku (optional)
+
+If Shizuku is already running with ADB permissions on this phone, **Shizuku**
+appears as a third method under **Connection & access**. Choose it and allow
+8bercue in Shizuku's authorization prompt. No extra pairing or computer command
+is needed for 8bercue. Having Shizuku installed without a running service is not
+enough; start it normally in Shizuku first, then return to 8bercue.
+
+This integration supports Shizuku server API 13 or later, started through ADB
+(Shell UID 2000). Root-started Shizuku and Sui are not supported by this Shell
+backend. The app requests Shizuku permission only after you select this method.
+
+Shizuku launches a one-use service from the installed 8bercue APK. That service
+can only start 8bercue's fixed connection entrypoint; it accepts no command,
+path or card operation. The same current-App challenge, installed APK digest,
+caller checks and typed management Binder used by the other methods still
+apply. The launcher is removed after the handoff; existing card operation
+consent, locks, journals and postflight checks do not change.
+
+See the [official Shizuku API guide](https://github.com/RikkaApps/Shizuku-API)
+for the distinction between ADB and root identities and the UserService API.
 
 ## Connection versus card access
 

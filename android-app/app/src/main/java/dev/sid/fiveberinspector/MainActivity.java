@@ -61,6 +61,24 @@ public final class MainActivity extends Activity {
   private String title = "", detail = "",
                  notice = "";
   private final Handler handler = new Handler(Looper.getMainLooper());
+  private boolean shizukuPermissionPending;
+  private long shizukuPermissionUntil;
+  private final rikka.shizuku.Shizuku.OnBinderReceivedListener shizukuAvailable = () -> handler.post(() -> {
+    if(!destroyed&&resumed&&screen==SettingsNavigation.CONNECTION)render();
+  });
+  private final rikka.shizuku.Shizuku.OnBinderDeadListener shizukuUnavailable = () -> handler.post(() -> {
+    shizukuPermissionPending=false;
+    if(!destroyed&&resumed&&screen==SettingsNavigation.CONNECTION)render();
+  });
+  private final rikka.shizuku.Shizuku.OnRequestPermissionResultListener shizukuPermission = (request,grant) -> handler.post(() -> {
+    if(request!=ShizukuConnection.PERMISSION_REQUEST||!shizukuPermissionPending||destroyed)return;
+    if(grant==PackageManager.PERMISSION_GRANTED)resumeShizukuAuthorization();
+    else {
+      shizukuPermissionPending=false;
+      status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_permission_denied));
+      if(resumed)render();
+    }
+  });
   private final Runnable watch = new Runnable() {
     public void run() {
       if (destroyed || !resumed)
@@ -129,6 +147,9 @@ public final class MainActivity extends Activity {
       connectionReturnScreen=saved.getBoolean("connectionFromHome",false)?0:2;
       computerReturnScreen=saved.getBoolean("computerFromHome",false)?0:SettingsNavigation.CONNECTION;
     }
+    rikka.shizuku.Shizuku.addBinderReceivedListenerSticky(shizukuAvailable);
+    rikka.shizuku.Shizuku.addBinderDeadListener(shizukuUnavailable);
+    rikka.shizuku.Shizuku.addRequestPermissionResultListener(shizukuPermission);
     SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.APP_STARTED);
     if (getPreferences(0).getBoolean("pending", false))
       notice = s(R.string.ui_card_and_operation_state_need_verification_open_settings_verify);
@@ -138,6 +159,7 @@ public final class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     resumed = true;
+    resumeShizukuAuthorization();
     connectExistingCompanion();
     handler.removeCallbacks(watch);
     handler.post(watch);
@@ -224,6 +246,7 @@ public final class MainActivity extends Activity {
     }
   }
   private void beginDirectBootstrap() {
+    shizukuPermissionPending=false;
     if (!managementUnavailable().isEmpty()) {
       compatibilityFailure(CompatibilityDiagnostics.Stage.BOOTSTRAP,
           CompatibilityDiagnostics.Failure.DEVICE_UNSUPPORTED);
@@ -765,6 +788,7 @@ public final class MainActivity extends Activity {
   private void navigate(int destination) {
     if(OPERATIONS.running())return;
     if (screen == 1 && destination != 1) { clearCredentials();pendingImport = null;draft.changed(); }
+    if(destination!=SettingsNavigation.CONNECTION)shizukuPermissionPending=false;
     if(destination==SettingsNavigation.CONNECTION&&screen!=SettingsNavigation.CONNECTION&&screen!=6)connectionReturnScreen=screen==0?0:2;
     navigationSession++;
     if (destination != 1) { draft.form = false;showConfirmation = false; }
@@ -1176,6 +1200,7 @@ public final class MainActivity extends Activity {
       LinearLayout methods=navigationGroup(20);
       navigationItem(methods,s(R.string.nav_computer_connection),s(R.string.nav_computer_connection_summary),"connection",this::beginDirectBootstrap);
       if(wireless)navigationItem(methods,s(R.string.nav_wireless_connection),s(R.string.nav_wireless_connection_summary),"connection",this::showWirelessConnection);
+      if(ShizukuConnection.available())navigationItem(methods,s(R.string.nav_shizuku_connection),s(R.string.nav_shizuku_connection_summary),"connection",this::chooseShizukuConnection);
       add(text(s(R.string.nav_authorization_scope),13,MUTED,false),20);
     }
     LinearLayout help=navigationGroup(28);
@@ -1184,6 +1209,7 @@ public final class MainActivity extends Activity {
 
   private void showWirelessConnection() {
     if(!wirelessOnboardingAvailable()||OPERATIONS.running())return;
+    shizukuPermissionPending=false;
     boolean paired=OnDeviceAdbWirelessManager.hasPaired(this);
     Sheet wireless=new Sheet(s(R.string.nav_wireless_connection));
     wireless.copy(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps));
@@ -1205,6 +1231,45 @@ public final class MainActivity extends Activity {
     launchUserApprovedPairingFlow();
   }
 
+  private void chooseShizukuConnection() {
+    if(destroyed||!resumed||OPERATIONS.running()||backend!=null||!ShizukuConnection.available())return;
+    if(shizukuPermissionPending&&android.os.SystemClock.elapsedRealtime()<shizukuPermissionUntil)return;
+    if(ShizukuConnection.permitted()){startShizukuBootstrap();return;}
+    shizukuPermissionPending=true;
+    shizukuPermissionUntil=android.os.SystemClock.elapsedRealtime()+120000;
+    try {rikka.shizuku.Shizuku.requestPermission(ShizukuConnection.PERMISSION_REQUEST);}
+    catch(RuntimeException unavailable){
+      shizukuPermissionPending=false;
+      status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_unavailable));render();
+    }
+  }
+
+  private void resumeShizukuAuthorization() {
+    if(!shizukuPermissionPending||destroyed)return;
+    if(android.os.SystemClock.elapsedRealtime()>=shizukuPermissionUntil){shizukuPermissionPending=false;return;}
+    if(!resumed||OPERATIONS.running()||backend!=null||!ShizukuConnection.permitted())return;
+    shizukuPermissionPending=false;startShizukuBootstrap();
+  }
+
+  private void startShizukuBootstrap() {
+    if(destroyed||!resumed||OPERATIONS.running()||backend!=null||!ShizukuConnection.permitted())return;
+    try {CompanionBinderProvider.beginManagementBootstrap();}
+    catch(SecurityException existing){connectDirect();return;}
+    compatibility=new JSONObject();fallback=false;binderReadOnlyInventory=false;directManagement=true;companionManagement=true;
+    navigationSession++;clearDetailSelection();
+    CompatibilityDiagnostics.started(CompatibilityDiagnostics.Transport.ADB_COMPANION);
+    run(s(R.string.nav_shizuku_connecting),false,()->{
+      boolean ready;
+      try {ready=ShizukuConnection.connect(getApplicationContext());}
+      catch(Exception unavailable){ready=false;}
+      return new JSONObject().put("ready",ready);
+    },result->{
+      if(result.optBoolean("ready"))connectDirect();
+      if(backend==null)status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_unavailable));
+      render();
+    });
+  }
+
   private void showConnectionHelp() {
     Sheet help=new Sheet(s(R.string.ui_setup_help));
     help.copy(s(R.string.nav_connection_choice_help));
@@ -1216,6 +1281,7 @@ public final class MainActivity extends Activity {
       help.copy(s(R.string.nav_reconnect_help));
     }
     help.copy(s(R.string.nav_authorization_scope));
+    if(ShizukuConnection.available())help.copy(s(R.string.nav_shizuku_connection_summary));
     help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
   }
 
@@ -1946,6 +2012,10 @@ public final class MainActivity extends Activity {
     if (installResultDialog != null) installResultDialog.dismiss();
     if (activeSheet != null) activeSheet.dismiss();
     destroyed = true;
+    shizukuPermissionPending=false;
+    rikka.shizuku.Shizuku.removeBinderReceivedListener(shizukuAvailable);
+    rikka.shizuku.Shizuku.removeBinderDeadListener(shizukuUnavailable);
+    rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuPermission);
     handler.removeCallbacks(watch);
     releaseWhenIdle();
     super.onDestroy();

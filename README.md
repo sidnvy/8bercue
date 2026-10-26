@@ -67,6 +67,12 @@ ADB command and run it during the two-minute connection window. Select the
 correct device if several phones are connected. The command confirms the local
 service connection; card access is checked separately.
 
+### With Shizuku (optional)
+
+If Shizuku is already running with ADB permissions, choose **Shizuku** under
+**Connection & access** and allow 8bercue. This uses the same Shell companion;
+root-started Shizuku and Sui are not supported. [Connection help](docs/ADB_CONNECTION.md).
+
 Your profiles appear after the card is read automatically; use **Refresh** to
 read again. Card information is under **Settings → Advanced**. Connection details,
 help and diagnostic export are under **Help & feedback**. [Try a new phone](docs/NEW_DEVICE_CHECK.md).

@@ -7,5 +7,7 @@ src=app/src/main/java/dev/sid/fiveberinspector
 "${JAVA_HOME:+$JAVA_HOME/bin/}javac" -d "$out" "$src"/{ConnectionCommand,ConnectionFeedback,ProfileActionPolicy,ProfileDetailSession,RecoveryUiPolicy,UiStatusPolicy,ProfileUiIdentity,IntentDigests,OperationTokens,SettingsNavigation}.java tools/UiFlowOfflineTest.java
 "${JAVA_HOME:+$JAVA_HOME/bin/}java" -cp "$out" dev.sid.fiveberinspector.UiFlowOfflineTest
 python3 tools/test_settings_navigation.py
+python3 tools/test_shizuku_connection.py
+python3 tools/check_shizuku_surface.py
 python3 tools/test_support_entrypoints.py
 python3 tools/test_inventory_ui.py

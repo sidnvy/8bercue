@@ -559,9 +559,14 @@
   <string name="recovery_review_unavailable">这条记录目前无法在 App 内核对。请保留应用数据，通过「帮助与反馈」联系支持。</string>
     <string name="sim_card_label">"SIM 卡 %1$s"</string>
   <string name="nav_choose_connection">选择连接方式</string>
-  <string name="nav_connection_choice_help">选择如何为本机的 8bercue 授权。两种方式提供相同的卡片管理权限。</string>
+  <string name="nav_connection_choice_help">选择如何为本机的 8bercue 授权。各方式提供相同的卡片管理权限。</string>
   <string name="nav_computer_connection">通过电脑 · USB ADB</string>
   <string name="nav_computer_connection_summary">用 USB 连接本机，在可信任的电脑上运行一条命令。</string>
   <string name="nav_wireless_connection">在本机 · 无线 ADB</string>
   <string name="nav_wireless_connection_summary">通过 Wi-Fi 与 Android 无线调试配对，无需电脑。</string>
+  <string name="nav_shizuku_connection">Shizuku</string>
+  <string name="nav_shizuku_connection_summary">使用本机已运行的 Shizuku 服务，按提示允许 8bercue。</string>
+  <string name="nav_shizuku_permission_denied">未获得 Shizuku 授权。可重新选择连接方式再试。</string>
+  <string name="nav_shizuku_unavailable">未能通过 Shizuku 完成连接。请保持其 ADB 权限服务运行，或选择其他连接方式。</string>
+  <string name="nav_shizuku_connecting">正在通过 Shizuku 连接</string>
 </resources>
