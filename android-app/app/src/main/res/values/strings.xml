@@ -470,7 +470,7 @@
     <string name="wireless_adb_live_unavailable">"Secure connection not ready; open Wireless ADB setup to verify pairing"</string>
 
 
-    <string name="recovery_review_button">Review the previous change</string>
+    <string name="recovery_review_button">Review the current card state</string>
     <string name="recovery_review_title">Accept the current card state?</string>
     <string name="recovery_review_warning">The previous enable, disable or rename result cannot be proven. Check the visible eSIM list first. This will NOT repeat the previous operation. If verification succeeds, an audit record will preserve its unknown outcome and allow new actions from the current card state. Do not continue if the card is unexpected.</string>
     <string name="recovery_review_changed">The current card profile inventory differs from the snapshot before that operation. Review each profile and enabled state before confirming.</string>
@@ -550,4 +550,7 @@
   <string name="recovery_view_only_title">View only</string>
   <string name="recovery_view_only_summary">You can view this card. Changes are paused because a previous change was not confirmed.</string>
   <string name="recovery_record_summary">The app did not receive a final result for an earlier change. Its record is kept and the change will not be retried automatically.</string>
+  <string name="recovery_other_card_summary">You can view this card. Reconnect so the app can verify that the previous background task has stopped.</string>
+  <string name="recovery_review_original_card">Reconnect and select this card again. Its operation records are checked independently of other cards.</string>
+  <string name="recovery_review_unavailable">This record cannot currently be reviewed in the app. Keep app data and use Help and feedback for support.</string>
 </resources>

@@ -469,7 +469,7 @@
     <string name="wireless_adb_live_reconnecting">"正在建立安全本机连接"</string>
     <string name="wireless_adb_live_unavailable">"安全连接尚未就绪，请打开无线 ADB 设置核对配对状态"</string>
 
-    <string name="recovery_review_button">确认上次操作</string>
+    <string name="recovery_review_button">核对当前卡片状态</string>
     <string name="recovery_review_title">确认接受当前卡片状态？</string>
     <string name="recovery_review_warning">无法证明上次启用、停用或重命名是否成功。请先检查当前 eSIM 列表。此操作不会重试之前的写入；只有安全核验通过，才会保留原始未知结果和审核记录，并允许从当前卡片状态开始新操作。如果卡片或内容不符合预期，请勿继续。</string>
     <string name="recovery_review_changed">当前 Profile 列表与上次操作前的状态不同。确认前请检查各个 Profile 及启用状态。</string>
@@ -551,4 +551,7 @@
   <string name="recovery_view_only_title">仅可查看</string>
   <string name="recovery_view_only_summary">可以查看这张卡。上次操作结果未确认，修改暂不可用。</string>
   <string name="recovery_record_summary">App 未收到上次更改的最终结果。已保留记录，不会自动重试该操作。</string>
+  <string name="recovery_other_card_summary">可以查看这张卡。请重新连接，让 App 确认上一个后台任务已停止。</string>
+  <string name="recovery_review_original_card">请重新连接并选择这张卡。App 会独立检查它的操作记录，不受其他卡片记录影响。</string>
+  <string name="recovery_review_unavailable">这条记录目前无法在 App 内核对。请保留应用数据，通过「帮助与反馈」联系支持。</string>
 </resources>

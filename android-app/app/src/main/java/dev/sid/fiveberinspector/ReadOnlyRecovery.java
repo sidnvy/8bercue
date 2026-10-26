@@ -8,7 +8,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-/** Recover observation, never a mutation grant or a disposition of the unknown operation. */
+/** Recover stopped-worker access without disposing of any card operation outcome. */
 final class ReadOnlyRecovery {
  private static final Path ROOT=Paths.get("/data/local/tmp/fiveber-lpac-lab");
  private static final Path MARKER=ROOT.resolve("card-transaction.lock.quarantine");
@@ -70,12 +70,14 @@ final class ReadOnlyRecovery {
       FileLock lock=channel.tryLock()){
    if(lock==null)throw new Failure("RECOVERY_WORKER_ACTIVE");
    Files.setPosixFilePermissions(guard,PosixFilePermissions.fromString("rw-------"));
-   Properties journal=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state")).read();
-   if(!journal.getProperty("status","").matches("unknown|observed_unknown|running"))throw new Failure("RECOVERY_EVIDENCE_INVALID");
-   String marker=NativeLpacBundle.digest(MARKER.toFile()),record=OperationJournal.recordDigest(journal);
-   int retired=RecoveryProcessGuard.retire(HOST,android.os.Process.myPid());
+   String marker=NativeLpacBundle.digest(MARKER.toFile());
+   RecoveryProcessGuard.retire(HOST,android.os.Process.myPid());
    CardTransactionLock.acquireReadOnly();
-   try{receipt("backend_retired_read_only",marker,record,"", "",retired);}
+   try{
+    requireReviewQuiescent();
+    QuarantineReview.archiveStoppedWorkers(ROOT.resolve("card-transaction.lock"),marker,
+        NativeLpacBundle.digest(new File(NativeLpacBundle.installedApk())));
+   }
    finally{CardTransactionLock.release();}
   }
  }
@@ -136,7 +138,7 @@ final class ReadOnlyRecovery {
  static void archiveAfterReview(String card,String journalDigest,String snapshot,String authorization)throws Exception{
   if(!CardTransactionLock.ownedByCurrentThread()||CardTransactionLock.isQuarantined())
    throw new Failure("RECOVERY_WORKER_ACTIVE");
-  OperationJournal journal=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state"));
+  OperationJournal journal=OperationJournal.forCard(new File("/data/local/tmp/fiveber-rescue-state"),card);
   Properties operation=journal.read();
   if(!card.equals(operation.getProperty("card"))||!journalDigest.equals(OperationJournal.recordDigest(operation))
     ||!snapshot.equals(journal.reviewedLifecycleSnapshot()))

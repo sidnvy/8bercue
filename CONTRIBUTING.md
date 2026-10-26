@@ -39,8 +39,11 @@ Read [the adapter guide](docs/ADAPTERS.md) and [architecture](docs/ARCHITECTURE.
    were exercised and which remain untested.
 
 Never relax complete card identity binding, explicit multi-card choice, caller
-verification, one-use operation consent, transaction locks, unknown-outcome
+verification, one-use operation consent, transaction locks, per-card unknown-outcome
 blocking or independent postflight reads to make a new phone appear supported.
+A result unknown on one card must not restrict another card. Preserve legacy
+records, scope new journals to the complete card identity, and prove that old
+workers have stopped before releasing a global worker quarantine.
 Do not initialize/reset a shared HAL or close another client's channels.
 
 ## Open a pull request
