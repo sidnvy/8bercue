@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="esim_visibility_section">System eSIM</string>
+    <string name="esim_visibility_title">Repair built-in eSIM visibility</string>
+    <string name="esim_visibility_summary">Refresh Android’s built-in eSIM list without rebooting</string>
+    <string name="esim_visibility_checking">Checking system eSIM</string>
+    <string name="esim_visibility_warning">This requests a system subscription-list refresh for the built-in eUICC only. It does not download, delete, enable, or disable profiles. Because of the Android synchronization bug, this may temporarily hide removable eUICC subscriptions in Settings, and refreshing the removable card may hide built-in profiles again. Continue?</string>
+    <string name="esim_visibility_request">Refresh system list</string>
+    <string name="esim_visibility_requesting">Requesting system refresh</string>
+    <string name="esim_visibility_requested">System refresh requested</string>
+    <string name="esim_visibility_verify">Check Android Settings to confirm your built-in eSIMs reappear. A later removable-card refresh might hide them again.</string>
+    <string name="esim_visibility_unavailable">System eSIM repair unavailable</string>
+    <string name="esim_visibility_connect_companion">Connect the authorized ADB Shell Companion and confirm Android exposes one built-in eUICC.</string>
+
     <string name="ui_connect_your_card" formatted="false">"Connect your card"</string>
       <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"An operation ended while this screen was unavailable. Verify the card before continuing; do not repeat the operation."</string>
     <string name="ui_needs_verification" formatted="false">Previous change not confirmed</string>

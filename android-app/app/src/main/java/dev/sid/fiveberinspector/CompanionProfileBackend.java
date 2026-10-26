@@ -34,6 +34,8 @@ final class CompanionProfileBackend extends IProfileService.Stub {
         return result(method,null,null,null,null,null,false);
     }
 
+    @Override public String preflightSystemEsimVisibilityRepair() { return result("preflightSystemEsimVisibilityRepair"); }
+    @Override public String requestSystemEsimVisibilityRepair() { return result("requestSystemEsimVisibilityRepair"); }
     @Override public String getStatus() {
         try {
             return ShellCompanionClient.service("getStatus",null,null,null,null,null)

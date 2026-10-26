@@ -80,6 +80,8 @@ public final class ShellCompanionClient {
         // SO_PEERCRED, current package UID, operation and bounded argument types.
         switch (method) {
             case "getStatus": case "listProfiles": case "getCardInfo":
+            case "preflightSystemEsimVisibilityRepair":
+            case "requestSystemEsimVisibilityRepair":
             case "getOperationStatus": case "reconcileOperation":
             case "prepareRecoveryReview": case "confirmRecoveryReview":
             case "prepareCardSelection": case "selectCard":

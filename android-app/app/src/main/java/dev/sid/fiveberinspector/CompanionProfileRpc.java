@@ -89,6 +89,12 @@ final class CompanionProfileRpc {
         // parameters remain typed and bounded: no arbitrary token commands.
         JSONObject result;
         switch (method) {
+            case "preflightSystemEsimVisibilityRepair":
+                result = SystemEsimVisibilityRepair.preflight();
+                break;
+            case "requestSystemEsimVisibilityRepair":
+                result = SystemEsimVisibilityRepair.requestRefresh();
+                break;
             case "getStatus":
                 result = new JSONObject().put("status", backend.getStatus());
                 break;

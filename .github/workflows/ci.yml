@@ -35,6 +35,7 @@ jobs:
           bash android-app/tools/run_compatibility_tests.sh
           bash android-app/tools/run_recovery_tests.sh
           python3 android-app/tools/test_localization.py
+          python3 android-app/tools/test_system_esim_visibility.py
           python3 android-app/tools/test_reconcile_identity.py
           python3 android-app/tools/test_feedback_privacy_contract.py
           python3 android-app/tools/verify_release_admission.py

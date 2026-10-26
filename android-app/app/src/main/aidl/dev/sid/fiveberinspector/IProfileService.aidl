@@ -22,5 +22,8 @@ interface IProfileService {
     // Explicit, single-use read-only review of an uncertain lifecycle operation.
     String prepareRecoveryReview() = 18;
     String confirmRecoveryReview(String opaqueToken) = 19;
+    // Platform subscription-metadata refresh only. No profile changes.
+    String preflightSystemEsimVisibilityRepair() = 20;
+    String requestSystemEsimVisibilityRepair() = 21;
     void destroy() = 16777114;
 }

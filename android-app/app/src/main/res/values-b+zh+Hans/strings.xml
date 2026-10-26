@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="esim_visibility_section">系统 eSIM</string>
+    <string name="esim_visibility_title">修复内置 eSIM 显示</string>
+    <string name="esim_visibility_summary">无需重启，刷新 Android 的内置 eSIM 列表</string>
+    <string name="esim_visibility_checking">检查系统 eSIM</string>
+    <string name="esim_visibility_warning">仅请求 Android 刷新内置 eUICC 的订阅列表，不会下载、删除、启用或停用任何 Profile。由于 Android 的同步问题，本次操作也可能暂时隐藏外置 eUICC 的订阅；之后刷新外置卡又可能隐藏内置 eSIM。是否继续？</string>
+    <string name="esim_visibility_request">刷新系统列表</string>
+    <string name="esim_visibility_requesting">请求系统刷新</string>
+    <string name="esim_visibility_requested">已请求系统刷新</string>
+    <string name="esim_visibility_verify">请到 Android 系统设置核实内置 eSIM 是否重新显示；刷新外置卡时可能再次被隐藏。</string>
+    <string name="esim_visibility_unavailable">系统 eSIM 修复不可用</string>
+    <string name="esim_visibility_connect_companion">请连接已授权的 ADB Shell Companion，并确认系统检测到唯一一张内置 eUICC。</string>
+
     <string name="ui_connect_your_card" formatted="false">"连接卡片"</string>
       <string name="ui_an_operation_ended_while_this_screen_was_unavailable_verify_the" formatted="false">"此页面不可用期间，一项操作已结束。请先核验卡片，再继续；不要重复执行该操作。"</string>
     <string name="ui_needs_verification" formatted="false">上次操作未确认</string>
