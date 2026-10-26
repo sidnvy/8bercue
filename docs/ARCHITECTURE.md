@@ -56,7 +56,13 @@ the card's certificates or operator authorization. The app acts as an LPA
 client; it does not install itself as Android's system-selected LPA. See
 [AOSP's eSIM architecture](https://source.android.com/docs/core/connect/esim-overview).
 
-## What ARA-M controls
+## What ARA-M controls and where 8bercue bypasses the check
+
+**The bypass is at Android's OMAPI app-access check.** An ordinary app reaches
+ISD-R through OMAPI only when Android accepts the card's access rules for that
+app's signing certificate and target applet. On compatible ROMs, 8bercue uses a
+user-authorized **Shell service (UID 2000)** to call the HAL directly, or a usable
+Telephony route, without going through that OMAPI application check.
 
 ARA-M is a card applet that supplies access rules. Android's OMAPI access-control
 implementation uses rules matching a host application, typically its signing
@@ -66,14 +72,22 @@ Android service between an ordinary application and the Secure Element HAL.
 See [AOSP's access-control implementation](https://android.googlesource.com/platform/packages/apps/SecureElement/+/refs/heads/main/src/com/android/se/security/AccessControlEnforcer.java).
 
 ```mermaid
-flowchart LR
-    App[Ordinary app] --> OMAPI[OMAPI access-control check]
-    Rules[Card ARA-M rules] --> OMAPI
-    OMAPI --> HAL[Secure Element HAL]
-    Shell[Authorized Shell companion] --> Allowed{ROM permits direct HAL access?}
-    Allowed -->|Yes| HAL
-    Allowed -->|No| Other[Other verified route or unavailable]
-    HAL --> Card[eUICC ISD-R]
+flowchart TB
+    Normal["Ordinary Android app"] --> OMAPI["OMAPI / SecureElementService"]
+    OMAPI --> Check{"Android checks app certificate + AID"}
+    Rules["Card ARA-M access rules"] -.-> Check
+    Check -->|"Allowed"| HAL["Secure Element HAL"]
+    Check -->|"Denied"| Denied["Access denied"]
+    App["8bercue app"] --> Auth["User-authorized ADB or Shizuku"]
+    Auth --> Shell["Local companion: Shell UID 2000"]
+    Shell -->|"Direct access if ROM permits: bypasses OMAPI app check"| HAL
+    Shell -->|"Experimental, ROM-specific route"| Phone["Telephony interface"]
+    Shell -.->|"OMAPI fallback: access rules still apply"| OMAPI
+    HAL --> Card["eUICC ISD-R management applet"]
+    Phone --> Card
+    style Shell fill:#dcfce7,stroke:#15803d,stroke-width:2px
+    style Check fill:#fef3c7,stroke:#b45309
+    linkStyle 7 stroke:#15803d,stroke-width:3px
 ```
 
 Where the ROM exposes the HAL to Shell, 8bercue can communicate below the ordinary

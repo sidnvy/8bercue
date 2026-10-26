@@ -75,15 +75,30 @@ Shizuku 是可选项，兼容的服务运行时才会显示入口。
 部分已验证的更改需要重建辅助服务会话，多卡手机目前会要求重新选择卡片。
 具体测试范围和剩余限制见 [版本说明](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.7)。
 
-## 如何访问卡片
+## 如何绕过 OMAPI 应用访问检查
+
+**绕过点是 Android 的 OMAPI 应用访问检查。** 普通应用通过 OMAPI 访问 ISD-R 时，
+Android 会依据卡片的访问规则检查应用签名证书和目标程序。
+8bercue 在兼容的 ROM 上，通过用户授权的 **Shell 服务（UID 2000）** 直接调用 HAL，
+或使用可用的 Telephony 路径，从而避开普通 OMAPI 应用的这道检查。
 
 ```mermaid
-flowchart LR
-    App["8bercue 应用"] --> Auth["用户授权的 ADB 或 Shizuku"]
-    Auth --> Shell["本机 Android Shell 辅助服务"]
-    Shell --> Route["可用的 Android 卡片接口"]
-    Route --> Card["eUICC 管理小程序"]
-    Card --> Profiles["存储在卡中的配置"]
+flowchart TB
+    Normal["普通 Android 应用"] --> OMAPI["OMAPI / SecureElementService"]
+    OMAPI --> Check{"Android 检查应用签名证书与目标 AID"}
+    Rules["卡片 ARA-M 访问规则"] -.-> Check
+    Check -->|"允许"| HAL["Secure Element HAL"]
+    Check -->|"拒绝"| Denied["拒绝访问"]
+    App["8bercue 应用"] --> Auth["用户授权 ADB 或 Shizuku"]
+    Auth --> Shell["本机辅助服务：Shell UID 2000"]
+    Shell -->|"ROM 允许时直接访问：绕过 OMAPI 应用检查"| HAL
+    Shell -->|"实验性路径，取决于 ROM"| Phone["Telephony 接口"]
+    Shell -.->|"OMAPI 回退：仍受访问规则约束"| OMAPI
+    HAL --> Card["eUICC ISD-R 管理程序"]
+    Phone --> Card
+    style Shell fill:#dcfce7,stroke:#15803d,stroke-width:2px
+    style Check fill:#fef3c7,stroke:#b45309
+    linkStyle 7 stroke:#15803d,stroke-width:3px
 ```
 
 普通应用通过 OMAPI 打开卡片小程序时，Android 通常会检查应用是否获得访问许可。

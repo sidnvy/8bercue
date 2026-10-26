@@ -80,15 +80,31 @@ changes require a new companion session, multi-card phones currently ask you
 to select the card again. See the [release notes](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.7)
 for the acceptance scope and remaining limits.
 
-## How it reaches the card
+## How 8bercue bypasses the OMAPI app check
+
+**The bypass is at Android's OMAPI app-access check.** An ordinary app reaches
+ISD-R through OMAPI only when Android accepts the card's access rules for that
+app's signing certificate and target applet. On compatible ROMs, 8bercue uses a
+user-authorized **Shell service (UID 2000)** to call the HAL directly, or a usable
+Telephony route, without going through that OMAPI application check.
 
 ```mermaid
-flowchart LR
-    App[8bercue app] --> Auth[User-authorized ADB or Shizuku]
-    Auth --> Shell[Local Android Shell companion]
-    Shell --> Route[Available Android card interface]
-    Route --> Card[eUICC management applet]
-    Card --> Profiles[Profiles stored on the card]
+flowchart TB
+    Normal["Ordinary Android app"] --> OMAPI["OMAPI / SecureElementService"]
+    OMAPI --> Check{"Android checks app certificate + AID"}
+    Rules["Card ARA-M access rules"] -.-> Check
+    Check -->|"Allowed"| HAL["Secure Element HAL"]
+    Check -->|"Denied"| Denied["Access denied"]
+    App["8bercue app"] --> Auth["User-authorized ADB or Shizuku"]
+    Auth --> Shell["Local companion: Shell UID 2000"]
+    Shell -->|"Direct access if ROM permits: bypasses OMAPI app check"| HAL
+    Shell -->|"Experimental, ROM-specific route"| Phone["Telephony interface"]
+    Shell -.->|"OMAPI fallback: access rules still apply"| OMAPI
+    HAL --> Card["eUICC ISD-R management applet"]
+    Phone --> Card
+    style Shell fill:#dcfce7,stroke:#15803d,stroke-width:2px
+    style Check fill:#fef3c7,stroke:#b45309
+    linkStyle 7 stroke:#15803d,stroke-width:3px
 ```
 
 Android normally checks whether an app is allowed to open a card applet through

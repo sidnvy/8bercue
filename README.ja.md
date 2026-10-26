@@ -78,15 +78,31 @@ root で起動した Shizuku と Sui には対応していません。
 確認済みの変更後にコンパニオンのセッションを再作成する場合、複数のカードがある端末では、現在はカードの再選択が必要です。
 確認済みの範囲と残る制限は [リリースノート](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.7) をご覧ください。
 
-## カードへのアクセス方法
+## OMAPI のアプリチェックを迂回する仕組み
+
+**迂回するのは、Android の OMAPI アプリアクセスチェックです。** 通常のアプリが
+OMAPI 経由で ISD-R にアクセスする際、Android はカードのアクセスルールに基づき、
+アプリの署名証明書と対象アプレットを確認します。対応する ROM では、8bercue は
+ユーザーが許可した **Shell サービス（UID 2000）** から HAL を直接呼び出すか、
+利用可能な Telephony 経路を使い、この OMAPI アプリチェックを経由せずにアクセスします。
 
 ```mermaid
-flowchart LR
+flowchart TB
+    Normal["通常の Android アプリ"] --> OMAPI["OMAPI / SecureElementService"]
+    OMAPI --> Check{"Android が署名証明書と対象 AID を確認"}
+    Rules["カードの ARA-M アクセスルール"] -.-> Check
+    Check -->|"許可"| HAL["Secure Element HAL"]
+    Check -->|"拒否"| Denied["アクセス拒否"]
     App["8bercue アプリ"] --> Auth["ユーザーが許可した ADB または Shizuku"]
-    Auth --> Shell["端末内の Android Shell コンパニオン"]
-    Shell --> Route["利用可能な Android カードインターフェース"]
-    Route --> Card["eUICC 管理アプレット"]
-    Card --> Profiles["カード内のプロファイル"]
+    Auth --> Shell["端末内のサービス：Shell UID 2000"]
+    Shell -->|"ROM が許可する場合に直接アクセス：OMAPI チェックを迂回"| HAL
+    Shell -->|"実験的な ROM 依存の経路"| Phone["Telephony インターフェース"]
+    Shell -.->|"OMAPI にフォールバック：ルールは適用"| OMAPI
+    HAL --> Card["eUICC ISD-R 管理アプレット"]
+    Phone --> Card
+    style Shell fill:#dcfce7,stroke:#15803d,stroke-width:2px
+    style Check fill:#fef3c7,stroke:#b45309
+    linkStyle 7 stroke:#15803d,stroke-width:3px
 ```
 
 通常、アプリが OMAPI 経由でカードのアプレットを開く際には、Android がアクセス権を確認します。
