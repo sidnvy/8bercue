@@ -152,7 +152,10 @@ public final class OperationJournal {
     public synchronized String statusAfterReadOnlyReconciliation() throws IOException {
         Properties current=read();
         checkRecoveryFiles();
-        return reviewed(current) ? ("download".equals(current.getProperty("operation")) ? "reviewed_abandoned" : "reviewed_observed") : current.getProperty("status", "unknown");
+        Properties resolution=validatedResolution(current);
+        return resolution==null ? current.getProperty("status", "unknown")
+            : "3".equals(resolution.getProperty("schema")) ? "verified_observed"
+            : "download".equals(current.getProperty("operation")) ? "reviewed_abandoned" : "reviewed_observed";
     }
     public synchronized String observe(String card,String snapshot) throws IOException {
         Properties p=read();
@@ -238,21 +241,24 @@ public final class OperationJournal {
             return hex.toString();
         }catch(java.security.NoSuchAlgorithmException impossible){throw new IOException(impossible);}
     }
-    private boolean reviewed(Properties original) throws IOException {
+    private boolean reviewed(Properties original) throws IOException {return validatedResolution(original)!=null;}
+    private Properties validatedResolution(Properties original) throws IOException {
         String tx=original.getProperty("txId","");
-        if(!tx.matches("[a-f0-9-]{36}"))return false;
+        if(!tx.matches("[a-f0-9-]{36}"))return null;
         Path path=resolutions().resolve(tx+".properties");
         if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS)&&legacy!=null)path=legacy.resolutions().resolve(tx+".properties");
-        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS))return false;
+        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS))return null;
         if(Files.isSymbolicLink(path)||!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS)||Files.size(path)>4096)
             throw new IOException("Invalid recovery record");
         Properties resolution=new Properties();try(InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)){resolution.load(in);}
         java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList("schema","txId","recordDigest","card","observedSnapshot","disposition","remoteOutcome","authorization","reviewedAt"));
         String operation=original.getProperty("operation","");
+        boolean exact=operation.matches("enable|disable|switch")&&"3".equals(resolution.getProperty("schema"));
+        if(exact){keys.remove("authorization");keys.add("verification");}
         boolean download="download".equals(operation)&&"1".equals(resolution.getProperty("schema"));
         boolean lifecycle=operation.matches("enable|disable|rename|switch")
             &&"2".equals(resolution.getProperty("schema"));
-        if(!resolution.stringPropertyNames().equals(keys)||!(download||lifecycle)
+        if(!resolution.stringPropertyNames().equals(keys)||!(download||lifecycle||exact)
             ||!"2".equals(original.getProperty("schema"))
             ||!(download ? original.getProperty("status","").matches("unknown|observed_unknown")
                 : original.getProperty("status","").matches("running|unknown|observed_unknown"))
@@ -261,13 +267,13 @@ public final class OperationJournal {
             ||!(download ? original.getProperty("before","").equals(resolution.getProperty("observedSnapshot"))
                 : resolution.getProperty("observedSnapshot","").matches("[a-f0-9]{64}"))
             ||!(download ? "abandoned_unknown_no_profile_delta".equals(resolution.getProperty("disposition"))
-                : "accepted_observed_lifecycle_unknown".equals(resolution.getProperty("disposition")))
+                : (exact?"verified_observed_transition":"accepted_observed_lifecycle_unknown").equals(resolution.getProperty("disposition")))
             ||!(download ? "unknown_do_not_reuse_code".equals(resolution.getProperty("remoteOutcome"))
-                : "unknown_operation_not_replayed".equals(resolution.getProperty("remoteOutcome")))
-            ||!resolution.getProperty("authorization","").matches("[a-f0-9]{64}")
+                : (exact?"original_response_unknown":"unknown_operation_not_replayed").equals(resolution.getProperty("remoteOutcome")))
+            ||!(exact?"exact_intent_and_inventory".equals(resolution.getProperty("verification")):resolution.getProperty("authorization","").matches("[a-f0-9]{64}"))
             ||!resolution.getProperty("reviewedAt","").matches("[0-9]{1,20}"))
             throw new IOException("Recovery evidence does not match original transaction");
-        return true;
+        return resolution;
     }
     /** Caller must hold exclusive card lock, confirm worker quiescence and explicitly authorize
      * abandonment after independent same-card readback. This never declares download success
@@ -389,6 +395,25 @@ public final class OperationJournal {
         resolution.setProperty("authorization",authorization);
         resolution.setProperty("reviewedAt",Long.toString(System.currentTimeMillis()));
         persist(resolutions().resolve(tx+".properties").toFile(),resolution);
+    }
+
+    /** Caller holds the card lock, has proved worker quiescence, and has made two
+     * stable reads plus a final complete identity/reader check. Preserve the lost
+     * response verbatim; only the exact intended state transition may unblock it.
+     */
+    public synchronized boolean verifyObservedLifecycle(String card,java.util.List<ProfileLifecycleGuard.Row> after) throws Exception {
+        checkRecoveryFiles();Properties current=read();
+        if(card==null||!card.equals(current.getProperty("card"))||reviewed(current)
+                ||!LifecycleObservedOutcome.proves(current,after))return false;
+        try {requireReviewableHistory(current);}catch(IOException incomplete){return false;}
+        Files.createDirectories(resolutions());Files.setPosixFilePermissions(resolutions(),PosixFilePermissions.fromString("rwx------"));
+        Properties proof=new Properties();proof.setProperty("schema","3");
+        proof.setProperty("txId",current.getProperty("txId"));proof.setProperty("recordDigest",recordDigest(current));
+        proof.setProperty("card",card);proof.setProperty("observedSnapshot",ProfileLifecycleGuard.fingerprint(after));
+        proof.setProperty("disposition","verified_observed_transition");proof.setProperty("remoteOutcome","original_response_unknown");
+        proof.setProperty("verification","exact_intent_and_inventory");proof.setProperty("reviewedAt",Long.toString(System.currentTimeMillis()));
+        persist(resolutions().resolve(current.getProperty("txId")+".properties").toFile(),proof);
+        return true;
     }
 
     private static void persist(File output,Properties p) throws IOException {

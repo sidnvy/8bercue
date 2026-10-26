@@ -11,10 +11,12 @@ source=(root/'app/src/main/java/dev/sid/fiveberinspector/ProfileUserService.java
 method=source.split('    public synchronized String listProfiles() throws RemoteException {',1)[1].split('    private static JSONObject compatibilityJson',1)[0]
 method=method.replace('org.json.JSONArray','JSONArray')
 status=source.split('@Override public synchronized String getOperationStatus() {',1)[1].split('    @Override public synchronized String reconcileOperation()',1)[0]
-fixture=r'''import java.util.*;
+fixture=r'''package dev.sid.fiveberinspector;
+import java.util.*;
 public class ProfileObservationTest {
  static dev.sid.fiveberinspector.OperationJournal realJournal;
  static int checks,reads,discoveries,observations,uid=2000;static boolean authorized=true,enrolled=true,isolated=true,worker=false,unstable=false,changed=false,reconciliation=true;
+ static boolean exactCandidate;static int quiescence;
  static String scope="other_card",operation="enable",outcome="unknown";static String CARD="b".repeat(64);
  String displayedFingerprint,displayedCard,displayedLifecycleFingerprint;String uiSession="session",transport="test";
  static class RemoteException extends Exception{}
@@ -38,6 +40,7 @@ public class ProfileObservationTest {
  static class CardTransactionLock{static boolean held;static boolean persistentQuarantine(){return isolated;}static boolean isQuarantined(){return false;}static void release(){check(held,"Owned lock released");held=false;}}
  static class ReadOnlyRecovery{
   static class Failure extends SecurityException{String code;Failure(String c){code=c;}}
+  static void requireReviewQuiescent(){check(CardTransactionLock.held&&!isolated,"Quiescence before an exact observation receipt");quiescence++;if(worker)throw new Failure("RECOVERY_WORKER_ACTIVE");}
   static void acquire(){if(worker)throw new Failure("RECOVERY_WORKER_ACTIVE");check(!CardTransactionLock.held,"No nested lock");CardTransactionLock.held=true;}
   static String observed(String card,String fingerprint){check(CardTransactionLock.held,"Observation under exclusive lock");observations++;return scope;}
   static String scope(Properties journal,String card){return scope;}
@@ -56,13 +59,14 @@ public class ProfileObservationTest {
   static JSONObject listProfiles(){return new JSONObject().put("ok",true);}
  }
  static class CardProfileInventory{
-  static class Entry{String iccid="1234567890",provider="Test",name="Test",nickname="";boolean enabled=true;}
+  static class Entry{String iccid=exactCandidate?"1234567890123456789":"1234567890",provider="Test",name="Test",nickname="";boolean enabled=true;}
   static List<Entry> list(){reads++;Entry row=new Entry();if(unstable&&reads>1)row.nickname="changed";return List.of(row);}
  }
  static class EnrolledWritePolicy{static boolean isAllowed(String card){return enrolled;}}
  static class OperationJournal{
   String statusAfterReadOnlyReconciliation()throws Exception{return realJournal==null?outcome:realJournal.statusAfterReadOnlyReconciliation();}
   boolean requiresReconciliation()throws Exception{return realJournal==null?reconciliation:realJournal.requiresReconciliation();}
+  boolean verifyObservedLifecycle(String card,List<ProfileLifecycleGuard.Row> after)throws Exception{return realJournal!=null&&realJournal.verifyObservedLifecycle(card,realRows());}
   Properties read()throws Exception{if(realJournal!=null)return realJournal.read();Properties p=new Properties();p.setProperty("operation",operation);p.setProperty("status",outcome);return p;}
   boolean canReviewObservedLifecycle(String card)throws Exception{return realJournal==null
    ?operation.matches("enable|disable|rename|switch")&&outcome.matches("running|unknown|observed_unknown")
@@ -74,6 +78,8 @@ public class ProfileObservationTest {
  OperationJournal journal(){return new OperationJournal();}
  String safeOperationError(String stage,Throwable e){return new JSONObject().put("ok",false).toString();}
  static class PhoneNotificationDelivery{static JSONObject statusUnderLock(String card){check(CardTransactionLock.held,"Status must use the already-owned lock, not acquire a nested lock");return new JSONObject().put("notificationStatus","none");}}
+ static List<dev.sid.fiveberinspector.ProfileLifecycleGuard.Row> realRows(){return List.of(new dev.sid.fiveberinspector.ProfileLifecycleGuard.Row("1234567890123456789",true,unstable&&reads>1?"changed":"","Test","Test"));}
+ static class LifecycleObservedOutcome{static boolean proves(Properties p,List<ProfileLifecycleGuard.Row> rows)throws Exception{return exactCandidate&&dev.sid.fiveberinspector.LifecycleObservedOutcome.proves(p,realRows());}}
  static class ProfileLifecycleGuard{
   enum Operation{RENAME,ENABLE,DISABLE,DELETE}static class Row{}
   static String selectionFingerprint(List<Row> rows){return "test";}
@@ -94,7 +100,7 @@ public class ProfileObservationTest {
  public synchronized String listProfiles()throws RemoteException{METHOD
  public synchronized String getOperationStatus(){STATUS_METHOD
  static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
- static void reset(){CARD="b".repeat(64);realJournal=null;reads=discoveries=observations=0;uid=2000;authorized=true;enrolled=true;isolated=true;worker=unstable=changed=false;reconciliation=true;scope="other_card";operation="enable";outcome="unknown";CardTransactionLock.held=false;}
+ static void reset(){exactCandidate=false;quiescence=0;CARD="b".repeat(64);realJournal=null;reads=discoveries=observations=0;uid=2000;authorized=true;enrolled=true;isolated=true;worker=unstable=changed=false;reconciliation=true;scope="other_card";operation="enable";outcome="unknown";CardTransactionLock.held=false;}
  static JSONObject read()throws Exception{return new JSONObject(new ProfileObservationTest().listProfiles());}
  public static void main(String[] args)throws Exception{
   for(String relation:List.of("same_card","other_card","unbound")){
@@ -165,11 +171,32 @@ public class ProfileObservationTest {
    check(result.optBoolean("writeQualified",false)==!blocked,"Actual inventory exposes management independently for another card");
    check(result.optBoolean("recoveryReviewEligible",false)==blocked,"Recovery action follows the original card across repeated choices");
   }
+  for(String scenario:List.of("exact","wrong-intent","changed-card","unstable","active-worker","quarantined","other-unknown")){
+   reset();isolated=false;scope="same_card";exactCandidate=true;
+   java.nio.file.Path dir=java.nio.file.Files.createTempDirectory(java.nio.file.Path.of(System.getProperty("fixture.root")),"exact-entry-");
+   realJournal=new dev.sid.fiveberinspector.OperationJournal(dir.toFile());
+   var before=List.of(new dev.sid.fiveberinspector.ProfileLifecycleGuard.Row("1234567890123456789",false,"","Test","Test"));
+   String id=dev.sid.fiveberinspector.IntentDigests.of(scenario.equals("wrong-intent")?"different":"1234567890123456789");
+   realJournal.begin(new dev.sid.fiveberinspector.OperationJournal.Binding("enable",CARD,id,
+    dev.sid.fiveberinspector.ProfileLifecycleGuard.fingerprint(before),dev.sid.fiveberinspector.IntentDigests.of("")));realJournal.finish("unknown");
+   byte[] original=java.nio.file.Files.readAllBytes(dir.resolve("operation.properties"));
+   changed=scenario.equals("changed-card");unstable=scenario.equals("unstable");worker=scenario.equals("active-worker");isolated=scenario.equals("quarantined");
+   if(scenario.equals("other-unknown")){
+    Properties other=realJournal.read();String tx=UUID.randomUUID().toString();other.setProperty("txId",tx);
+    try(var out=java.nio.file.Files.newOutputStream(dir.resolve("history/"+tx+".properties"))){other.store(out,"Synthetic fixture");}
+   }
+   JSONObject result=read();boolean proven=scenario.equals("exact");
+   check(result.optBoolean("writeQualified",false)==proven,"Only exact stopped-worker same-card observation restores actions: "+scenario);
+   check(realJournal.requiresReconciliation()!=proven,"Real durable journal follows observation proof");
+   check(Arrays.equals(original,java.nio.file.Files.readAllBytes(dir.resolve("operation.properties"))),"Automatic observation preserves the original unknown result");
+   if(proven)check(reads==2&&quiescence==1&&discoveries>=2,"Automatic receipt follows two stable reads, final identity and quiescence");
+   if(scenario.equals("quarantined"))check(quiescence==0,"Active quarantine is never disposed by inventory reads");
+  }
   System.out.println("PASS "+checks+" actual listProfiles observation-envelope checks (controlled Binder/card I/O)");
  }
 }'''.replace('STATUS_METHOD',status).replace('METHOD',method)
 with tempfile.TemporaryDirectory() as tmp:
  p=Path(tmp)/'ProfileObservationTest.java';p.write_text(fixture)
  java=Path(os.environ.get('JAVA_HOME','/usr'))/'bin'
- subprocess.run([str(java/'javac'),'-d',tmp,str(root/'app/src/main/java/dev/sid/fiveberinspector/OperationJournal.java'),str(p)],check=True)
- subprocess.run([str(java/'java'),'-Dfixture.root='+tmp,'-cp',tmp,'ProfileObservationTest'],check=True)
+ subprocess.run([str(java/'javac'),'-d',tmp,*[str(root/'app/src/main/java/dev/sid/fiveberinspector'/name) for name in ['OperationJournal.java','ProfileLifecycleGuard.java','IntentDigests.java','LifecycleObservedOutcome.java']],str(p)],check=True)
+ subprocess.run([str(java/'java'),'-Dfixture.root='+tmp,'-cp',tmp,'dev.sid.fiveberinspector.ProfileObservationTest'],check=True)

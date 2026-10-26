@@ -70,6 +70,14 @@ ACTUAL_METHODS
  static JSONObject ambiguous(){return new JSONObject().put("ok",false).put("capabilityError","AMBIGUOUS_EUICC");}
  static InventoryUiTest read(JSONObject response){InventoryUiTest e=new InventoryUiTest();e.backend=()->response.toString();e.refresh();return e;}
  public static void main(String[] args){
+  InventoryUiTest auto=new InventoryUiTest();auto.prefs.pending=true;auto.notice="recovery_view_only_summary";
+  final int[] visits={0};
+  auto.backend=new IProfileService(){
+   public String listProfiles(){visits[0]++;return inventory("",false).put("lifecycleObservationVerified",visits[0]==1).toString();}
+   public String getOperationStatus(){return new JSONObject().put("ok",true).put("status","verified_observed").put("requiresReconciliation",false).put("reviewRequired",false).put("notificationReviewRequired",false).toString();}
+  };
+  auto.refresh();check(!auto.prefs.pending&&auto.notice.isEmpty(),"Exact automatic observation refreshes journal/notification status and dismisses stale pending notice");
+  check(visits[0]==2,"One status recheck, no endless recovery refresh loop");
   for(String state:List.of("READ_ONLY_RECOVERED","READ_ONLY_CURRENT_CARD")){
    InventoryUiTest e=read(inventory(state,false));
    check(e.inventory.has("profiles")&&e.renders==1,"Read-only profiles reach the rendered screen: "+state);

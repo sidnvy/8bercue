@@ -51,9 +51,9 @@ public final class PortableProfileLifecycle {
    ProfileLifecycleGuard.validate(p.op,before,p.id,p.nickname);LabSupport.validateMutation(p.identityHash,p.op,before,p.id);ShellOperationScope.validateMutation(p.identityHash,p.op,before,p.id);NativeLpacBundle.ensureInstalled();
    java.util.Set<Long> notificationBefore=p.op==ProfileLifecycleGuard.Operation.DELETE?PhoneNotificationDelivery.beforeDeletion(p.reader,p.hash,p.id):null;
    boolean nativeCompleted=false,verified=false,unchanged=false,restored=false,rollback=false;
-   boolean[] submitted={false};
+   PhoneProfileLifecycle.Outcome nativeOutcome=new PhoneProfileLifecycle.Outcome();
    // Explicitly confirmed active disable submits one command; zero-active readback is required.
-   try{PhoneProfileLifecycle.execute(p.op,p.id,p.nickname,p.reader,p.hash,submitted);nativeCompleted=true;}catch(Exception ignored){}
+   try{PhoneProfileLifecycle.execute(p.op,p.id,p.nickname,p.reader,p.hash,nativeOutcome);nativeCompleted=true;}catch(Exception ignored){}
    if(CardTransactionLock.isQuarantined())return new JSONObject().put("ok",false).put("verified",false).put("status","unknown").put("reviewRequired",true).put("cardReadRequired",true).put("restartRequired",true);
    DownloadWorkerSupervisor.Outcome<LifecyclePostflight.Result> postflight=DownloadWorkerSupervisor.run(
        ()->LifecyclePostflight.observe(p.op,before,p.id,p.nickname,()->{verifyIdentity(p);return rows(CardProfileInventory.list());},Thread::sleep),
@@ -75,9 +75,17 @@ public final class PortableProfileLifecycle {
    JSONObject deletionNotice=verified&&p.op==ProfileLifecycleGuard.Operation.DELETE?PhoneNotificationDelivery.afterDeletion(p.reader,p.hash,p.id,notificationBefore):null;
    JSONObject lifecycleResult=new JSONObject().put("systemSubscriptionStatus",subscription.getString("systemSubscriptionStatus"))
        .put("systemSubscriptionWorkerStopped",subscription.getBoolean("systemSubscriptionWorkerStopped"))
-       .put("networkRegistrationChecked",false).put("ok",verified).put("operation",p.op.name().toLowerCase(Locale.ROOT)).put("verified",verified).put("switched",verified&&p.op==ProfileLifecycleGuard.Operation.ENABLE).put("cardEnabledVerified",verified&&p.op==ProfileLifecycleGuard.Operation.ENABLE).put("refreshRequested",(p.op==ProfileLifecycleGuard.Operation.ENABLE||p.op==ProfileLifecycleGuard.Operation.DISABLE)&&submitted[0]).put("restartRequired",!postflight.workerStopped).put("postflightReads",postflight.result==null?0:postflight.result.reads).put("restored",restored).put("unchanged",unchanged).put("nativeCompleted",nativeCompleted).put("rollbackAttempted",rollback).put("reviewRequired",!verified).put("cardReadRequired",true).put("status",verified?"verified":p.op==ProfileLifecycleGuard.Operation.ENABLE?"unknown":unchanged?"not_applied":"unknown");
+       .put("networkRegistrationChecked",false).put("ok",verified).put("operation",p.op.name().toLowerCase(Locale.ROOT)).put("verified",verified).put("switched",verified&&p.op==ProfileLifecycleGuard.Operation.ENABLE).put("cardEnabledVerified",verified&&p.op==ProfileLifecycleGuard.Operation.ENABLE).put("refreshRequested",(p.op==ProfileLifecycleGuard.Operation.ENABLE||p.op==ProfileLifecycleGuard.Operation.DISABLE)&&nativeOutcome.submitted).put("restartRequired",!postflight.workerStopped).put("postflightReads",postflight.result==null?0:postflight.result.reads).put("restored",restored).put("unchanged",unchanged).put("nativeCompleted",nativeCompleted).put("rollbackAttempted",rollback).put("reviewRequired",!verified).put("cardReadRequired",true).put("status",verified?"verified":p.op==ProfileLifecycleGuard.Operation.ENABLE?"unknown":unchanged?"not_applied":"unknown");
    if(deletionNotice!=null)for(String key:new String[]{"notificationStatus","notificationReviewRequired","notificationCleanupAvailable","notificationPendingCount","notificationWorkerStopped","recoveryAction"})if(deletionNotice.has(key))lifecycleResult.put(key,deletionNotice.get(key));
    if(CardTransactionLock.isQuarantined())lifecycleResult.put("restartRequired",true).put("reviewRequired",true);
+   if(nativeOutcome.refreshCleanupFailed){
+    // A returned close error is not a running writer. Permit only the bounded fresh
+    // read above, then retain exclusion until the authenticated connection retires
+    // this session. An exact readback remains verified in the durable journal.
+    CardTransactionLock.quarantine();
+    lifecycleResult.put("refreshChannelCleanup","session_retirement_required").put("restartRequired",true)
+        .put("localSessionRestartRequired",verified&&postflight.workerStopped);
+   }
    return lifecycleResult;
   }finally{CardTransactionLock.release();}
  }

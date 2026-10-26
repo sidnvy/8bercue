@@ -184,7 +184,10 @@ public final class MainActivity extends Activity {
     return s(R.string.connection_route_notice,compatibility.optString("route",s(R.string.ui_no_verified_card_connection)),explanation);
   }
   private String readerDescription(String reader,String original){
-    if(!reader.startsWith("telephony."))return reader.isEmpty()?original:s(R.string.secure_reader,reader);
+    if(!reader.startsWith("telephony.")){
+      String sim=ReaderDescriptor.simLabel(reader);
+      return !sim.isEmpty()?s(R.string.sim_card_label,sim):s(R.string.ui_card);
+    }
     try{int[] slot=ReaderDescriptor.telephonyIndices(reader);String address=s(R.string.physical_slot,slot[0],slot[1]);
       return original.startsWith("Removable eUICC")?s(R.string.removable_card,address):original.startsWith("Built-in eUICC")?s(R.string.built_in_card,address):address;
     }catch(SecurityException invalid){return original;}
@@ -447,6 +450,9 @@ public final class MainActivity extends Activity {
           statusPreservingOutcome(
               s(R.string.ui_card_connected), connectionNotice(r));
           render();
+          // The automatic proof changed durable status. Refresh operation and
+          // notification status once before dismissing the old pending notice.
+          if(r.optBoolean("lifecycleObservationVerified",false))checkRecovery();
         });
   }
   private void checkRecovery() {
@@ -663,13 +669,20 @@ public final class MainActivity extends Activity {
             getPreferences(0).edit().remove("pending").commit();
           if (r.optBoolean("restartRequired", false) || !r.optBoolean("notificationWorkerStopped", true)) {
             getPreferences(0).edit().putBoolean("pending", true).commit();
-            notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
+            if(!r.optBoolean("localSessionRestartRequired",false))
+              notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
           recentResults.add(0, cardLabel()+" · "+(notInstalled?s(R.string.download_not_installed):verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;
           render();
+          if(r.optBoolean("localSessionRestartRequired",false)&&verified&&!review
+              &&wirelessOnboardingAvailable()&&OnDeviceAdbWirelessManager.hasPaired(this)){
+            // One normal, authenticated restart after the old worker has returned.
+            // beforeConnect keeps exclusion unless owned-session retirement succeeds.
+            backend=null;inventory=new JSONObject();reconnectVerifiedRefresh();return;
+          }
           refresh();
           if (op.equals("download") && verified && !review) showInstalledResult();
         });
@@ -864,6 +877,16 @@ public final class MainActivity extends Activity {
                                 s(R.string.wireless_adb_attach_pending));
       } else status(s(R.string.wireless_adb_live_unavailable),
                   r.optString("description",s(R.string.wireless_adb_live_unavailable)));
+    });
+  }
+
+  private void reconnectVerifiedRefresh() {
+    run(s(R.string.wireless_adb_live_reconnecting),false,()->{
+      LocalAdbBootstrap.Result attempt=LocalAdbBootstrap.restartAfterVerifiedRefresh(this);
+      return new JSONObject().put("ready",attempt.ready).put("description",attempt.description);
+    },r->{
+      if(r.optBoolean("ready"))connectDirect();
+      else status(s(R.string.wireless_adb_live_unavailable),r.optString("description",s(R.string.wireless_adb_live_unavailable)));
     });
   }
 
@@ -1098,7 +1121,7 @@ public final class MainActivity extends Activity {
       if(rows!=null)for(int i=0;i<rows.length();i++){
         JSONObject choice=rows.optJSONObject(i);if(choice==null)continue;
         String token=choice.optString("token","");
-        choices.button(readerDescription(choice.optString("reader",""),choice.optString("description",s(R.string.ui_card)))+s(R.string.ui_eid_156)+choice.optString("eidMasked","")+" · "+choice.optString("reader",""),false,()->{
+        choices.button(readerDescription(choice.optString("reader",""),choice.optString("description",s(R.string.ui_card)))+s(R.string.ui_eid_156)+choice.optString("eidMasked",""),false,()->{
           choices.dialog.dismiss();if(backend!=service||navigationSession!=choiceSession)return;
           run(s(R.string.ui_verifying_selected_card),false,()->new JSONObject(service.selectCard(token)),selected->{
             if(backend!=service||navigationSession!=choiceSession)return;

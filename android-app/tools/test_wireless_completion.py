@@ -18,7 +18,9 @@ public class WirelessCompletionTest {
  public static void main(String[] args)throws Exception {
   Entry e=new Entry();LocalAdbBootstrap.ready=true;e.attach=true;e.primaryConnect();ok(e.backend!=null&&e.title.equals("connected"));
   e=new Entry();e.primaryConnect();ok(e.backend==null&&e.title.equals("3")&&e.detail.equals("4"));
+  e=new Entry();e.attach=true;e.reconnectVerifiedRefresh();ok(e.backend!=null&&e.title.equals("connected"));
   LocalAdbBootstrap.ready=false;e=new Entry();e.primaryConnect();ok(e.title.equals("2"));
+  e=new Entry();e.reconnectVerifiedRefresh();ok(e.backend==null&&e.title.equals("2"));
   OnDeviceAdbWirelessManager.paired=false;e=new Entry();e.primaryConnect();ok(e.preview);
   OnDeviceAdbWirelessManager.paired=true;e=new Entry();e.wireless=false;e.primaryConnect();ok(e.direct);
   Context c=new Context();c.prefs.values.put("serverFingerprint","legacy-fixture");c.prefs.values.put("pairedGuid","previous-fixture");
@@ -55,6 +57,7 @@ PRIMARY
  static final class LocalAdbBootstrap {
   static boolean ready;static final class Result {boolean ready;String description="controlled failure";}
   static Result start(Object c){Result r=new Result();r.ready=ready;return r;}
+  static Result restartAfterVerifiedRefresh(Object c){return start(c);}
  }
  static final class OnDeviceAdbWirelessManager {static boolean paired=true;static int attempts;static boolean hasPaired(Object c){return paired;}static void startManagement(Object c,OnDeviceAdbDiscovery.Endpoint e)throws IOException{attempts++;}}
  static final class OnDeviceAdbDiscovery {static final class Endpoint {}}
