@@ -12,13 +12,17 @@
   "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.7",
   "sourceSnapshotNote": "Candidate metadata. Exact protected-signed APK acceptance is pending; prior release acceptance does not apply to this artifact.",
   "validation": {
-    "offline": "Scoped REFRESH cleanup, bounded exact postflight, automatic exact-intent observation with immutable history, per-card isolation, stopped-worker recovery and actual service/UI entry tests. Exact signed artifact acceptance remains pending.",
+    "offline": "Scoped REFRESH cleanup, bounded exact postflight, automatic exact-intent observation with immutable history, per-card isolation, stopped-worker recovery and actual service/UI entry tests. Controlled I/O also covers equal computer/wireless method selection, optional Shell-only Shizuku permission/bootstrap, and recovery through the selected method without automatic permission requests or fallback. Exact signed artifact acceptance remains pending.",
     "signedApkAcceptance": "PENDING"
   },
   "exactBuildWritesTested": [],
   "profileWritesSubmitted": 0,
   "deferredChecks": [
     "Exact signed APK55 same-signer upgrade and saved-identity reconnect",
+    "Exact signed APK55 connection-method choice entry, with no authorization started before an explicit selection",
+    "Exact signed APK55 computer USB ADB startup using the fixed command and authenticated management Binder handoff",
+    "Exact signed APK55 already-paired on-device wireless ADB reconnect without re-pairing",
+    "Exact signed APK55 optional running Shell-mode Shizuku selection, normal authorization and fixed bootstrap handoff",
     "Exact signed APK55 automatic confirmation of a lost state-change response with original records preserved",
     "Exact signed APK55 disposable-profile enable/disable and session recovery",
     "Other lifecycle operations, downloads, mobile data, other phones and physical 16 KiB runtime"
