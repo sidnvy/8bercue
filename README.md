@@ -2,6 +2,12 @@
   <img src="docs/images/icon.png" width="88" alt="8bercue icon">
 </p>
 
+<p align="center">
+  <strong lang="en">English</strong> ·
+  <a href="README.zh-CN.md" lang="zh-CN">简体中文</a> ·
+  <a href="README.ja.md" lang="ja">日本語</a>
+</p>
+
 <h1 align="center">8bercue</h1>
 
 <p align="center">An open-source eSIM manager for removable eUICC cards on Android.</p>
