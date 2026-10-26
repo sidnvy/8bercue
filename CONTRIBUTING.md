@@ -74,6 +74,12 @@ source files as described in [BUILDING.md](BUILDING.md). Documentation-only work
 does not need a new signed APK or another card write; required repository CI
 still applies.
 
+`README.md` is the default English homepage. Keep `README.zh-CN.md` and
+`README.ja.md` aligned when changing README features, setup steps, release links
+or compatibility limits. Preserve the language switcher below the icon in all
+three files. README translations do not imply support for that language in the
+app UI; retain actual UI labels where a translated UI is unavailable.
+
 ## Public reports and documentation
 
 Include only what helps another person use the app, reproduce the issue or
