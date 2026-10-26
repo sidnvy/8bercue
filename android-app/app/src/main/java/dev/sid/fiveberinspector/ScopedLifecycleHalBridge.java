@@ -19,6 +19,7 @@ public final class ScopedLifecycleHalBridge implements AutoCloseable {
     private boolean awaitingGetResponse;
     private int expectedLe=-1;
     private int responseFrames;
+    private boolean refreshCleanupFailed;
 
     public ScopedLifecycleHalBridge(ProfileLifecycleGuard.Operation operation,String target,String nickname,String reader,String hash) {
         if(!ReaderDescriptor.valid(reader))throw new SecurityException("Reader not enrolled");
@@ -123,10 +124,18 @@ public final class ScopedLifecycleHalBridge implements AutoCloseable {
         }
     }
     public boolean wasSubmitted() {return consumed;}
+    boolean refreshCleanupFailed() {return refreshCleanupFailed;}
     @Override public void close() {
         if(channel>0 && hal!=null){
-            try {hal.closeChannel(channel);}
-            catch(Exception cleanupFailure){CardTransactionLock.quarantine();}
+            // Consume ownership before closing: REFRESH may invalidate/reuse the number.
+            // Never retry a close against a later client's channel.
+            int owned=channel;channel=-1;
+            try {hal.closeChannel(owned);}
+            catch(Exception cleanupFailure){
+                if(consumed&&(operation==ProfileLifecycleGuard.Operation.ENABLE
+                        ||operation==ProfileLifecycleGuard.Operation.DISABLE))refreshCleanupFailed=true;
+                else CardTransactionLock.quarantine();
+            }
         }
         channel=-1;
     }

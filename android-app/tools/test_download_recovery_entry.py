@@ -84,6 +84,6 @@ with tempfile.TemporaryDirectory() as temp:
     path = Path(temp) / 'DownloadReviewEntryTest.java'
     path.write_text(fixture)
     java = Path(os.environ.get('JAVA_HOME', '/usr')) / 'bin'
-    sources = [str(src / (name + '.java')) for name in ['OperationJournal', 'DownloadGuard', 'ProfileLifecycleGuard']]
+    sources = [str(src / (name + '.java')) for name in ['OperationJournal', 'DownloadGuard', 'ProfileLifecycleGuard', 'IntentDigests', 'LifecycleObservedOutcome']]
     subprocess.run([str(java / 'javac'), '-d', temp, *sources, str(path)], check=True)
     subprocess.run([str(java / 'java'), '-cp', temp, 'dev.sid.fiveberinspector.DownloadReviewEntryTest'], check=True)

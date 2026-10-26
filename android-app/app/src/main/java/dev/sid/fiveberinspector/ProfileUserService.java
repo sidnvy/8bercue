@@ -102,14 +102,24 @@ public final class ProfileUserService extends IProfileService.Stub {
             boolean isolated=CardTransactionLock.persistentQuarantine();
             OperationJournal record=journal();
             boolean previousUnconfirmed=record.requiresReconciliation();
-            boolean writeQualified=EnrolledWritePolicy.isAllowed(target.identityHash)&&!isolated&&!previousUnconfirmed;
-            if(isolated){
+            boolean lifecycleObservationVerified=false;
+            if(isolated||previousUnconfirmed){
                 step="recovery-readback";
                 Thread.sleep(300);
                 java.util.List<CardProfileInventory.Entry> second=CardProfileInventory.list();
                 if(!inventoryFingerprint(entries).equals(inventoryFingerprint(second)))throw new ReadOnlyRecovery.Failure("RECOVERY_INVENTORY_UNSTABLE");
             }
             java.util.List<ProfileLifecycleGuard.Row> policyRows=PortableProfileLifecycle.rows(entries);
+            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.discover();
+            if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
+            if(previousUnconfirmed&&!isolated&&EnrolledWritePolicy.isAllowed(target.identityHash)
+                    &&LifecycleObservedOutcome.proves(record.read(),policyRows)){
+                step="lifecycle-observation";
+                ReadOnlyRecovery.requireReviewQuiescent();
+                lifecycleObservationVerified=record.verifyObservedLifecycle(target.identityHash,policyRows);
+                previousUnconfirmed=record.requiresReconciliation();
+            }
+            boolean writeQualified=EnrolledWritePolicy.isAllowed(target.identityHash)&&!isolated&&!previousUnconfirmed;
             for (CardProfileInventory.Entry entry : entries) {
                 String id = entry.iccid;
                 profiles.put(new JSONObject().put("selectionId",ProfileUiIdentity.key(uiSession,target.identityHash,id)).put("provider", safeLabel(entry.provider))
@@ -121,8 +131,6 @@ public final class ProfileUserService extends IProfileService.Stub {
                     .put("canDisable",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DISABLE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DISABLE))
                     .put("canDelete",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DELETE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DELETE)));
             }
-            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.discover();
-            if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
             java.util.Properties previous=record.read();
             String recoveryScope=isolated?ReadOnlyRecovery.observed(target.identityHash,inventoryFingerprint(entries))
                 :previousUnconfirmed?ReadOnlyRecovery.scope(previous,target.identityHash):"none";
@@ -132,6 +140,7 @@ public final class ProfileUserService extends IProfileService.Stub {
             try { displayedLifecycleFingerprint = ProfileLifecycleGuard.selectionFingerprint(PortableProfileLifecycle.rows(entries)); }
             catch (SecurityException unsupportedMutationState) { /* Still display an empty/inactive card for recovery. */ }
             reply.put("profiles", profiles).put("count", profiles.length()).put("writeQualified",writeQualified)
+                .put("lifecycleObservationVerified",lifecycleObservationVerified)
                 .put("changesBlocked",isolated||previousUnconfirmed)
                 .put("reader",target.reader).put("eidMasked",target.eidMasked).put("description",SystemHalAdapter.describeReader(target.reader));
             reply.put("connectionMethod","adb_shell");

@@ -6,14 +6,15 @@ import java.nio.charset.StandardCharsets;
 public final class PhoneProfileLifecycle {
  private static final String ROOT="/data/local/tmp/fiveber-lpac-lab";
  private PhoneProfileLifecycle(){}
+ static final class Outcome {boolean submitted,refreshCleanupFailed;}
  private static String readBounded(BufferedReader in)throws IOException {
   StringBuilder s=new StringBuilder();for(int c;(c=in.read())!=-1;){if(c=='\n')return s.toString();if(s.length()>=65536)throw new IOException("Native frame too large");s.append((char)c);}return s.length()==0?null:s.toString();
  }
  static void execute(ProfileLifecycleGuard.Operation operation,String id,String nickname,String reader,String hash)throws Exception {
-   execute(operation,id,nickname,reader,hash,new boolean[1]);
+   execute(operation,id,nickname,reader,hash,new Outcome());
  }
- static void execute(ProfileLifecycleGuard.Operation operation,String id,String nickname,String reader,String hash,boolean[] submitted)throws Exception {
-        if(submitted==null||submitted.length!=1)throw new IllegalArgumentException("Submission marker required");submitted[0]=false;
+ static void execute(ProfileLifecycleGuard.Operation operation,String id,String nickname,String reader,String hash,Outcome outcome)throws Exception {
+        if(outcome==null)throw new IllegalArgumentException("Submission marker required");outcome.submitted=false;outcome.refreshCleanupFailed=false;
         Process nativeProcess=null;
         java.util.concurrent.ScheduledExecutorService watchdog=null;
         java.util.concurrent.ScheduledFuture<?> deadline=null;
@@ -66,7 +67,7 @@ public final class PhoneProfileLifecycle {
                 throw new IllegalStateException("Card rejected scoped profile operation");
             // Result is independently verified by the transaction engine.
         }finally{
-            submitted[0]=bridge.wasSubmitted();
+            outcome.submitted=bridge.wasSubmitted();
             if(deadline!=null)deadline.cancel(false);
             if(watchdog!=null)watchdog.shutdownNow();
             if(nativeProcess!=null){
@@ -77,6 +78,7 @@ public final class PhoneProfileLifecycle {
                 }catch(InterruptedException interrupted){CardTransactionLock.quarantine();Thread.currentThread().interrupt();}
             }
             bridge.close();
+            outcome.refreshCleanupFailed=bridge.refreshCleanupFailed();
         }
     }
 

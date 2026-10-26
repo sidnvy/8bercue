@@ -1,27 +1,27 @@
 {
   "channel": "beta",
-  "tag": "v0.20.0-beta.6",
-  "apkVersion": "0.20.0-beta.6",
-  "versionCode": 54,
+  "tag": "v0.20.0-beta.7",
+  "apkVersion": "0.20.0-beta.7",
+  "versionCode": 55,
   "apkSha256": null,
   "sourceCommit": null,
   "sourceArchiveSha256": null,
   "signerCertificateSha256": "24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c",
   "status": "CANDIDATE_PENDING_SIGNED_APK_ACCEPTANCE",
   "productionReady": false,
-  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.6",
+  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.7",
   "sourceSnapshotNote": "Candidate metadata. Exact protected-signed APK acceptance is pending; prior release acceptance does not apply to this artifact.",
   "validation": {
-    "offline": "Download refusal classification, exact unchanged-inventory recovery, immutable history, per-card isolation and real service/UI entry tests. Exact signed artifact acceptance remains pending.",
+    "offline": "Scoped REFRESH cleanup, bounded exact postflight, automatic exact-intent observation with immutable history, per-card isolation, stopped-worker recovery and actual service/UI entry tests. Exact signed artifact acceptance remains pending.",
     "signedApkAcceptance": "PENDING"
   },
   "exactBuildWritesTested": [],
   "profileWritesSubmitted": 0,
   "deferredChecks": [
-    "Exact signed APK54 same-signer upgrade and saved-identity reconnect",
-    "Exact signed APK54 recovery of an older unknown download, preserving original records",
-    "Exact signed APK54 actual public test-profile installation and notification delivery",
-    "Enable/disable/rename/delete, mobile data, other phones, camera, accessibility and physical 16 KiB runtime"
+    "Exact signed APK55 same-signer upgrade and saved-identity reconnect",
+    "Exact signed APK55 automatic confirmation of a lost state-change response with original records preserved",
+    "Exact signed APK55 disposable-profile enable/disable and session recovery",
+    "Other lifecycle operations, downloads, mobile data, other phones and physical 16 KiB runtime"
   ],
   "telemetry": "Crash reports optional/off by default; manual reporting requires preview confirmation",
   "nativeLinkingPermission": "Fixed-revision limited permission; see LICENSING.md"

@@ -10,7 +10,7 @@ root=Path(__file__).resolve().parents[1]
 src=root/'app/src/main/java/dev/sid/fiveberinspector'
 with tempfile.TemporaryDirectory() as tmp:
  t=Path(tmp);pkg=t/'dev/sid/fiveberinspector';pkg.mkdir(parents=True)
- for name in ['ReadOnlyRecovery','CardTransactionLock','OperationJournal','QuarantineReview','RecoveryProcessGuard','ConnectionCommand']:
+ for name in ['ReadOnlyRecovery','CardTransactionLock','OperationJournal','QuarantineReview','RecoveryProcessGuard','ConnectionCommand','ProfileLifecycleGuard','IntentDigests','LifecycleObservedOutcome']:
   s=(src/(name+'.java')).read_text()
   if name=='ReadOnlyRecovery':
    s=s.replace('Paths.get("/data/local/tmp/fiveber-lpac-lab")','Paths.get(System.getProperty("fixture.root"))')

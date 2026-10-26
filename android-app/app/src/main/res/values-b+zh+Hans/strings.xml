@@ -557,4 +557,5 @@
   <string name="recovery_other_card_summary">可以查看这张卡。请重新连接，让 App 确认上一个后台任务已停止。</string>
   <string name="recovery_review_original_card">请重新连接并选择这张卡。App 会独立检查它的操作记录，不受其他卡片记录影响。</string>
   <string name="recovery_review_unavailable">这条记录目前无法在 App 内核对。请保留应用数据，通过「帮助与反馈」联系支持。</string>
+    <string name="sim_card_label">"SIM 卡 %1$s"</string>
 </resources>
