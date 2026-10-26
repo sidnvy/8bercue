@@ -32,6 +32,10 @@ final class SystemEsimVisibilityRepair {
 
     private static int builtInCardId() throws Exception {
         requireShell();
+        // UiccCardInfo card inventory is public only from Android 10 (API 29).
+        // Fail closed on API 28 rather than touching any unspecified card.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q)
+            throw new UnsupportedOperationException("Built-in eUICC enumeration requires Android 10+");
         Object phone = remoteService("phone", "com.android.internal.telephony.ITelephony$Stub");
         Method cardsMethod = Class.forName("com.android.internal.telephony.ITelephony")
                 .getMethod("getUiccCardsInfo", String.class);

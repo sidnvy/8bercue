@@ -17,6 +17,7 @@ ui = (java / 'MainActivity.java').read_text()
 aidl = (root / 'app/src/main/aidl/dev/sid/fiveberinspector/IProfileService.aidl').read_text()
 
 assert 'Process.myUid() != Process.SHELL_UID' in source
+assert 'Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q' in source
 assert 'card.isEuicc() && !card.isRemovable()' in source
 assert 'count != 1' in source and 'card.getCardId() < 0' in source
 assert 'getUiccCardsInfo' in source and 'requestEmbeddedSubscriptionInfoListRefresh' in source
