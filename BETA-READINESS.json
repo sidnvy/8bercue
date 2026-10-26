@@ -1,31 +1,29 @@
 {
   "channel": "beta",
-  "tag": "v0.20.0-beta.4",
-  "apkVersion": "0.20.0-beta.4",
-  "versionCode": 52,
+  "tag": "v0.20.0-beta.5",
+  "apkVersion": "0.20.0-beta.5",
+  "versionCode": 53,
   "apkSha256": null,
   "sourceCommit": null,
   "sourceArchiveSha256": null,
   "signerCertificateSha256": "24aa7984b0d0977ff1e87b57beca91b2e36a05c04a5443f1a47aa23d90a6ef1c",
   "status": "CANDIDATE_PENDING_SIGNED_APK_ACCEPTANCE",
   "productionReady": false,
-  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.4",
+  "releaseUrl": "https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.5",
   "sourceSnapshotNote": "Candidate metadata. Exact protected-signed APK acceptance is pending; prior release acceptance does not apply to this artifact.",
   "validation": {
-    "prCi": "Pending final commit CI; local UI suite (including 26 actual inventory/status checks), localization, Release build, Lint and unsigned artifact checks passed",
-    "previousApk51MotoAcceptance": "Motorola edge 70 Android 17: same-signer upgrade, normal dual-card choice, reads and Refresh on SIM1/SIM2, app restart and saved-identity wireless reconnect passed. Both cards returned canonical empty profile lists. All 36 original journal/history files and quarantine unchanged. This is prior-artifact acceptance, not APK52 qualification.",
+    "offline": "Per-card journal isolation, legacy preservation, restart, worker-only quarantine retirement, actual service responses and repeated card-switch UI tests passed with controlled I/O. Exact-device acceptance remains pending.",
     "signedApkAcceptance": "PENDING",
-    "profileCountsOwnerConfirmation": "UNKNOWN: third-party samples; previous profile contents are not known"
+    "previousApk52MotoObservation": "Moto edge 70 Android 17, two owner-identified Nekoko cards: one Tigo profile on SIM1 and zero profiles on SIM2; saved-identity reconnect passed. Original global recovery restriction reproduced. This does not qualify APK53."
   },
   "exactBuildWritesTested": [],
   "profileWritesSubmitted": 0,
   "deferredChecks": [
-    "Exact production-signed APK52 upgrade, neutral dual-card prompt, card selection/read and reconnect on Moto",
-    "Read a separately confirmed populated card; current test samples return canonical empty lists",
-    "Pixel reconnect/navigation regression on APK52",
-    "Install/enable/disable/rename/delete and notification delivery on APK52",
-    "Camera flow, TalkBack and large-font runtime",
-    "Windows command quoting and physical 16 KiB runtime"
+    "Exact signed APK53 upgrade and independent management availability for current Moto cards while prior-card uncertainty remains",
+    "Original-card return and contextual recovery on APK53",
+    "Install/enable/disable/rename/delete and notification delivery on APK53",
+    "Pixel reconnect/navigation on APK53",
+    "Camera flow, TalkBack, large-font runtime, Windows command quoting and physical 16 KiB runtime"
   ],
   "telemetry": "Crash reports optional/off by default; manual reporting requires preview confirmation",
   "nativeLinkingPermission": "Fixed-revision limited permission; see LICENSING.md"

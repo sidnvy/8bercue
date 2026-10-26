@@ -434,7 +434,8 @@ public final class MainActivity extends Activity {
           String recoveryState=r.optString("recoveryState");
           if("READ_ONLY_RECOVERED".equals(recoveryState)||"READ_ONLY_CURRENT_CARD".equals(recoveryState)){
             getPreferences(0).edit().putBoolean("pending",true).commit();
-            notice=s(R.string.recovery_view_only_summary);
+            notice=s("other_card".equals(r.optString("recoveryScope"))
+                ?R.string.recovery_other_card_summary:R.string.recovery_view_only_summary);
           }
           if (screen==3 || screen==4 || restoreDetailAfterRead) {
             JSONArray rows=inventory.optJSONArray("profiles");int found=-1;
@@ -486,6 +487,7 @@ public final class MainActivity extends Activity {
         getPreferences(0).edit().remove("pending").commit();
       }
       if(recoveryBlocked)notice=s(R.string.recovery_view_only_summary);
+      else if(notice.equals(s(R.string.recovery_view_only_summary))||notice.equals(s(R.string.recovery_other_card_summary)))notice="";
       if (notificationReviewRequired)
         notice += (notice.isEmpty() ? "" : "\n") + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       refresh();
@@ -660,7 +662,7 @@ public final class MainActivity extends Activity {
             getPreferences(0).edit().putBoolean("pending", true).commit();
             notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
-          recentResults.add(0, (verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
+          recentResults.add(0, cardLabel()+" · "+(verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;
@@ -912,7 +914,9 @@ public final class MainActivity extends Activity {
     Button rename=action(s(R.string.ui_rename),false,()->{if(detailCurrent()){screen=4;navigationSession++;render();}});availability(rename,canEdit&&p.optBoolean("canRename",false));add(rename,28);
     Button delete=action(s(R.string.ui_delete_esim_166),false,()->{if(detailCurrent())prepare("delete",selectedProfile,"");});delete.setTextColor(ERROR);availability(delete,canEdit&&disabled&&p.optBoolean("canDelete",false));add(delete,12);
     if(enabled)add(text(s(R.string.ui_turn_off_this_esim_before_deleting_it),12,MUTED,false),4);
-    if(!canEdit)add(text(s(getPreferences(0).getBoolean("pending",false)?R.string.recovery_view_only_summary:R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
+    if(!canEdit)add(text(s(getPreferences(0).getBoolean("pending",false)
+        ?"other_card".equals(inventory.optString("recoveryScope"))?R.string.recovery_other_card_summary:R.string.recovery_view_only_summary
+        :R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
     add(text(s(R.string.ui_about_this_esim),16,TEXT,true),28);detailFact(s(R.string.ui_operator),p.optString("provider",p.optString("name",s(R.string.ui_not_reported))));detailFact("ICCID",selectedIccid);detailFact(s(R.string.ui_card),cardLabel());
     add(text(s(R.string.ui_card_state_only_network_service_has_not_been_checked),12,MUTED,false),20);
   }
@@ -920,12 +924,15 @@ public final class MainActivity extends Activity {
   private void renameScreen(){if(detailProfile==null)return;add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),18);add(text(profileName(detailProfile)+" · "+selectedIccid),22);EditText name=input(s(R.string.ui_nickname),false);name.setText(detailProfile.optString("nickname",""));add(name,22);add(text(s(R.string.ui_leave_blank_to_use_the_operator_name),12,MUTED,false),10);add(action(s(R.string.ui_save),true,()->{if(!detailCurrent())return;String value=name.getText().toString().trim();if(value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>64||value.matches("(?s).*[\\p{Cntrl}].*")){name.setError(s(R.string.ui_use_at_most_64_utf_8_bytes_without_control_characters));return;}hideKeyboard();prepare("rename",selectedProfile,value);}),28);add(action(s(R.string.ui_cancel),false,()->{screen=3;navigationSession++;render();}),8);}
   private void recordsScreen(){
     add(text(s(R.string.ui_operation_results),22,TEXT,false),24);
+    add(text(cardLabel(),13,MUTED,false),12);
     add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);
     for(String value:recentResults)add(text(value,16,TEXT,false),18);
     if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);
     if(getPreferences(0).getBoolean("pending",false)){
       add(text(s(R.string.recovery_record_summary)),20);
       if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
+      else if(inventory.has("profiles"))add(text(s("other_card".equals(inventory.optString("recoveryScope"))
+          ?R.string.recovery_review_original_card:R.string.recovery_review_unavailable)),12);
     }
     if(notificationCleanupAvailable){
       add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus))),20);

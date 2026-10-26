@@ -104,3 +104,20 @@ Implementation entry points:
 
 For implementation work, start with [CONTRIBUTING.md](../CONTRIBUTING.md) and the
 [adapter guide](ADAPTERS.md).
+
+## Card-specific recovery
+
+Each full card identity has an independent current operation, history and review
+records under the local Shell service state. Existing global records are read
+through a card filter and kept in place; switching cards never rewrites, retries
+or confirms an old operation. An unknown result blocks new operations on that
+card only. Missing identity bindings or interrupted durability commits require
+investigation rather than guessing which card they concern.
+
+The kernel transaction lock remains global because card transports and workers
+can share system resources. A worker whose termination is unknown blocks access
+until reconnect can verify its identity, retire only the app's owned idle backend
+and observe quiescence twice under the same lock. Its quarantine marker is then
+archived with a worker-only receipt. This establishes that work has stopped; it
+does not resolve any card's unknown operation. Notification delivery and cleanup
+use the selected card's transaction history as well.

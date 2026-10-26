@@ -16,6 +16,10 @@ with tempfile.TemporaryDirectory() as tmp:
    s=s.replace('Paths.get("/data/local/tmp/fiveber-lpac-lab")','Paths.get(System.getProperty("fixture.root"))')
    s=s.replace('new File("/data/local/tmp/fiveber-rescue-state")','new File(System.getProperty("fixture.journal"))')
   if name=='CardTransactionLock':s=s.replace('new File("/data/local/tmp/fiveber-lpac-lab")','new File(System.getProperty("fixture.root"))')
+  if name=='ReadOnlyRecovery':
+   begin=s.index(' private static final RecoveryProcessGuard.Host HOST=')
+   end=s.index(' static void beforeConnect()',begin)
+   s=s[:begin]+' private static final RecoveryProcessGuard.Host HOST=ObservationTest.host;\n'+s[end:]
   (pkg/(name+'.java')).write_text(s)
  (pkg/'NativeLpacBundle.java').write_text('''package dev.sid.fiveberinspector;
 import java.io.*;import java.nio.file.*;import java.security.*;import java.util.*;
@@ -32,6 +36,12 @@ public static void sendSignal(int pid,int signal){throw new AssertionError("Obse
 import java.io.*;import java.nio.file.*;import java.util.*;
 public class ObservationTest {
  static int checks;
+ static List<RecoveryProcessGuard.Worker> workers=new ArrayList<>();
+ static RecoveryProcessGuard.Host host=new RecoveryProcessGuard.Host(){
+  public List<RecoveryProcessGuard.Worker> snapshot(){return new ArrayList<>(workers);}
+  public void terminate(RecoveryProcessGuard.Worker w){throw new AssertionError("Fixture never authorizes process signaling");}
+  public void pause(){}
+ };
  static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
  static Map<String,String> snapshot(Path dir)throws Exception{
   Map<String,String> result=new TreeMap<>();try(var paths=Files.walk(dir)){
@@ -80,6 +90,15 @@ public class ObservationTest {
   check(phases(root).contains("unbound_inventory_read_only"),"Missing historical binding permits observation without inventing same-card evidence");
   check(before.equals(snapshot(j)),"Legacy records preserved exactly");check(journal.requiresReconciliation(),"Legacy uncertainty remains blocked");denyWrite(lock);
   check(Arrays.equals(markerBytes,Files.readAllBytes(marker)),"Reads never archive quarantine");
+  workers.add(new RecoveryProcessGuard.Worker(44,2000,1,"lpac","/data/local/tmp/fiveber-lpac-lab/lpac","","123"));
+  denied=false;try{ReadOnlyRecovery.beforeConnect();}catch(SecurityException expected){denied=true;}
+  check(denied&&Arrays.equals(markerBytes,Files.readAllBytes(marker)),"Live worker keeps the global quarantine and lock protection");
+  workers.clear();before=snapshot(j);ReadOnlyRecovery.beforeConnect();
+  check(!Files.exists(marker),"Proven stopped workers no longer impose a global quarantine");
+  check(before.equals(snapshot(j))&&journal.requiresReconciliation(),"Worker recovery does not resolve or rewrite an uncertain card operation");
+  try(var paths=Files.list(root)){Path archived=paths.filter(p->p.getFileName().toString().startsWith("card-transaction.lock.quarantine.stopped.")).findFirst().orElseThrow();
+   check(Arrays.equals(markerBytes,Files.readAllBytes(archived)),"Exact marker bytes preserved after automatic worker recovery");}
+  check(Files.list(root.resolve("stopped-worker-quarantines")).count()==1,"Worker-only disposition has a distinct durable receipt");
   System.out.println("PASS "+checks+" actual recovery observation/journal/exclusion checks (temporary filesystem, no device claim)");
  }
 }''')

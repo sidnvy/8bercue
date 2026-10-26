@@ -19,10 +19,10 @@ public class SupportEntryTest {
  static class LinearLayout{}
  static class SettingsNavigation{static int CARD=12,RECOVERY=14,LAB=13,SUPPORT=9;}
  static class CompatibilityDiagnostics{static Object failure;static Object lastFailure(){return failure;}}
- static class Data{boolean pending;int count;int length(){return count;}boolean getBoolean(String n,boolean fallback){return pending;}}
- final Data compatibility=new Data(),prefs=new Data();Object backend;boolean recoveryReviewEligible,notificationCleanupAvailable;String notificationStatus="";List<String> recentResults=new ArrayList<>(),items=new ArrayList<>();static int MUTED=1,TEXT=2;
- String s(int n){return LABELS[n];}Object text(String v){return v;}Object text(String v,int size,int color,boolean bold){return v;}
- Object text(String v,int size){return v;}void add(Object v,int n){}Data getPreferences(int n){return prefs;}
+ static class Data{boolean pending,profiles;String scope="";int count;int length(){return count;}boolean getBoolean(String n,boolean fallback){return pending;}boolean has(String n){return profiles;}String optString(String n){return scope;}}
+ final Data compatibility=new Data(),prefs=new Data(),inventory=new Data();Object backend;boolean recoveryReviewEligible,notificationCleanupAvailable;String notificationStatus="";List<String> recentResults=new ArrayList<>(),items=new ArrayList<>(),copy=new ArrayList<>();static int MUTED=1,TEXT=2;
+ String cardLabel(){return "Selected card";}String s(int n){return LABELS[n];}Object text(String v){return v;}Object text(String v,int size,int color,boolean bold){return v;}
+ Object text(String v,int size){return v;}void add(Object v,int n){if(v instanceof String)copy.add((String)v);}Data getPreferences(int n){return prefs;}
  LinearLayout navigationGroup(int n){return new LinearLayout();}
  void navigationItem(LinearLayout g,String label,String summary,String icon,Runnable action){items.add(label);}
  Object action(String label,boolean primary,Runnable click){items.add(label);return label;}
@@ -44,6 +44,10 @@ ACTUAL
   e=new SupportEntryTest();e.recordsScreen();check(!e.items.contains("ui_verify_card_and_recovery")&&!e.items.contains("recovery_review_button"),"Healthy records have no generic verification button");
   e=new SupportEntryTest();e.prefs.pending=true;e.recordsScreen();check(!e.items.contains("recovery_review_button"),"An ineligible old operation cannot offer impossible review");
   e=new SupportEntryTest();e.prefs.pending=true;e.recoveryReviewEligible=true;e.recordsScreen();check(e.items.contains("recovery_review_button"),"Eligible operation gets its contextual confirmation");
+  e=new SupportEntryTest();e.prefs.pending=true;e.inventory.profiles=true;e.inventory.scope="other_card";e.recordsScreen();
+  check(e.copy.contains("recovery_review_original_card")&&!e.items.contains("recovery_review_button"),"Another card gets an actionable original-card instruction, not an impossible confirmation");
+  e=new SupportEntryTest();e.prefs.pending=true;e.inventory.profiles=true;e.inventory.scope="same_card";e.recordsScreen();
+  check(e.copy.contains("recovery_review_unavailable")&&!e.items.contains("recovery_review_button"),"An unavailable review directs the user to support without retry loops");
   e=new SupportEntryTest();e.notificationCleanupAvailable=true;e.recordsScreen();check(e.items.contains("ui_review_notification_cleanup"),"Required notification recovery remains available in context");
   System.out.println("PASS "+checks+" actual support/advanced/record entrypoint checks (display adapters)");
  }

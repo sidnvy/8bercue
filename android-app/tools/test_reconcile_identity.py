@@ -22,7 +22,9 @@ public class ReconcileIdentityTest {
   public String toString(){String id="r"+wire.size();wire.put(id,new HashMap<>(data));return id;}
  }
  static class OperationJournal {String statusAfterReadOnlyReconciliation(){return "unknown";} boolean requiresReconciliation(){return true;}}
- OperationJournal journal(){ServiceCaller.requireApp();journals++;return new OperationJournal();}
+ static class ReadOnlyRecovery{static void acquire(){if(!scope)throw new SecurityException("Shell scope required");}}
+ static class CardTransactionLock{static void release(){}}
+ OperationJournal journal(){ServiceCaller.requireApp();if(!scope)throw new SecurityException("HAL identity requires Shell scope");journals++;return new OperationJournal();}
  String safeOperationError(String stage,Throwable e){return new JSONObject().put("error",true).toString();}
  String listProfiles()throws Exception{try(AutoCloseable ignored=ServiceCaller.asShell()){reads++;return failRead?new JSONObject().put("error",true).toString():new JSONObject().put("profiles",List.of("unchanged")).toString();}}
  public synchronized String reconcileOperation() {
