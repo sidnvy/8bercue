@@ -1,8 +1,8 @@
 # Build 8bercue
 
 Use the source tag matching a published release when reproducing that APK. The
-current Beta is [0.20.0-beta.4](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.4),
-versionCode 52. Release archives include corresponding source, pinned native
+current Beta is [0.20.0-beta.7](https://github.com/sidnvy/8bercue/releases/tag/v0.20.0-beta.7),
+versionCode 55. Release archives include corresponding source, pinned native
 sources, local patches, notices, a public certificate and checksums. Private
 signing keys and per-session device archives are not build inputs.
 
@@ -48,8 +48,8 @@ installation. A different signer cannot silently preserve the old app's data
 and Keystore identity. Preserve unresolved safety records.
 
 Install your signed build on the intended device, then use
-[wireless or USB setup](docs/ADB_CONNECTION.md). A self-signed build is not an
-upgrade of the production APK unless its signer is compatible.
+[wireless, USB or Shizuku setup](docs/ADB_CONNECTION.md). A self-signed build is
+not an upgrade of the production APK unless its signer is compatible.
 
 ## Relevant checks
 

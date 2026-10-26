@@ -1,43 +1,70 @@
-# Interrupted operations and read-only recovery
+# Interrupted operations and recovery
 
-A card operation can have an unknown outcome if communication stops after a
-command was submitted. Reconnecting or reading the card does not prove that the
-earlier command succeeded, and the app does not silently replay it.
+“Unknown outcome” means communication stopped after a card command may have
+been submitted, so the app did not receive a trustworthy final result. It does
+not mean the card is damaged. The command may have succeeded; repeating it
+without checking can make the situation worse.
 
-## Restore observation
+## What the app checks automatically
 
-Reconnect through [wireless or computer setup](ADB_CONNECTION.md). The app reads
-the selected card automatically; **Refresh** repeats that read. No separate
-compatibility or recovery test is needed. Read-only recovery checks ownership
-of the existing service/workers, exclusive card access, the selected card identity
-and stable profile inventories. It does not signal unrelated processes, delete
-safety files, reset the HAL or retry the original write.
+Reconnect through your selected [connection method](ADB_CONNECTION.md). The app
+reads the selected card automatically; **Refresh** repeats that read. No separate
+compatibility or recovery test is needed for ordinary use.
 
-Successful observation can restore a fresh profile list while the earlier
-outcome remains unknown. A different card can also be viewed: it cannot establish
-what happened to the earlier card. Legacy records without card binding are kept
-as unbound uncertainty. Neither case clears the original record or permits writes.
-An active or unverified worker, unstable inventory or unavailable original lock
-still prevents a verified read. A card changed during the read must be selected
-and read again.
+Recovery checks that old owned workers have stopped, acquires exclusive card
+access, verifies the complete card identity, and reads a stable profile list.
+These are machine checks. A user does not need to interpret HAL diagnostics or
+delete internal records to make them pass.
 
-## Review an unknown lifecycle operation
+For an earlier enable/disable operation, the app can automatically confirm the
+result only when two stable reads of the original card match the recorded
+target, intended state and complete before-inventory transition. It writes a
+separate durable observation receipt and retains the original unknown record.
+Reading a vaguely similar list, an empty card or a different card is not enough.
+Downloads, rename and delete are not automatically inferred by this path.
 
-Eligible unknown enable/disable/rename/legacy-switch records can offer a separate
-**Review previous change** action in **Settings → Operation records**. The
-action appears only after a fresh read of the original bound card and requires
-explicit, short-lived user confirmation. The service persists a separate
-review disposition; the original journal/history is not rewritten as a verified
-success and the old operation is not replayed.
+Enabling or disabling a profile can refresh the SIM and invalidate its old
+logical channel. If an independent read proves the exact change and a fresh
+companion is needed, wireless ADB and already-authorized Shizuku can reconnect
+through the selected method. The computer route asks you to run its command
+again. The app never repeats the card change as part of reconnecting. Phones
+with several cards currently require choosing the card again in the new session.
 
-A persistent quarantine is archived only after the required locked checks and
-review record are durable. A failed or interrupted review must not silently
-authorize a new write. Download, deletion and unresolved notification delivery
-need their own operation-specific reconciliation and are outside that lifecycle
-review.
+## When a result still needs attention
+
+A fresh list may be readable while the earlier operation remains unresolved.
+The app keeps changes on that card paused when its intended result cannot be
+proved. A missing original card cannot be checked by inserting a different one.
+Other identified cards have their own operation histories and can be managed
+independently; an old card's unknown result should not block them.
+
+An active or unverified worker can still pause access across cards because the
+underlying transport is shared. Reconnecting can retire only the app's own
+verified old backend and check that work has stopped. This does not accept or
+retry the original card operation. Unstable inventory, an unavailable original
+lock or unclear ownership requires investigation.
+
+Eligible unresolved enable/disable/rename/legacy-switch records may offer
+**Review previous change** in **Settings → Operation records** after a fresh
+read of the original card. This records an explicit review disposition; it does
+not turn the lost response into a verified success or repair a broken interface.
+Use it only when you understand the displayed unresolved change. Operation-
+specific download review may let you abandon a locally unchanged uncertain
+attempt once its checks pass; that does not prove the server or activation code
+is reusable. Do not retry an uncertain download code simply because no profile
+is visible.
+
+## What helps a report
+
+Report the app version, phone/ROM, card product if known, the action you selected
+and the fixed message shown by the app. State whether the original card is
+present and whether a fresh list can be read. Start with a short summary using
+[the device report template](../.github/ISSUE_TEMPLATE/device-compatibility.yml).
 
 Do not clear app data or remove lock/journal/quarantine files to hide an unknown
-result. Preserve the records and use a short, sanitized problem report.
+result. Avoid repeatedly changing debugging settings or resubmitting the same
+card action. Detailed service logs belong in a private archive, not a public
+issue or source commit.
 
 Developers should run `bash android-app/tools/run_recovery_tests.sh` for changes
 to recovery/worker exclusion and `bash android-app/tools/run_bootstrap_tests.sh`
