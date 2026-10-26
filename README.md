@@ -45,14 +45,15 @@ depends on the phone's ROM, exposed interfaces and permissions.
 
 ### On the phone — Android 12+ with Wi-Fi
 
-1. Open **Set up wireless ADB**, then **Start setup**, and allow notifications.
+1. Open **Connection & access → This phone · Wireless ADB**, then **Start setup**,
+   and allow notifications.
 2. In Android's developer settings, open **Wireless debugging** and choose
    **Pair device with pairing code**.
 3. Keep the system code window open. Expand the 8bercue notification, choose
    **Enter pairing code**, and enter the six-digit code there.
 4. Return to 8bercue and select the intended card if several are available.
 
-After pairing, use **Connect on this phone** to reconnect. A computer and Shizuku
+After pairing, choose the wireless method and **Connect on this phone** to reconnect. A computer and Shizuku
 are not required for this setup. The app uses an authorized Android Shell
 companion; it does not obtain root. Reconnect when the companion has stopped,
 such as after a reboot or an app update. Keep wireless debugging available while
@@ -60,8 +61,8 @@ using the wireless connection. [Connection help](docs/ADB_CONNECTION.md).
 
 ### With a computer
 
-Open **Connect using computer**. On wireless-capable phones this is under
-**Settings → Connection & access → Other connection options**. Copy the displayed
+Open **Connection & access → Computer · USB ADB** from Home or Settings.
+Computer and wireless are available as equal choices. Copy the displayed
 ADB command and run it during the two-minute connection window. Select the
 correct device if several phones are connected. The command confirms the local
 service connection; card access is checked separately.

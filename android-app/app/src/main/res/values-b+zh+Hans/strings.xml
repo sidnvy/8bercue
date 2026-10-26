@@ -511,7 +511,7 @@
   <string name="nav_view_esims">返回我的 eSIM</string>
   <string name="nav_pairing_steps">1. 在 Android 设置中打开「无线调试」。\n2. 选择「使用配对码配对设备」。\n3. 保持配对码窗口打开，通过 8bercue 通知输入配对码。</string>
   <string name="nav_pairing_help">本机设置需要 Android 12 或更高版本，并连接 Wi-Fi。展开 8bercue 通知，点「输入配对码」。配对完成前请保持系统配对码窗口打开。</string>
-  <string name="nav_authorization_scope">授权后，8bercue 可使用高于普通应用的 Android 系统调试权限，连接本机卡片并执行你明确选择的卡片操作。请只与本机配对。</string>
+  <string name="nav_authorization_scope">授权后，8bercue 可使用高于普通应用的 Android 系统调试权限，连接本机卡片并执行你明确选择的卡片操作。这不会获取 Root 权限。</string>
   <string name="nav_start_setup">开始设置</string>
   <string name="nav_reconnect_help">配对信息会保留。保持 Wi-Fi 与无线调试可用，需要时重新连接即可。</string>
   <string name="nav_computer_required">此版本通过已授权的电脑连接。请使用 USB 连接本机，并按指引运行一条命令。</string>
@@ -558,4 +558,10 @@
   <string name="recovery_review_original_card">请重新连接并选择这张卡。App 会独立检查它的操作记录，不受其他卡片记录影响。</string>
   <string name="recovery_review_unavailable">这条记录目前无法在 App 内核对。请保留应用数据，通过「帮助与反馈」联系支持。</string>
     <string name="sim_card_label">"SIM 卡 %1$s"</string>
+  <string name="nav_choose_connection">选择连接方式</string>
+  <string name="nav_connection_choice_help">选择如何为本机的 8bercue 授权。两种方式提供相同的卡片管理权限。</string>
+  <string name="nav_computer_connection">通过电脑 · USB ADB</string>
+  <string name="nav_computer_connection_summary">用 USB 连接本机，在可信任的电脑上运行一条命令。</string>
+  <string name="nav_wireless_connection">在本机 · 无线 ADB</string>
+  <string name="nav_wireless_connection_summary">通过 Wi-Fi 与 Android 无线调试配对，无需电脑。</string>
 </resources>

@@ -858,11 +858,6 @@ public final class MainActivity extends Activity {
     return Build.VERSION.SDK_INT >= 31 && LabSupport.wirelessEligible()
         && OnDeviceAdbNativeCrypto.available();
   }
-  private String primaryConnectionLabel() {
-    if (!wirelessOnboardingAvailable()) return s(R.string.ui_connect_using_computer);
-    return OnDeviceAdbWirelessManager.hasPaired(this)
-        ? s(R.string.wireless_adb_live_connect) : s(R.string.wireless_adb_live_entry);
-  }
   private void primaryConnect() {
     if (!wirelessOnboardingAvailable()) { beginDirectBootstrap();return; }
     if (!OnDeviceAdbWirelessManager.hasPaired(this)) {showWirelessDiscoveryPreview();return;}
@@ -907,7 +902,7 @@ public final class MainActivity extends Activity {
     }
     add(heading,22);
     JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.nav_card_choose_summary)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
+    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.nav_card_choose_summary)),16);add(action(backend==null?s(R.string.nav_connection):s(R.string.ui_choose_card),true,backend==null?()->navigate(SettingsNavigation.CONNECTION):this::chooseCard),20);return;}
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));
@@ -1169,27 +1164,36 @@ public final class MainActivity extends Activity {
 
   private void connectionAccessScreen() {
     boolean wireless=wirelessOnboardingAvailable();
-    boolean paired=wireless&&OnDeviceAdbWirelessManager.hasPaired(this);
     LinearLayout summary=box();
-    summary.addView(text(s(backend!=null?R.string.ui_connected:wireless?R.string.nav_authorize_phone:R.string.ui_connect_using_computer),21,TEXT,true));
-    if(backend==null)summary.addView(text(connectionSummary(),14,MUTED,false),margin(8));
+    summary.addView(text(s(backend!=null?R.string.ui_connected:R.string.nav_choose_connection),21,TEXT,true));
+    if(backend==null)summary.addView(text(s(R.string.nav_connection_choice_help),14,MUTED,false),margin(8));
     add(summary,20);
     if(!managementUnavailable().isEmpty())add(text(managementUnavailable()),20);
     else if(backend!=null){
       add(text(s(R.string.nav_connection_ready)),20);
       add(action(s(R.string.nav_view_esims),true,()->navigate(0)),24);
-    }else if(wireless){
-      add(text(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps)),20);
-      if(!paired)add(text(s(R.string.nav_authorization_scope),13,MUTED,false),14);
-      add(action(s(paired?R.string.wireless_adb_live_connect:R.string.nav_start_setup),true,
-          paired?this::primaryConnect:this::startWirelessPairing),24);
     }else{
-      add(text(s(R.string.nav_computer_required)),20);
-      add(action(s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap),24);
+      LinearLayout methods=navigationGroup(20);
+      navigationItem(methods,s(R.string.nav_computer_connection),s(R.string.nav_computer_connection_summary),"connection",this::beginDirectBootstrap);
+      if(wireless)navigationItem(methods,s(R.string.nav_wireless_connection),s(R.string.nav_wireless_connection_summary),"connection",this::showWirelessConnection);
+      add(text(s(R.string.nav_authorization_scope),13,MUTED,false),20);
     }
     LinearLayout help=navigationGroup(28);
     navigationItem(help,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
-    if(wireless)navigationItem(help,s(R.string.nav_other_connections),"","connection",this::showOtherConnections);
+  }
+
+  private void showWirelessConnection() {
+    if(!wirelessOnboardingAvailable()||OPERATIONS.running())return;
+    boolean paired=OnDeviceAdbWirelessManager.hasPaired(this);
+    Sheet wireless=new Sheet(s(R.string.nav_wireless_connection));
+    wireless.copy(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps));
+    wireless.copy(s(R.string.nav_pairing_help));
+    wireless.button(s(paired?R.string.wireless_adb_live_connect:R.string.nav_start_setup),true,()->{
+      wireless.dialog.dismiss();
+      if(paired)primaryConnect();else startWirelessPairing();
+    });
+    if(paired)wireless.button(s(R.string.nav_pair_again),false,()->{wireless.dialog.dismiss();startWirelessPairing();});
+    wireless.button(s(R.string.ui_cancel),false,wireless.dialog::dismiss);wireless.show();
   }
 
   private void startWirelessPairing() {
@@ -1203,23 +1207,16 @@ public final class MainActivity extends Activity {
 
   private void showConnectionHelp() {
     Sheet help=new Sheet(s(R.string.ui_setup_help));
+    help.copy(s(R.string.nav_connection_choice_help));
+    help.copy(s(R.string.nav_computer_connection_summary));
+    help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
     if(wirelessOnboardingAvailable()){
       help.copy(s(R.string.nav_pairing_steps));
-      help.copy(s(R.string.nav_authorization_scope));
       help.copy(s(R.string.nav_pairing_help));
-    }else help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
-    help.copy(s(R.string.nav_reconnect_help));
+      help.copy(s(R.string.nav_reconnect_help));
+    }
+    help.copy(s(R.string.nav_authorization_scope));
     help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
-  }
-
-  private void showOtherConnections() {
-    Sheet other=new Sheet(s(R.string.nav_other_connections));
-    other.copy(s(R.string.nav_computer_alternative));
-    other.button(s(R.string.ui_connect_using_computer),false,()->{other.dialog.dismiss();beginDirectBootstrap();});
-    if(wirelessOnboardingAvailable()&&OnDeviceAdbWirelessManager.hasPaired(this))
-      other.button(s(R.string.nav_pair_again),false,()->{other.dialog.dismiss();startWirelessPairing();});
-    if(LabSupport.socketEligible())other.button(s(R.string.ui_use_legacy_local_companion),false,()->{other.dialog.dismiss();selectLegacyCompanion();});
-    other.button(s(R.string.ui_cancel),false,other.dialog::dismiss);other.show();
   }
 
   private void appearanceScreen() {

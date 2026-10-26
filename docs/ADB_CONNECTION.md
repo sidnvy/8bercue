@@ -8,7 +8,8 @@ method grants root. Card access is checked separately after connection.
 
 Requires Android 12+ and Wi-Fi for this app's TLS implementation.
 
-1. From Home choose **Set up wireless ADB**, then **Start setup**. Allow the
+1. From Home choose **Connection & access → This phone · Wireless ADB**,
+   then **Start setup**. Allow the
    notification permission so you can enter the code while staying in Settings.
 2. Open Android **Wireless debugging**, enable it if needed, then choose
    **Pair device with pairing code**.
@@ -16,8 +17,8 @@ Requires Android 12+ and Wi-Fi for this app's TLS implementation.
    **Enter pairing code**. Enter the six digits in the notification reply.
 4. Return to 8bercue. Select the intended card when prompted.
 
-Pairing remembers the app's client identity. Later, choose **Connect on this
-phone**. Wireless debugging must remain available. Reconnect after the companion
+Pairing remembers the app's client identity. Later, choose the wireless method
+and **Connect on this phone**. Wireless debugging must remain available. Reconnect after the companion
 stops; a normal background/foreground return may reuse a live session.
 
 Keep Android Settings open until pairing finishes. Android closes its pairing
@@ -28,9 +29,10 @@ use the computer option and investigate the device's IME/SystemUI behavior;
 
 ## Computer setup
 
-On older Android versions use **Connect using computer** from Home. On a
-wireless-capable device it is under **Settings → Connection & access → Other
-connection options**.
+From Home or Settings, open **Connection & access → Computer · USB ADB**.
+Computer and wireless are equal choices; existing wireless pairing does not
+prevent using the computer method. On Android versions or builds without
+on-device wireless support, the computer method remains available.
 
 Enable USB debugging, connect to a trusted computer and accept its Android
 authorization prompt. Copy the command from 8bercue and run it during the visible
