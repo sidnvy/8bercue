@@ -10,8 +10,8 @@ android {
         applicationId 'dev.sid.fiveberinspector'
         minSdk 28
         targetSdk 36
-        versionCode 52
-        versionName '0.20.0-beta.4'
+        versionCode 55
+        versionName '0.20.0-beta.7'
         manifestPlaceholders = [glitchtipDsn: providers.gradleProperty('glitchtipDsn').orElse('').get()]
     }
 
@@ -95,6 +95,8 @@ android {
 
 dependencies {
     implementation 'io.sentry:sentry-android-core:8.61.0'
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
     implementation files('libs/zxing-core-3.5.3.jar')
 }
 

@@ -6,7 +6,7 @@ import os,pathlib,subprocess,tempfile
 root=pathlib.Path(__file__).resolve().parents[1]
 ui=(root/'app/src/main/java/dev/sid/fiveberinspector/MainActivity.java').read_text()
 manager=(root/'app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbWirelessManager.java').read_text()
-primary=ui[ui.index('  private void primaryConnect()'):ui.index('  private void home()')]
+primary=ui[ui.index('  private void primaryConnect()'):ui.index('  private void reconnectVerifiedRefresh()')]
 pair=manager[manager.index('    static void pair('):manager.index('    static boolean hasPaired(')]
 service=(root/'app/src/release/java/dev/sid/fiveberinspector/OnDeviceAdbPairingService.java').read_text()
 handoff=service[service.index('    private void launchIfReady()'):service.index('    @Override public void onDestroy()')]
@@ -44,9 +44,9 @@ public class WirelessCompletionTest {
  }
  interface Job {JSONObject run()throws Exception;}
  static final class Entry {
-  boolean wireless=true,attach,preview,direct;Object backend;String title="",detail="";
+  boolean wireless=true,attach,preview,direct,recoveryReconnectNeeded;Object backend;String title="",detail="";
   String s(int value){return Integer.toString(value);}boolean wirelessOnboardingAvailable(){return wireless;}
-  void beginDirectBootstrap(){direct=true;}void showWirelessDiscoveryPreview(){preview=true;}
+  void rememberConnectionMethod(String method){}void reconnectVerifiedRefresh(){}void beginDirectBootstrap(){direct=true;}void showWirelessDiscoveryPreview(){preview=true;}
   void connectDirect(){if(attach){backend=new Object();title="connected";}}
   void status(String t,String d){title=t;detail=d;}
   void run(String label,boolean mutate,Job job,Consumer<JSONObject> result){try{JSONObject r=job.run();title="completed";result.accept(r);}catch(Exception x){throw new RuntimeException(x);}}
@@ -55,6 +55,7 @@ PRIMARY
  static final class LocalAdbBootstrap {
   static boolean ready;static final class Result {boolean ready;String description="controlled failure";}
   static Result start(Object c){Result r=new Result();r.ready=ready;return r;}
+  static Result restartAfterVerifiedRefresh(Object c){return start(c);}
  }
  static final class OnDeviceAdbWirelessManager {static boolean paired=true;static int attempts;static boolean hasPaired(Object c){return paired;}static void startManagement(Object c,OnDeviceAdbDiscovery.Endpoint e)throws IOException{attempts++;}}
  static final class OnDeviceAdbDiscovery {static final class Endpoint {}}

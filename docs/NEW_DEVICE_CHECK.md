@@ -10,12 +10,13 @@ interface; Android version and phone brand alone do not establish support.
 1. Install the APK. For upgrades, keep the existing production signing identity
    and app data. A Lab/self-signed APK may use a different key; a signing conflict
    is not a reason to discard existing data or unresolved operation records.
-2. Follow [wireless or USB setup](ADB_CONNECTION.md). Wireless setup is available
-   on Android 12+ with Wi-Fi. The main-user computer bootstrap uses the displayed
+2. Follow [wireless, USB or Shizuku setup](ADB_CONNECTION.md). Wireless setup
+   is available on Android 12+ with Wi-Fi. The main-user computer bootstrap uses the displayed
    App-created connection window.
 3. If several cards are readable, explicitly choose the intended card. Check the
-   physical slot/port and masked suffix on the selection sheet. A built-in and
-   removable eUICC are different cards.
+   card label and masked suffix on the selection sheet. A SIM label is not
+   proof of a physical slot mapping; record a slot/port only when verified.
+   A built-in and removable eUICC are different cards.
 4. Wait for a fresh profile list. Check it against the intended card. An empty
    list can be valid; a connected companion alone is not a verified card read.
 5. If reporting compatibility, open **Settings → Help & feedback → Connection
@@ -40,8 +41,10 @@ or unresolved operation should be reported, not cleared by deleting safety files
 
 Use the [device report template](../.github/ISSUE_TEMPLATE/device-compatibility.yml)
 with app version, phone model, Android/ROM build, card product/firmware if known,
-setup method, backend and the result. Include a short reproduction and fixed
-error category for failures. Failures help identify missing adapters too.
+setup method, backend and the result. Say whether expected card contents are
+known: an empty list from a donated card with unknown contents is inconclusive,
+not proof that profiles were lost or that the brand is unsupported. Include a
+short reproduction and fixed error category for failures. Failures help identify missing adapters too.
 
 The app's **Settings → Help & feedback → Export diagnostics** offers reviewed
 formats. Keep full EID/ICCID, activation/confirmation codes and raw APDU/HTTP logs

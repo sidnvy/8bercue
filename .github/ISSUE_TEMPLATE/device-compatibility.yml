@@ -12,7 +12,7 @@ body:
     attributes:
       label: App version and source
       description: Include versionCode if available; published Beta or self-built commit. No private signing material.
-      placeholder: 0.20.0-beta.2 / 50, published APK
+      placeholder: 0.20.0-beta.7 / 55, published APK
     validations:
       required: true
   - type: textarea
@@ -36,6 +36,7 @@ body:
       options:
         - On-device wireless ADB
         - Computer / USB ADB
+        - Shizuku / ADB mode
         - Connection did not complete
     validations:
       required: true
@@ -49,6 +50,17 @@ body:
         - Telephony
         - OMAPI
         - None / unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: expected_inventory
+    attributes:
+      label: Expected card contents
+      description: No identifiers or profile payloads. Unknown is a useful answer for donated cards.
+      options:
+        - Known to contain profiles
+        - Known to be empty
+        - Unknown
     validations:
       required: true
   - type: textarea

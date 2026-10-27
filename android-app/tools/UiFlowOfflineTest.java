@@ -31,6 +31,8 @@ public final class UiFlowOfflineTest {
   check(RecoveryUiPolicy.keepsPending(true,false),"Unknown operation must retain pending");
   check(!RecoveryUiPolicy.keepsPending(false,false),"Only complete operation and notification review can dismiss pending");
   check(RecoveryUiPolicy.blocks(true,false,false,"unknown"),"A read-only snapshot cannot unlock an unknown operation");
+  check(!RecoveryUiPolicy.blocks(true,false,false,"verified_observed"),"Exact automatic observation can clear the UI block");
+  check(RecoveryUiPolicy.blocks(true,true,false,"verified_observed"),"Other unresolved history still blocks after exact observation");
   check(!RecoveryUiPolicy.blocks(true,false,false,"reviewed_observed"),"Audited lifecycle review can clear the UI block");
   check(RecoveryUiPolicy.blocks(true,true,false,"reviewed_observed"),"Historical uncertainty still blocks after current review");
   check(UiStatusPolicy.visible(false,false,false,true,"Card unavailable"),"Connected Binder must not hide card-access failure");

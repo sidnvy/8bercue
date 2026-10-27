@@ -95,21 +95,31 @@ public final class ProfileUserService extends IProfileService.Stub {
 
             // The native libeuicc engine independently checks the EID again
             // and only invokes GetEID/GetProfilesInfo via the HAL.
-            JSONObject reply = PhoneNativeLpac.listProfiles(target);
+            JSONObject reply = PhoneNativeLpac.listProfiles();
             // Return the same authoritative order used by preview selection.
             java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.list();
             org.json.JSONArray profiles = new org.json.JSONArray();
             boolean isolated=CardTransactionLock.persistentQuarantine();
             OperationJournal record=journal();
             boolean previousUnconfirmed=record.requiresReconciliation();
-            boolean writeQualified=EnrolledWritePolicy.isAllowed(target.identityHash)&&!isolated&&!previousUnconfirmed;
-            if(isolated){
+            boolean lifecycleObservationVerified=false;
+            if(isolated||previousUnconfirmed){
                 step="recovery-readback";
                 Thread.sleep(300);
                 java.util.List<CardProfileInventory.Entry> second=CardProfileInventory.list();
                 if(!inventoryFingerprint(entries).equals(inventoryFingerprint(second)))throw new ReadOnlyRecovery.Failure("RECOVERY_INVENTORY_UNSTABLE");
             }
             java.util.List<ProfileLifecycleGuard.Row> policyRows=PortableProfileLifecycle.rows(entries);
+            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.verifySelectedCard(target);
+            if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
+            if(previousUnconfirmed&&!isolated&&EnrolledWritePolicy.isAllowed(target.identityHash)
+                    &&LifecycleObservedOutcome.proves(record.read(),policyRows)){
+                step="lifecycle-observation";
+                ReadOnlyRecovery.requireReviewQuiescent();
+                lifecycleObservationVerified=record.verifyObservedLifecycle(target.identityHash,policyRows);
+                previousUnconfirmed=record.requiresReconciliation();
+            }
+            boolean writeQualified=EnrolledWritePolicy.isAllowed(target.identityHash)&&!isolated&&!previousUnconfirmed;
             for (CardProfileInventory.Entry entry : entries) {
                 String id = entry.iccid;
                 profiles.put(new JSONObject().put("selectionId",ProfileUiIdentity.key(uiSession,target.identityHash,id)).put("provider", safeLabel(entry.provider))
@@ -121,9 +131,6 @@ public final class ProfileUserService extends IProfileService.Stub {
                     .put("canDisable",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DISABLE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DISABLE))
                     .put("canDelete",writeQualified&&ReaderDescriptor.lifecycleAllowed(target.reader,ProfileLifecycleGuard.Operation.DELETE,entry.enabled)&&allowed(target.identityHash,policyRows,entry,ProfileLifecycleGuard.Operation.DELETE)));
             }
-            CompatibilityReport discoveryCompatibility=FiveberReaderSelector.compatibilityReport();
-            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.verifySelectedCard(target);
-            if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
             java.util.Properties previous=record.read();
             String recoveryScope=isolated?ReadOnlyRecovery.observed(target.identityHash,inventoryFingerprint(entries))
                 :previousUnconfirmed?ReadOnlyRecovery.scope(previous,target.identityHash):"none";
@@ -133,20 +140,22 @@ public final class ProfileUserService extends IProfileService.Stub {
             try { displayedLifecycleFingerprint = ProfileLifecycleGuard.selectionFingerprint(PortableProfileLifecycle.rows(entries)); }
             catch (SecurityException unsupportedMutationState) { /* Still display an empty/inactive card for recovery. */ }
             reply.put("profiles", profiles).put("count", profiles.length()).put("writeQualified",writeQualified)
-                .put("reader",target.reader).put("eidMasked",target.eidMasked)
-                .put("description",SystemHalAdapter.describeReader(target.reader));
+                .put("lifecycleObservationVerified",lifecycleObservationVerified)
+                .put("changesBlocked",isolated||previousUnconfirmed)
+                .put("reader",target.reader).put("eidMasked",target.eidMasked).put("description",SystemHalAdapter.describeReader(target.reader));
             reply.put("connectionMethod","adb_shell");
             reply.put("transport",transport+" UID2000 / "+target.reader);
-            reply.put("compatibility",compatibilityJson(discoveryCompatibility,true));
-            reply.put("connectionNotice","Card connection: "+discoveryCompatibility.route()+". "+
+            CompatibilityReport compatibility=FiveberReaderSelector.compatibilityReport();
+            reply.put("compatibility",compatibilityJson(compatibility,true));
+            reply.put("connectionNotice","Card connection: "+compatibility.route()+". "+
                 (target.reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX)?"Experimental system-policy workaround; another ROM may block it.":target.reader.startsWith(ReaderDescriptor.HIDL_PREFIX)?"Card reads verified; management writes are not implemented for HIDL.":"Card reads verified; changes still require confirmation."));
             reply.put("readOnly",true);
             if(isolated||previousUnconfirmed)reply.put("recoveryState","same_card".equals(recoveryScope)?"READ_ONLY_RECOVERED":"READ_ONLY_CURRENT_CARD")
                 .put("recoveryScope",recoveryScope).put("changesBlocked",true)
                 .put("previousOperation",previous.getProperty("operation", "")).put("previousOutcome",previous.getProperty("status","unknown"))
                 .put("recoveryReviewEligible","same_card".equals(recoveryScope)&&displayedLifecycleFingerprint!=null&&EnrolledWritePolicy.isAllowed(target.identityHash)
-                    &&previous.getProperty("operation","").matches("enable|disable|rename|switch")
-                    &&previous.getProperty("status","").matches("running|unknown|observed_unknown"));
+                    &&(record.canReviewObservedLifecycle(target.identityHash)
+                        ||(!isolated&&record.canReviewUnchangedDownload(target.identityHash,displayedFingerprint))));
             Log.i("EightberShell", "listProfiles success reader="+target.reader+" count="+reply.optInt("count",-1));
             return reply.toString();
         } catch (Throwable ex) {
@@ -212,7 +221,7 @@ public final class ProfileUserService extends IProfileService.Stub {
         java.io.File dir = new java.io.File("/data/local/tmp/fiveber-rescue-state");
         if (!dir.exists() && !dir.mkdir()) throw new java.io.IOException("Journal unavailable");
         android.system.Os.chmod(dir.getAbsolutePath(), 0700);
-        return new OperationJournal(dir);
+        return OperationJournal.forCard(dir,FiveberReaderSelector.discover().identityHash);
     }
     private interface Mutation { JSONObject run() throws Exception; }
     private interface Intent { OperationJournal.Binding get() throws Exception; }
@@ -230,11 +239,11 @@ public final class ProfileUserService extends IProfileService.Stub {
                 java.util.Properties diagnostics=new java.util.Properties();
                 JSONObject detail=result.optJSONObject("downloadDiagnostics");
                 if(detail!=null)for(java.util.Iterator<String> keys=detail.keys();keys.hasNext();) {String key=keys.next();diagnostics.setProperty(key,detail.getString(key));}
-                boolean unstarted="not_completed".equals(result.optString("status"))
-                    && result.optBoolean("inventoryUnchanged", false)
-                    && result.has("reviewRequired") && !result.optBoolean("reviewRequired")
-                    && OperationJournal.networkStoppedBeforeCard(diagnostics);
-                record.finish(verified && !uncertain ? "verified" : unstarted ? "not_completed" : "unknown", diagnostics);
+                boolean notInstalled="download".equals(operation.operation)
+                    &&"not_completed".equals(result.optString("status"))&&!uncertain
+                    &&DownloadOutcomePolicy.notInstalled(result.optBoolean("nativeSuccess",true),
+                        result.optBoolean("workerStopped",false),result.optBoolean("inventoryUnchanged",false),diagnostics);
+                record.finish(verified && !uncertain ? "verified" : notInstalled ? "not_completed" : "unknown",diagnostics);
                 return result.toString();
             } catch (Throwable e) {
                 try { record.finish("unknown"); } catch (Exception persistenceFailure) { CardTransactionLock.quarantine(); }
@@ -257,7 +266,7 @@ public final class ProfileUserService extends IProfileService.Stub {
         String safe = value.replaceAll("[\\p{Cntrl}]", "").replaceAll("[0-9]{8,}", "[hidden]");
         return safe.substring(0, Math.min(96, safe.length()));
     }
-    private FiveberReaderSelector.Target requireSelectionCurrent() throws Exception {
+    private void requireSelectionCurrent() throws Exception {
         requireReconciled();
         CardTransactionLock.acquire();
         try {
@@ -265,7 +274,6 @@ public final class ProfileUserService extends IProfileService.Stub {
         String now = inventoryFingerprint(CardProfileInventory.list());
         if (displayedLifecycleFingerprint == null || displayedFingerprint == null || !now.equals(displayedFingerprint) || !card.identityHash.equals(displayedCard))
             throw new SecurityException("RefreshRequired");
-        return card;
         } finally { CardTransactionLock.release(); }
     }
     private void requireReconciled() throws Exception {
@@ -327,10 +335,13 @@ public final class ProfileUserService extends IProfileService.Stub {
     /** Caller already holds ReadOnlyRecovery's original cross-process lock. */
     private RecoveryReviewPlan observeLifecycleForReview(OperationJournal journal) throws Exception {
         java.util.Properties record=journal.read();
+        boolean download="download".equals(record.getProperty("operation"));
         boolean alreadyReviewed="reviewed_observed".equals(journal.statusAfterReadOnlyReconciliation());
         if(!"2".equals(record.getProperty("schema"))||
-            !record.getProperty("operation","").matches("enable|disable|rename|switch")||
+            !record.getProperty("operation","").matches("enable|disable|rename|switch|download")||
             !record.getProperty("status","").matches("running|unknown|observed_unknown")||
+            (!download&&!journal.canReviewObservedLifecycle(record.getProperty("card")))||
+            (download&&(alreadyReviewed||CardTransactionLock.persistentQuarantine()))||
             !(journal.requiresReconciliation()||alreadyReviewed)||
             (alreadyReviewed&&!CardTransactionLock.persistentQuarantine()))
             throw new SecurityException("No eligible unresolved lifecycle operation");
@@ -340,15 +351,19 @@ public final class ProfileUserService extends IProfileService.Stub {
             throw new SecurityException("Recovery must use the original permitted card");
         NativeLpacBundle.ensureInstalled();
         PhoneNativeLpac.listProfiles();
-        String initial=ProfileLifecycleGuard.fingerprint(
-            PortableProfileLifecycle.rows(CardProfileInventory.list()));
+        java.util.List<CardProfileInventory.Entry> first=CardProfileInventory.list();
+        String initial=download?inventoryFingerprint(first):ProfileLifecycleGuard.fingerprint(
+            PortableProfileLifecycle.rows(first));
         Thread.sleep(300);
-        String confirmed=ProfileLifecycleGuard.fingerprint(
-            PortableProfileLifecycle.rows(CardProfileInventory.list()));
+        java.util.List<CardProfileInventory.Entry> second=CardProfileInventory.list();
+        String confirmed=download?inventoryFingerprint(second):ProfileLifecycleGuard.fingerprint(
+            PortableProfileLifecycle.rows(second));
         FiveberReaderSelector.Target same=FiveberReaderSelector.discover();
         if(!initial.equals(confirmed)||!same.identityHash.equals(card.identityHash)||
             !same.reader.equals(card.reader))
             throw new ReadOnlyRecovery.Failure("RECOVERY_INVENTORY_UNSTABLE");
+        if(download&&!journal.canReviewUnchangedDownload(card.identityHash,confirmed))
+            throw new SecurityException("Download review requires the unchanged original inventory and complete history");
         if(alreadyReviewed&&!confirmed.equals(journal.reviewedLifecycleSnapshot()))
             throw new SecurityException("Card changed after durable review; manual investigation required");
         return new RecoveryReviewPlan(record.getProperty("txId"),card.identityHash,
@@ -407,14 +422,18 @@ public final class ProfileUserService extends IProfileService.Stub {
                 // Commit the review FIRST. With a persistent quarantine, the marker still
                 // blocks writes until separately archived. If interrupted, a fresh explicit
                 // consent and identical inventory can resume archival without altering history.
-                if(!expected.alreadyReviewed)
-                    record.reviewObservedLifecycle(expected.tx,expected.card,expected.snapshot,
-                        expected.recordDigest,authorization);
+                if(!expected.alreadyReviewed) {
+                    if("download".equals(expected.operation))
+                        record.abandonUnchangedDownload(expected.tx,expected.card,expected.snapshot,
+                            expected.recordDigest,authorization);
+                    else record.reviewObservedLifecycle(expected.tx,expected.card,expected.snapshot,
+                            expected.recordDigest,authorization);
+                }
                 if(CardTransactionLock.persistentQuarantine())
                     ReadOnlyRecovery.archiveAfterReview(expected.card,expected.recordDigest,
                         expected.snapshot,authorization);
                 invalidatePreviews();
-                return new JSONObject().put("ok",true).put("status","reviewed_observed")
+                return new JSONObject().put("ok",true).put("status","download".equals(expected.operation)?"reviewed_abandoned":"reviewed_observed")
                     .put("originalOutcome","unknown").put("previousOperation",expected.operation)
                     .put("priorOperationRetried",false).put("safetyRecordsPreserved",true).toString();
             }finally{CardTransactionLock.release();}
@@ -422,7 +441,9 @@ public final class ProfileUserService extends IProfileService.Stub {
     }
 
     @Override public synchronized String getOperationStatus() {
+        boolean acquired=false;
         try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ReadOnlyRecovery.acquire();acquired=true;
             java.util.Properties p = journal().read();
             String status = journal().statusAfterReadOnlyReconciliation();
             boolean review = journal().requiresReconciliation() || CardTransactionLock.isQuarantined();
@@ -435,11 +456,12 @@ public final class ProfileUserService extends IProfileService.Stub {
                 .put("requiresReconciliation",true).put("recoveryState","SAFETY_PAUSED")
                 .put("changesBlocked",true).put("notificationStatus","unavailable").toString();
             for(String key:p.stringPropertyNames())if(key.startsWith("download"))result.put(key,p.getProperty(key));
-            JSONObject notification = PhoneNotificationDelivery.status();
+            JSONObject notification = PhoneNotificationDelivery.statusUnderLock(FiveberReaderSelector.discover().identityHash);
             for (String key : new String[]{"notificationStatus", "notificationReviewRequired", "notificationWorkerStopped", "notificationCleanupAvailable", "notificationPendingCount"})
                 if (notification.has(key)) result.put(key, notification.get(key));
             return result.toString();
         } catch (Throwable e) { return safeOperationError("recovery", e); }
+        finally {if(acquired)CardTransactionLock.release();}
     }
     @Override public synchronized String reconcileOperation() {
         // listProfiles owns its authenticated Shell scope. Keep this caller's
@@ -447,54 +469,37 @@ public final class ProfileUserService extends IProfileService.Stub {
         try {
             ServiceCaller.requireApp();
             JSONObject inventory = new JSONObject(listProfiles());
-            if (inventory.has("error") || !inventory.has("profiles")) {
-                Log.i("EightberShell", "reconcileOperation stopped inventory ok="+inventory.optBoolean("ok")
-                    +" error="+inventory.optString("error")+" stage="+inventory.optString("stage")
-                    +" recoveryError="+inventory.optString("recoveryError")
-                    +" capabilityError="+inventory.optString("capabilityError"));
-                return inventory.toString();
+            if (inventory.has("error") || !inventory.has("profiles")) return inventory.toString();
+            try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+                ReadOnlyRecovery.acquire();
+                try {
+                    OperationJournal record = journal();
+                    String status = record.statusAfterReadOnlyReconciliation();
+                    boolean review = record.requiresReconciliation();
+                    java.util.Properties current = record.read();
+                    String closed = "";
+                    if (review && OperationJournal.unstartedDownload(current)) {
+                        boolean acquired = false;
+                        try {
+                            CardTransactionLock.acquire();
+                            acquired = true;
+                            FiveberReaderSelector.Target card = FiveberReaderSelector.verifySelectedCard(FiveberReaderSelector.discover());
+                            String now = inventoryFingerprint(CardProfileInventory.listKnownCardReadOnly(card));
+                            if (card.identityHash.equals(current.getProperty("card")) && now.equals(current.getProperty("before"))) {
+                                record.closeUnstartedDownload(card.identityHash, now);
+                                status = record.statusAfterReadOnlyReconciliation();
+                                review = record.requiresReconciliation();
+                                if (!review) closed = "unstarted_download";
+                            }
+                        } catch (java.io.IOException failure) {
+                            Log.w("EightberShell", "reconcile close-unstarted refused");
+                        } finally { if (acquired) CardTransactionLock.release(); }
+                    }
+                    return new JSONObject().put("ok", true).put("status", status).put("closed", closed)
+                        .put("readOnly", true).put("reviewRequired", review).put("inventory", inventory).toString();
+                } finally { CardTransactionLock.release(); }
             }
-            // A readable card does not clear an unknown write. A download that never
-            // reached the server can be closed when this card's inventory still matches
-            // the snapshot taken before that download.
-            OperationJournal record = journal();
-            String status = record.statusAfterReadOnlyReconciliation();
-            boolean review = record.requiresReconciliation();
-            java.util.Properties current = record.read();
-            String closed = "";
-            if (review && OperationJournal.unstartedDownload(current)) {
-                try (ServiceCaller.ShellCall shell = ServiceCaller.asShell()) {
-                    boolean acquired = false;
-                    try {
-                        CardTransactionLock.acquire();
-                        acquired = true;
-                        FiveberReaderSelector.Target card = FiveberReaderSelector.verifySelectedCard(FiveberReaderSelector.discover());
-                        String now = inventoryFingerprint(CardProfileInventory.listKnownCardReadOnly(card));
-                        if (card.identityHash.equals(current.getProperty("card")) && now.equals(current.getProperty("before"))) {
-                            record.closeUnstartedDownload(card.identityHash, now);
-                            status = record.statusAfterReadOnlyReconciliation();
-                            review = record.requiresReconciliation();
-                            if (!review) closed = "unstarted_download";
-                        }
-                    } catch (java.io.IOException failure) {
-                        Log.w("EightberShell", "reconcile close-unstarted refused");
-                    } finally { if (acquired) CardTransactionLock.release(); }
-                }
-            }
-            Log.i("EightberShell", "reconcileOperation status="+status+" review="+review
-                +" closed="+closed
-                +" operation="+current.getProperty("operation","")
-                +" downloadPhase="+current.getProperty("downloadPhase","")
-                +" downloadFailure="+current.getProperty("downloadFailure","")
-                +" workerStopped="+current.getProperty("downloadWorkerStopped","")
-                +" nativeStopped="+current.getProperty("downloadNativeStopped","")
-                +" profileCount="+inventory.optInt("count",-1));
-            return new JSONObject().put("ok", true).put("status", status).put("closed", closed)
-                .put("readOnly", true).put("reviewRequired", review).put("inventory", inventory).toString();
-        } catch (Throwable e) {
-            Log.w("EightberShell", "reconcileOperation failed cause="+e.getClass().getSimpleName());
-            return safeOperationError("reconcile", e);
-        }
+        } catch (Throwable e) { return safeOperationError("reconcile", e); }
     }
     @Override public synchronized String getProfileIccid(int profileIndex, String selectionId) {
         try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {

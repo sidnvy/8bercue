@@ -31,7 +31,13 @@ dsn=urlsplit(dsn_match.group(1) if dsn_match else '')
 configured=dsn.scheme=='https' and bool(dsn.hostname) and bool(dsn.username) and dsn.password is None and bool(re.fullmatch(r'/[0-9]+',dsn.path)) and not dsn.query and not dsn.fragment
 if a.require_reporting and not configured:raise SystemExit('FAIL configured HTTPS reporting DSN required')
 result['reportingConfiguration']='CONFIGURED' if configured else 'UNAVAILABLE'
-if 'shizuku' in tree.lower():raise SystemExit('FAIL external privilege-manager provider or permission')
+# Only the official optional Shizuku Binder handoff is exported. The actual
+# one-use launcher is not an Android service/provider and accepts no command input.
+providers = re.split(r'(?m)^\s*E: provider(?:\s|$)', tree)[1:]
+shizuku = [block.split('E: provider', 1)[0] for block in providers if 'rikka.shizuku.ShizukuProvider' in block]
+if len(shizuku) != 1 or 'android.permission.INTERACT_ACROSS_USERS_FULL' not in shizuku[0]:
+    raise SystemExit('FAIL protected optional Shizuku handoff required')
+if 'ShizukuBootstrapService' in tree:raise SystemExit('FAIL bootstrap must not be an exported Android component')
 if not re.search(r'android:allowBackup\([^)]*\)=(?:false|\(type 0x12\)0x0)(?:\s|$)',tree):raise SystemExit('FAIL backup must be disabled')
 run('zipalign','-c','-P','16','4',a.apk)
 signed=subprocess.run([str(a.build_tools/'apksigner'),'verify','--verbose','--print-certs',str(a.apk)],capture_output=True,text=True)

@@ -28,6 +28,10 @@ public final class PhoneNotificationDelivery {
     try {return status(FiveberReaderSelector.discover().identityHash);}
     finally {CardTransactionLock.release();}
   }
+  static JSONObject statusUnderLock(String card)throws Exception {
+    requireShell();if(!CardTransactionLock.ownedByCurrentThread())throw new SecurityException("Owned card lock required");
+    return status(card);
+  }
   private static JSONObject status(String card) throws Exception {
     requireShell();List<Properties> records=journal().recordsForCard(card);Properties selected=null;int count=0;boolean cleanup=false;
     for(Properties record:records) {if(!"delivered".equals(NotificationJournal.outcome(record))){count++;selected=record;}cleanup|=NotificationJournal.cleanup(record);}
@@ -40,7 +44,7 @@ public final class PhoneNotificationDelivery {
   static JSONObject afterInstall(String reader,String card,String host,long sequence,String iccid) {
     try {
       requireShell();if(!CardTransactionLock.isActive()||!EnrolledWritePolicy.isAllowed(card))throw new SecurityException("Notification card not enrolled");
-      Properties operation=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state")).read();
+      Properties operation=OperationJournal.forCard(new File("/data/local/tmp/fiveber-rescue-state"),card).read();
       if(!"2".equals(operation.getProperty("schema"))||!"running".equals(operation.getProperty("status"))
           ||!"download".equals(operation.getProperty("operation"))||!card.equals(operation.getProperty("card")))
         throw new SecurityException("Bound download journal required before notification");
@@ -71,7 +75,7 @@ public final class PhoneNotificationDelivery {
   }
   static JSONObject afterDeletion(String reader,String card,String iccid,Set<Long> before){
     if(before==null)return null;try{
-      Properties operation=new OperationJournal(new File("/data/local/tmp/fiveber-rescue-state")).read();
+      Properties operation=OperationJournal.forCard(new File("/data/local/tmp/fiveber-rescue-state"),card).read();
       requireDeletionBinding(operation,card,iccid,"running");String host=approvedInstallHost(card,iccid);NotificationMetadataInventory.Entry selected=null;
       for(NotificationMetadataInventory.Entry entry:NotificationMetadataInventory.list(reader,card))if(!before.contains(entry.sequence)&&entry.operation==0x10&&entry.iccid.equals(iccid)&&entry.host.equals(host)){if(selected!=null)throw new SecurityException("Ambiguous new deletion notification");selected=entry;}
       if(selected==null)throw new SecurityException("No bound deletion notification");
@@ -87,9 +91,8 @@ public final class PhoneNotificationDelivery {
   /** Operator repair of one previously verified deletion. Not exposed as a Binder/RPC method. */
   static JSONObject recoverVerifiedDeletion(String reader,String card,String iccid,String transaction,long sequence)throws Exception {
     requireShell();if(transaction==null||!transaction.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))throw new SecurityException("Invalid deletion transaction");
-    java.nio.file.Path file=java.nio.file.Paths.get("/data/local/tmp/fiveber-rescue-state/history",transaction+".properties");
-    if(java.nio.file.Files.isSymbolicLink(file)||!java.nio.file.Files.isRegularFile(file,java.nio.file.LinkOption.NOFOLLOW_LINKS)||java.nio.file.Files.size(file)>4096)throw new SecurityException("Invalid deletion history");
-    Properties operation=new Properties();try(java.io.InputStream in=java.nio.file.Files.newInputStream(file,java.nio.file.LinkOption.NOFOLLOW_LINKS)){operation.load(in);}requireDeletionBinding(operation,card,iccid,"verified");
+    Properties operation=OperationJournal.forCard(new File("/data/local/tmp/fiveber-rescue-state"),card).readTransaction(transaction);
+    requireDeletionBinding(operation,card,iccid,"verified");
     for(CardProfileInventory.Entry entry:CardProfileInventory.list())if(entry.iccid.equals(iccid))throw new SecurityException("Deleted profile still present");
     String host=approvedInstallHost(card,iccid);if(host==null)throw new SecurityException("No prior approved install recipient");boolean found=false;
     for(NotificationMetadataInventory.Entry entry:NotificationMetadataInventory.list(reader,card))if(entry.sequence==sequence&&entry.operation==0x10&&entry.iccid.equals(iccid)&&entry.host.equals(host))found=true;

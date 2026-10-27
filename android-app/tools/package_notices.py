@@ -3,7 +3,7 @@
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 third=root/'third_party'
-files=[third/'zxing-Apache-2.0-LICENSE.txt',third/'sentry-java-MIT-LICENSE.txt']
+files=[third/'zxing-Apache-2.0-LICENSE.txt',third/'sentry-java-MIT-LICENSE.txt',third/'shizuku-api-MIT-LICENSE.txt']
 files+=sorted((third/'lpac-licenses').iterdir())
 heading='''8bercue — third-party notices
 
@@ -12,7 +12,7 @@ Original 8bercue code is licensed under AGPL-3.0-only by sid.
 Third-party licenses and notices apply to their respective components.
 
 Runtime components: lpac (AGPL-3.0-only), libeuicc (LGPL-2.1-only alternative),
-cJSON and cjson-ext (MIT), ZXing core 3.5.3 (Apache-2.0), and Sentry Android core 8.61.0 (MIT).
+cJSON and cjson-ext (MIT), ZXing core 3.5.3 (Apache-2.0), Sentry Android core 8.61.0 (MIT), and optional Shizuku API/provider 13.1.5 (MIT).
 The bundled lpac source archive also contains platform-specific files that are
 not compiled into this Android build; their original notices are preserved.
 The commercial libeuicc license text is retained as upstream documentation;

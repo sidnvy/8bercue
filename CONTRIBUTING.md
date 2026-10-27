@@ -15,7 +15,8 @@ switching or mobile data were tested.
 
 Use the [device report template](.github/ISSUE_TEMPLATE/device-compatibility.yml).
 For 9eSIM, 海豚卡 or another card family, include the exact product/model and
-firmware if known. Existing owner reports without those details remain reports,
+firmware if known. Nekoko reports should also identify the product revision
+when available. Existing owner reports without those details remain reports,
 not a complete compatibility guarantee.
 
 Start with observation. Optional write testing should use your own disposable
@@ -39,8 +40,11 @@ Read [the adapter guide](docs/ADAPTERS.md) and [architecture](docs/ARCHITECTURE.
    were exercised and which remain untested.
 
 Never relax complete card identity binding, explicit multi-card choice, caller
-verification, one-use operation consent, transaction locks, unknown-outcome
+verification, one-use operation consent, transaction locks, per-card unknown-outcome
 blocking or independent postflight reads to make a new phone appear supported.
+A result unknown on one card must not restrict another card. Preserve legacy
+records, scope new journals to the complete card identity, and prove that old
+workers have stopped before releasing a global worker quarantine.
 Do not initialize/reset a shared HAL or close another client's channels.
 
 ## Open a pull request
@@ -48,7 +52,9 @@ Do not initialize/reset a shared HAL or close another client's channels.
 Keep the change small and explain the concrete failure and resulting behavior.
 Include the device/ROM and adapter involved, the relevant tests, and a compact
 result summary with limits. A compatibility-only report can update the matrix
-without changing runtime code.
+without changing runtime code. Include only the model/ROM/card, app version,
+verified backend and a concise operation scope; keep individual session traces
+in your own archive. See [the current matrix](docs/COMPATIBILITY.md) for examples.
 
 Follow [BUILDING.md](BUILDING.md) for the toolchain and commands. Run the tests
 relevant to the changed layer; CI also runs the complete offline regressions,
@@ -58,6 +64,21 @@ simulated. Keep production signing keys out of contributions and CI for forks.
 Maintainer review and required CI determine whether a PR can merge. CodeRabbit
 and similar automated reviews are advisory; useful findings should be checked,
 but waiting for a bot is not an additional merge gate after internal review.
+
+## Documentation-only changes
+
+Check local links, images, setup labels and Mermaid syntax. Verify that release
+links refer to a published release and that support statements match the stated
+version, card and operation. Update `SHA256.json` after staging the intended
+source files as described in [BUILDING.md](BUILDING.md). Documentation-only work
+does not need a new signed APK or another card write; required repository CI
+still applies.
+
+`README.md` is the default English homepage. Keep `README.zh-CN.md` and
+`README.ja.md` aligned when changing README features, setup steps, release links
+or compatibility limits. Preserve the language switcher below the icon in all
+three files. README translations do not imply support for that language in the
+app UI; retain actual UI labels where a translated UI is unavailable.
 
 ## Public reports and documentation
 
@@ -72,5 +93,5 @@ Exclude activation/confirmation codes, full EID/ICCID, private keys, access toke
 profile payloads and unreviewed screenshots. Use fixed error categories or the
 app's reviewed diagnostics instead of raw APDU/HTTP traces.
 
-Keep discussion practical and respectful. Explain the behavior you observed and
-allow for differences between cards, ROMs and app versions.
+Follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Explain the behavior you
+observed and allow for differences between cards, ROMs and app versions.

@@ -36,13 +36,17 @@ final class OnDeviceAdbWirelessManager {
     }
 
     static void startManagement(Context context, OnDeviceAdbDiscovery.Endpoint endpoint)
+            throws IOException, GeneralSecurityException {startManagement(context,endpoint,false);}
+    static void restartManagement(Context context, OnDeviceAdbDiscovery.Endpoint endpoint)
+            throws IOException, GeneralSecurityException {startManagement(context,endpoint,true);}
+    private static void startManagement(Context context, OnDeviceAdbDiscovery.Endpoint endpoint,boolean recoverExisting)
             throws IOException, GeneralSecurityException {
         if (endpoint == null || endpoint.purpose != OnDeviceAdbDiscovery.Purpose.CONNECTION)
             throw new IOException("Not an ADB connection service");
         InetAddress local=InetAddress.getByName(endpoint.address);
         if(!OnDeviceAdbDiscovery.isOwnAddress(local) || endpoint.port<=0 || endpoint.port>65535)
             throw new IOException("ADB connection endpoint is not local");
-        if(CompanionBinderProvider.management()!=null) return;
+        if(!recoverExisting&&CompanionBinderProvider.management()!=null) return;
         if(context.getSharedPreferences("wireless_adb_identity",Context.MODE_PRIVATE)
                 .getString("pairedGuid","").isEmpty())
             throw new IOException("Wireless ADB pairing has not completed in this app");
@@ -55,7 +59,9 @@ final class OnDeviceAdbWirelessManager {
             plain.connect(new InetSocketAddress(local,endpoint.port),5000);
             plain.setSoTimeout(18000);
             // The Binder challenge is the exact production explicit one-shot window.
-            CompanionBinderProvider.beginManagementBootstrap();
+            if(recoverExisting&&CompanionBinderProvider.management()!=null)
+                CompanionBinderProvider.beginManagementRecoveryBootstrap();
+            else CompanionBinderProvider.beginManagementBootstrap();
             try {
               OnDeviceAdbRestrictedClient.run(plain.getInputStream(),plain.getOutputStream(),()->{
                 SSLSocket tls=tlsContext.openOver(plain,local,endpoint.port);

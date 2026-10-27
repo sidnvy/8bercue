@@ -8,6 +8,7 @@ root=Path(__file__).resolve().parents[1]
 s=(root/'app/src/main/java/dev/sid/fiveberinspector/ProfileUserService.java').read_text()
 method=s.split('@Override public synchronized String reconcileOperation() {',1)[1].split('    @Override public synchronized String getProfileIccid',1)[0]
 method=method.replace('} catch (java.io.IOException failure) {','} catch (Exception failure) {')
+method=method.replace('ReadOnlyRecovery.acquire();','/* read-only recovery stub */')
 source='''import java.util.*;
 public class ReconcileIdentityTest {
  static boolean authorized=true,scope=false,failRead=false;static int reads,journals,checks,shellScopes;
@@ -29,6 +30,7 @@ public class ReconcileIdentityTest {
  }
  static class Log {static void i(String tag,String msg){} static void w(String tag,String msg){}}
  static class CardTransactionLock {static void acquire(){} static void release(){}}
+ static class ReadOnlyRecovery {static void acquire(){}}
  static class FiveberReaderSelector {
   static class Target {String identityHash="card";String reader="SIM1";}
   static Target discover(){return new Target();}

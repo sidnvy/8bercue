@@ -481,7 +481,10 @@
     <string name="wireless_adb_live_unavailable">"Secure connection not ready; open Wireless ADB setup to verify pairing"</string>
 
 
-    <string name="recovery_review_button">Review the previous change</string>
+    <string name="recovery_review_button">Review the current card state</string>
+    <string name="download_declined_before_install">The operator declined this activation code before installation. Your profiles are unchanged. Use another valid code; this attempt will not be retried automatically.</string>
+    <string name="download_not_installed">Not installed: </string>
+    <string name="recovery_download_warning">The previous download result is unknown. Continue only if the current eSIM list matches the list before that attempt. This keeps the original record and abandons that attempt without retrying it. Its activation code may have been consumed; do not reuse it. New actions will use the verified current card.</string>
     <string name="recovery_review_title">Accept the current card state?</string>
     <string name="recovery_review_warning">The previous enable, disable or rename result cannot be proven. Check the visible eSIM list first. This will NOT repeat the previous operation. If verification succeeds, an audit record will preserve its unknown outcome and allow new actions from the current card state. Do not continue if the card is unexpected.</string>
     <string name="recovery_review_changed">The current card profile inventory differs from the snapshot before that operation. Review each profile and enabled state before confirming.</string>
@@ -518,7 +521,7 @@
   <string name="nav_view_esims">View my eSIMs</string>
   <string name="nav_pairing_steps">1. Open Wireless debugging in Android Settings.\n2. Choose Pair device with pairing code.\n3. Keep the code window open and enter the code in the 8bercue notification.</string>
   <string name="nav_pairing_help">Wireless setup requires Android 12 or later and Wi-Fi. Expand the 8bercue notification and choose Enter pairing code. Keep the system pairing window open until pairing finishes.</string>
-  <string name="nav_authorization_scope">Android debugging gives 8bercue more access than an ordinary app. It uses this permission to connect to this phone’s card and perform the card operations you request. Pair only with this phone.</string>
+  <string name="nav_authorization_scope">Android debugging gives 8bercue more access than an ordinary app. It uses this permission to connect to this phone’s card and perform the card operations you request. This does not grant root.</string>
   <string name="nav_start_setup">Start setup</string>
   <string name="nav_reconnect_help">Your pairing is remembered. Keep Wi-Fi and Wireless debugging enabled, then connect again when needed.</string>
   <string name="nav_computer_required">This build connects through an authorized computer. Connect this phone by USB and follow the one-command guide.</string>
@@ -561,4 +564,21 @@
   <string name="recovery_view_only_title">View only</string>
   <string name="recovery_view_only_summary">You can view this card. Changes are paused because a previous change was not confirmed.</string>
   <string name="recovery_record_summary">The app did not receive a final result for an earlier change. Its record is kept and the change will not be retried automatically.</string>
+  <string name="recovery_other_card_summary">You can view this card. Reconnect so the app can verify that the previous background task has stopped.</string>
+  <string name="recovery_review_original_card">Reconnect and select this card again. Its operation records are checked independently of other cards.</string>
+  <string name="recovery_review_unavailable">This record cannot currently be reviewed in the app. Keep app data and use Help and feedback for support.</string>
+    <string name="sim_card_label">"SIM %1$s"</string>
+  <string name="nav_choose_connection">Choose a connection method</string>
+  <string name="nav_connection_choice_help">Choose how to authorize 8bercue on this phone. Each method provides the same card management access.</string>
+  <string name="nav_computer_connection">Computer · USB ADB</string>
+  <string name="nav_computer_connection_summary">Connect this phone by USB and run one command on a trusted computer.</string>
+  <string name="nav_wireless_connection">This phone · Wireless ADB</string>
+  <string name="nav_wireless_connection_summary">Pair with Android Wireless debugging over Wi-Fi. No computer is needed.</string>
+  <string name="nav_shizuku_connection">Shizuku</string>
+  <string name="nav_shizuku_connection_summary">Use the Shizuku service already running on this phone. Allow 8bercue when asked.</string>
+  <string name="nav_shizuku_permission_denied">Shizuku authorization was not granted. Choose a connection method to try again.</string>
+  <string name="nav_shizuku_unavailable">Shizuku could not complete the connection. Keep its service running with ADB permissions, or choose another connection method.</string>
+  <string name="nav_shizuku_connecting">Connecting through Shizuku</string>
+  <string name="nav_reconnect_title">Reconnect to continue</string>
+  <string name="nav_reconnect_using_selected_method">Reconnect using your chosen method to continue. With a computer, open the USB ADB option and run its command again. You can also choose a different method.</string>
 </resources>

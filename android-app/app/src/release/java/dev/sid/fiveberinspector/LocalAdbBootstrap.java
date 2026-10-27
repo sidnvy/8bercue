@@ -21,10 +21,12 @@ public final class LocalAdbBootstrap {
             this.ready=ready;this.needsAuthorization=needsAuthorization;this.description=description;
         }
     }
-    public static Result start(Context context) {
+    public static Result start(Context context) {return connect(context,false);}
+    static Result restartAfterVerifiedRefresh(Context context) {return connect(context,true);}
+    private static Result connect(Context context,boolean recoverExisting) {
         if(Build.VERSION.SDK_INT < 31)
             return new Result(false,false,"This build requires Android 12+ TLS wireless debugging");
-        if(CompanionBinderProvider.management()!=null)
+        if(!recoverExisting&&CompanionBinderProvider.management()!=null)
             return new Result(true,false,"Authenticated management Binder already running");
         if(!OnDeviceAdbWirelessManager.hasPaired(context))
             return new Result(false,true,"Pair this phone once in Settings → Wireless ADB setup, then try again");
@@ -42,7 +44,8 @@ public final class LocalAdbBootstrap {
             discovery.start();
             if(!discovered.await(8,TimeUnit.SECONDS) || endpoint.get()==null)
                 return new Result(false,false,"Wireless debugging connection service not found; check Android Developer options");
-            OnDeviceAdbWirelessManager.startManagement(context,endpoint.get());
+            if(recoverExisting)OnDeviceAdbWirelessManager.restartManagement(context,endpoint.get());
+            else OnDeviceAdbWirelessManager.startManagement(context,endpoint.get());
             return new Result(CompanionBinderProvider.management()!=null,false,
                     "Authenticated local Wireless ADB management Binder connected");
         } catch(InterruptedException stop) {

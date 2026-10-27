@@ -1,14 +1,16 @@
 # Connect 8bercue
 
 The app talks to a local companion running as Android Shell (UID 2000). Authorize
-it through on-device wireless ADB or a trusted computer with USB ADB. Neither
-method grants root. Card access is checked separately after connection.
+it through on-device wireless ADB, a trusted computer with USB ADB, or an
+already-running Shizuku service with ADB permissions. None of these methods
+grants root. Card access is checked separately after connection.
 
 ## Wireless setup on the phone
 
 Requires Android 12+ and Wi-Fi for this app's TLS implementation.
 
-1. From Home choose **Set up wireless ADB**, then **Start setup**. Allow the
+1. From Home choose **Connection & access → This phone · Wireless ADB**,
+   then **Start setup**. Allow the
    notification permission so you can enter the code while staying in Settings.
 2. Open Android **Wireless debugging**, enable it if needed, then choose
    **Pair device with pairing code**.
@@ -16,8 +18,8 @@ Requires Android 12+ and Wi-Fi for this app's TLS implementation.
    **Enter pairing code**. Enter the six digits in the notification reply.
 4. Return to 8bercue. Select the intended card when prompted.
 
-Pairing remembers the app's client identity. Later, choose **Connect on this
-phone**. Wireless debugging must remain available. Reconnect after the companion
+Pairing remembers the app's client identity. Later, choose the wireless method
+and **Connect on this phone**. Wireless debugging must remain available. Reconnect after the companion
 stops; a normal background/foreground return may reuse a live session.
 
 Keep Android Settings open until pairing finishes. Android closes its pairing
@@ -28,9 +30,10 @@ use the computer option and investigate the device's IME/SystemUI behavior;
 
 ## Computer setup
 
-On older Android versions use **Connect using computer** from Home. On a
-wireless-capable device it is under **Settings → Connection & access → Other
-connection options**.
+From Home or Settings, open **Connection & access → Computer · USB ADB**.
+Computer and wireless are equal choices; existing wireless pairing does not
+prevent using the computer method. On Android versions or builds without
+on-device wireless support, the computer method remains available.
 
 Enable USB debugging, connect to a trusted computer and accept its Android
 authorization prompt. Copy the command from 8bercue and run it during the visible
@@ -42,6 +45,36 @@ connection entrypoint. It downloads no separate helper and requires no Python
 runtime. The terminal confirms an authenticated Binder connection or reports a
 bounded failure. A successful launch attempt alone is not treated as success.
 
+## Shizuku (optional)
+
+If Shizuku is already running with ADB permissions on this phone, **Shizuku**
+appears as a third method under **Connection & access**. Choose it and allow
+8bercue in Shizuku's authorization prompt. No extra pairing or computer command
+is needed for 8bercue. Having Shizuku installed without a running service is not
+enough; start it normally in Shizuku first, then return to 8bercue.
+
+This integration supports Shizuku server API 13 or later, started through ADB
+(Shell UID 2000). Root-started Shizuku and Sui are not supported by this Shell
+backend. The app requests Shizuku permission only after you select this method.
+
+Shizuku launches a one-use service from the installed 8bercue APK. That service
+can only start 8bercue's fixed connection entrypoint; it accepts no command,
+path or card operation. The same current-App challenge, installed APK digest,
+caller checks and typed management Binder used by the other methods still
+apply. The launcher is removed after the handoff; existing card operation
+consent, locks, journals and postflight checks do not change.
+
+After a verified card change that requires a fresh companion session, 8bercue
+reconnects through the method you selected. Existing Shizuku permission can be
+reused without another prompt; revocation or an unavailable service leaves
+access paused and offers the connection choices. It does not silently switch
+from your computer choice to an old wireless pairing. With the computer method,
+open its USB ADB guide and run the command again. Connection recovery never
+repeats the card change.
+
+See the [official Shizuku API guide](https://github.com/RikkaApps/Shizuku-API)
+for the distinction between ADB and root identities and the UserService API.
+
 ## Connection versus card access
 
 A connected companion still needs a usable HAL, Telephony or OMAPI route.
@@ -50,5 +83,7 @@ explicit selection; a changed/missing selected card stops access instead of
 silently using another one.
 
 Do not clear app data, remove unrelated pairings or change debugging/network
-settings as a generic recovery step. Existing unknown card outcomes require
-[recovery review](READ_ONLY_RECOVERY.md), not another write attempt.
+settings as a generic recovery step. For an earlier uncertain card outcome, the app first tries automatic exact
+observation where supported; other cases retain their own review requirements.
+See [interrupted operations and recovery](READ_ONLY_RECOVERY.md) before trying
+another card change.

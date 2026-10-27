@@ -37,6 +37,12 @@ final class ReaderDescriptor {
   }
   return Collections.unmodifiableList(readers);
  }
+ // A HAL instance name is a logical reader label, not proof of physical slot order.
+ static String simLabel(String name){
+  if(name==null)return "";
+  String raw=name.startsWith(HIDL_PREFIX)?name.substring(HIDL_PREFIX.length()):name.startsWith(OMAPI_PREFIX)?name.substring(OMAPI_PREFIX.length()):name;
+  return raw.matches("SIM[1-8]")?raw.substring(3):"";
+ }
  static boolean writable(String name){
   if(!valid(name)||name.startsWith(HIDL_PREFIX))return false;
   if(name.startsWith(TELEPHONY_PREFIX))try{telephonyIndices(name);}catch(SecurityException invalid){return false;}

@@ -42,7 +42,7 @@ public final class PortableProfileDownload {
             ActivationCode activation=ActivationCode.parse(raw);
             String secret=activation.confirmation(confirmation);
             FiveberReaderSelector.Target card=FiveberReaderSelector.discover();ReaderDescriptor.requireWritable(card.reader);LabSupport.validateDownload(card.identityHash,PortableProfileLifecycle.rows(CardProfileInventory.list()));ShellOperationScope.validateDownload(card.identityHash,PortableProfileLifecycle.rows(CardProfileInventory.list()),activation.nativeValue());
-            PhoneNativeLpac.listProfiles(card);
+            PhoneNativeLpac.listProfiles();
             List<DownloadGuard.Row> before=rows(CardProfileInventory.list());
             String fingerprint=DownloadGuard.fingerprint(before);
             if(before.size()>=16)throw new SecurityException("Profile inventory at this build's supported limit");
@@ -79,7 +79,7 @@ public final class PortableProfileDownload {
             FiveberReaderSelector.Target card=FiveberReaderSelector.discover();ReaderDescriptor.requireWritable(card.reader);LabSupport.validateDownload(card.identityHash,PortableProfileLifecycle.rows(CardProfileInventory.list()));ShellOperationScope.validateDownload(card.identityHash,PortableProfileLifecycle.rows(CardProfileInventory.list()),plan.activation.nativeValue());
             if(!plan.reader.equals(card.reader) || !plan.hash.equals(card.identityHash) || !plan.identityHash.equals(card.identityHash))
                 throw new SecurityException("Card identity changed since preview");
-            PhoneNativeLpac.listProfiles(card);
+            PhoneNativeLpac.listProfiles();
             List<DownloadGuard.Row> before=rows(CardProfileInventory.list());
             if(!plan.fingerprint.equals(DownloadGuard.fingerprint(before)))
                 throw new SecurityException("Profiles changed since preview; review again");
@@ -96,19 +96,19 @@ public final class PortableProfileDownload {
                 if(!plan.reader.equals(afterCard.reader) || !plan.hash.equals(afterCard.identityHash) || !plan.identityHash.equals(afterCard.identityHash))
                     throw new SecurityException("Card changed after download");
                 // Independent native + Java inventory readback, not command status alone.
-                PhoneNativeLpac.listProfiles(afterCard);
+                PhoneNativeLpac.listProfiles();
                 List<DownloadGuard.Row> after=rows(CardProfileInventory.list());
                 unchanged=plan.fingerprint.equals(DownloadGuard.fingerprint(after));
                 if(nativeSuccess)exact=DownloadGuard.exactInstalled(before,after,attempt.result.getString("installedIccid"));
             } catch(Exception ignored) {
                 // Cannot conclude failure, absence or installation from a failed reconciliation.
             }
-            boolean unstarted=unchanged && OperationJournal.networkStoppedBeforeCard(attempt.diagnostics);
-            JSONObject response = new JSONObject().put("ok",exact).put("status",exact?"installed_disabled":unstarted?"not_completed":"unknown")
-                .put("verified",exact).put("installed",exact?Boolean.TRUE:JSONObject.NULL)
+            boolean notInstalled=DownloadOutcomePolicy.notInstalled(nativeSuccess,attempt.workerStopped,unchanged,attempt.diagnostics);
+            JSONObject response = new JSONObject().put("ok",exact).put("status",exact?"installed_disabled":notInstalled?"not_completed":"unknown")
+                .put("verified",exact).put("installed",exact?Boolean.TRUE:notInstalled?Boolean.FALSE:JSONObject.NULL)
                 .put("enabled",exact?Boolean.FALSE:JSONObject.NULL).put("nativeSuccess",nativeSuccess)
-                .put("reviewRequired",!exact && !unstarted).put("inventoryUnchanged",unchanged)
-                .put("cardReadRequired",!exact).put("workerStopped",true).put("retryAllowed",unstarted)
+                .put("reviewRequired",!exact&&!notInstalled).put("inventoryUnchanged",unchanged)
+                .put("cardReadRequired",!exact&&!notInstalled).put("workerStopped",true).put("retryAllowed",false)
                 .put("downloadDiagnostics",new JSONObject(attempt.diagnostics));
             if(exact) {
                 JSONObject delivery=PhoneNotificationDelivery.afterInstall(plan.reader,plan.hash,plan.activation.host,
