@@ -172,6 +172,17 @@
     <string name="ui_2_run_this_on_your_computer" formatted="false">"2. Run this on your computer"</string>
     <string name="ui_copy_adb_command" formatted="false">"Copy ADB command"</string>
     <string name="ui_command_copied" formatted="false">"Command copied"</string>
+    <string name="ui_copy_eid" formatted="false">"Copy EID"</string>
+    <string name="ui_copy_iccid" formatted="false">"Copy ICCID"</string>
+    <string name="ui_eid_copied" formatted="false">"EID copied"</string>
+    <string name="ui_eid_paste_for_operator" formatted="false">"Paste it into the operator form if they ask for your eUICC EID. The screen still shows a masked EID."</string>
+    <string name="ui_eid_copy_unavailable" formatted="false">"EID not available yet"</string>
+    <string name="eid_clipboard_label" formatted="false">"8bercue EID"</string>
+    <string name="ui_iccid_copied" formatted="false">"ICCID copied"</string>
+    <string name="ui_iccid_paste_for_operator" formatted="false">"Paste it into the operator form if they ask for this eSIM’s ICCID. The screen still shows a masked ICCID."</string>
+    <string name="ui_iccid_copy_unavailable" formatted="false">"ICCID not available yet"</string>
+    <string name="iccid_clipboard_label" formatted="false">"8bercue ICCID"</string>
+    <string name="ui_download_stopped_before_the_server_the_card_is_unchanged" formatted="false">"The download failed before it reached the server. The card is unchanged, so you can try again."</string>
     <string name="ui_run_it_while_the_timer_is_active_your_computer_will_confirm_the" formatted="false">"Run it while the timer is active. Your computer will confirm the connection or explain why it failed."</string>
     <string name="ui_start_connection_again" formatted="false">"Start connection again"</string>
     <string name="ui_the_command_stays_the_same_after_app_updates_with_several_phones" formatted="false">"The command stays the same after app updates. With several phones attached, replace adb shell with adb -s SERIAL shell for this phone."</string>

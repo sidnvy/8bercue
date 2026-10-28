@@ -20,7 +20,7 @@ public final class PortableProfileLifecycle {
   shell();CardTransactionLock.acquire();try{
    pending=null;ProfileLifecycleGuard.Operation op;
    try{op=ProfileLifecycleGuard.Operation.valueOf(operation.toUpperCase(Locale.ROOT));}catch(Exception e){throw new SecurityException("Unsupported profile operation");}
-   FiveberReaderSelector.Target card=FiveberReaderSelector.discover();PhoneNativeLpac.listProfiles();
+   FiveberReaderSelector.Target card=FiveberReaderSelector.discover();PhoneNativeLpac.listProfiles(card);
    List<CardProfileInventory.Entry> entries=CardProfileInventory.list();List<ProfileLifecycleGuard.Row> before=rows(entries);
    String digest=ProfileLifecycleGuard.fingerprint(before);
    if(expectedFingerprint!=null&&(!expectedFingerprint.equals(ProfileLifecycleGuard.selectionFingerprint(before))||expectedCard==null||!expectedCard.equals(card.identityHash)))throw new SecurityException("Card inventory changed since displayed selection; refresh required");
@@ -45,7 +45,7 @@ public final class PortableProfileLifecycle {
   }
   try{
    if(!qualified(p.hash))throw new SecurityException("Invalid card identity or local test scope does not permit this card");
-   verifyIdentity(p);PhoneNativeLpac.listProfiles();List<ProfileLifecycleGuard.Row> before=rows(CardProfileInventory.list());
+   FiveberReaderSelector.Target card=verifyIdentity(p);PhoneNativeLpac.listProfiles(card);List<ProfileLifecycleGuard.Row> before=rows(CardProfileInventory.list());
    if(!p.digest.equals(ProfileLifecycleGuard.fingerprint(before)))throw new SecurityException("Card changed since preview");
    ReaderDescriptor.requireLifecycle(p.reader,p.op,ProfileLifecycleGuard.selected(before,p.id).enabled);
    ProfileLifecycleGuard.validate(p.op,before,p.id,p.nickname);LabSupport.validateMutation(p.identityHash,p.op,before,p.id);ShellOperationScope.validateMutation(p.identityHash,p.op,before,p.id);NativeLpacBundle.ensureInstalled();
@@ -89,5 +89,5 @@ public final class PortableProfileLifecycle {
    return lifecycleResult;
   }finally{CardTransactionLock.release();}
  }
- private static void verifyIdentity(Plan p)throws Exception{FiveberReaderSelector.Target c=FiveberReaderSelector.discover();if(!p.reader.equals(c.reader)||!p.hash.equals(c.identityHash)||!p.identityHash.equals(c.identityHash))throw new SecurityException("Card identity changed");}
+ private static FiveberReaderSelector.Target verifyIdentity(Plan p)throws Exception{FiveberReaderSelector.Target c=FiveberReaderSelector.discover();if(!p.reader.equals(c.reader)||!p.hash.equals(c.identityHash)||!p.identityHash.equals(c.identityHash))throw new SecurityException("Card identity changed");return c;}
 }

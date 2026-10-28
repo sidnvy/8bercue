@@ -27,7 +27,8 @@ public final class ShellCompanionClient {
         if (method.equals("executeSwitch") || method.equals("executeOperation")) return 180000;
         if (method.equals("prepareRecoveryReview") || method.equals("confirmRecoveryReview")) return 90000;
         if (method.equals("reconcileOperation") || method.equals("listProfiles")
-                || method.equals("getCardInfo") || method.equals("PROFILES")) return 65000;
+                || method.equals("getCardInfo") || method.equals("getCardEid") || method.equals("getProfileIccid")
+                || method.equals("PROFILES")) return 65000;
         return 35000;
     }
 
@@ -75,11 +76,11 @@ public final class ShellCompanionClient {
 
     static JSONObject service(String method, Integer index, String nickname,
                               String token, String activationCode,
-                              String confirmationCode) throws Exception {
+                              String confirmationCode, String selectionId) throws Exception {
         // Client allowlist is defense in depth. The server separately checks
         // SO_PEERCRED, current package UID, operation and bounded argument types.
         switch (method) {
-            case "getStatus": case "listProfiles": case "getCardInfo":
+            case "getStatus": case "listProfiles": case "getCardInfo": case "getCardEid": case "getProfileIccid":
             case "getOperationStatus": case "reconcileOperation":
             case "prepareRecoveryReview": case "confirmRecoveryReview":
             case "prepareCardSelection": case "selectCard":
@@ -96,6 +97,7 @@ public final class ShellCompanionClient {
         if (token != null) envelope.put("token", token);
         if (activationCode != null) envelope.put("activationCode", activationCode);
         if (confirmationCode != null) envelope.put("confirmationCode", confirmationCode);
+        if (selectionId != null) envelope.put("selectionId", selectionId);
         return request(envelope.toString(),method).getJSONObject("result");
     }
 

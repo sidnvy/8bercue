@@ -203,16 +203,47 @@ public final class MainActivity extends Activity {
     default -> op;
   };}
   private String countdown(long millis){long seconds=Math.max(0,(millis+999)/1000);return seconds==0?s(R.string.ui_connection_window_expired):s(R.string.connection_countdown,String.format(java.util.Locale.ROOT,"%d:%02d",seconds/60,seconds%60));}
+  private void copyPlain(String label,String value){
+    android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+    ClipData clip=ClipData.newPlainText(label,value);
+    if(Build.VERSION.SDK_INT>=33){
+      android.os.PersistableBundle extras=new android.os.PersistableBundle();
+      extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE,true);
+      clip.getDescription().setExtras(extras);
+    }
+    clipboard.setPrimaryClip(clip);
+  }
+  private void copyIccid() {
+    if (OPERATIONS.running() || backend == null || selectedProfile < 0 || selectedProfileKey.isEmpty()) return;
+    final IProfileService service = backend;
+    final int index = selectedProfile;
+    final String selectionId = selectedProfileKey;
+    run(s(R.string.ui_reading_card_information), false, () -> new JSONObject(service.getProfileIccid(index, selectionId)), r -> {
+      String iccid = r.optBoolean("ok", false) ? r.optString("iccid", "") : null;
+      if (iccid != null && iccid.matches("[0-9]{19,20}")) {
+        copyPlain(s(R.string.iccid_clipboard_label), iccid);
+        statusPreservingOutcome(s(R.string.ui_iccid_copied), s(R.string.ui_iccid_paste_for_operator));
+      } else status(s(R.string.ui_iccid_copy_unavailable), s(R.string.ui_refresh_the_card_and_select_a_profile));
+      render();
+    });
+  }
+  private void copyEid(){
+    if(OPERATIONS.running()||backend==null){if(backend==null)status(s(R.string.ui_connect_your_card_first),s(R.string.ui_eid_copy_unavailable));render();return;}
+    final IProfileService service=backend;
+    run(s(R.string.ui_reading_card_information),false,()->new JSONObject(service.getCardEid()),r->{
+      String eid=r.optBoolean("ok",false)?r.optString("eid",""):null;
+      if(eid!=null&&eid.matches("\\d{32}")){copyPlain(s(R.string.eid_clipboard_label),eid);statusPreservingOutcome(s(R.string.ui_eid_copied),s(R.string.ui_eid_paste_for_operator));}
+      else status(s(R.string.ui_eid_copy_unavailable),s(R.string.ui_reconnect_and_refresh_the_card));
+      render();
+    });
+  }
   private String connectionNotice(JSONObject result){
     String reader=result.optString("reader","");
     String explanation=s(reader.startsWith("telephony.")?R.string.connection_telephony_notice:reader.startsWith("hidl.")?R.string.connection_hidl_notice:R.string.connection_verified_notice);
     return s(R.string.connection_route_notice,compatibility.optString("route",s(R.string.ui_no_verified_card_connection)),explanation);
   }
   private String readerDescription(String reader,String original){
-    if(!reader.startsWith("telephony.")){
-      String sim=ReaderDescriptor.simLabel(reader);
-      return !sim.isEmpty()?s(R.string.sim_card_label,sim):s(R.string.ui_card);
-    }
+    if(!reader.startsWith("telephony."))return reader.isEmpty()?original:s(R.string.secure_reader,reader);
     try{int[] slot=ReaderDescriptor.telephonyIndices(reader);String address=s(R.string.physical_slot,slot[0],slot[1]);
       return original.startsWith("Removable eUICC")?s(R.string.removable_card,address):original.startsWith("Built-in eUICC")?s(R.string.built_in_card,address):address;
     }catch(SecurityException invalid){return original;}
@@ -378,7 +409,7 @@ public final class MainActivity extends Activity {
           if (BuildConfig.DEBUG) android.util.Log.i("FiveberCompanionPilot",
               "protocol_v2=" + generic);
           JSONObject profiles = generic
-              ? ShellCompanionClient.service("listProfiles",null,null,null,null,null)
+              ? ShellCompanionClient.service("listProfiles",null,null,null,null,null,null)
               : ShellCompanionClient.list();
           if (!profiles.optBoolean("ok", true) || !profiles.has("profiles"))
             throw new IllegalStateException(s(R.string.ui_companion_inventory_not_verified));
@@ -477,8 +508,6 @@ public final class MainActivity extends Activity {
           statusPreservingOutcome(
               s(R.string.ui_card_connected), connectionNotice(r));
           render();
-          // The automatic proof changed durable status. Refresh operation and
-          // notification status once before dismissing the old pending notice.
           if(r.optBoolean("lifecycleObservationVerified",false))checkRecovery();
         });
   }
@@ -562,12 +591,11 @@ public final class MainActivity extends Activity {
         notice=s(R.string.recovery_review_failed);render();return;
       }
       String token=proposal.optString("token","");
-      final boolean download="download".equals(proposal.optString("operation"));
       if(!OperationTokens.isValid(token)){
         notice=s(R.string.recovery_review_failed);render();return;
       }
       Sheet review=new Sheet(s(R.string.recovery_review_title));
-      review.copy(s(download?R.string.recovery_download_warning:R.string.recovery_review_warning));
+      review.copy(s(R.string.recovery_review_warning));
       review.copy(proposal.optBoolean("inventoryChanged",true)
           ?s(R.string.recovery_review_changed):s(R.string.recovery_review_unchanged));
       review.button(s(R.string.recovery_review_confirm),true,()->{
@@ -581,13 +609,13 @@ public final class MainActivity extends Activity {
             getPreferences(0).edit().putBoolean("pending",true).commit();
             return;
           }
-          if(!result.optBoolean("ok",false)||!(download?"reviewed_abandoned":"reviewed_observed").equals(result.optString("status"))){
+          if(!result.optBoolean("ok",false)||!"reviewed_observed".equals(result.optString("status"))){
             getPreferences(0).edit().putBoolean("pending",true).commit();
             notice=s(R.string.recovery_review_failed);render();return;
           }
           recoveryReviewEligible=false;
           getPreferences(0).edit().remove("pending").commit();
-          notice=s(download?R.string.ui_the_unknown_download_was_reviewed_and_abandoned_the_profile_inve:R.string.recovery_review_completed);
+          notice=s(R.string.recovery_review_completed);
           checkRecovery();
         });
       });
@@ -705,8 +733,6 @@ public final class MainActivity extends Activity {
           screen = restoreDetailAfterRead ? 3 : 0;
           render();
           if(needsVerifiedSessionRestart(r,verified,review)){
-            // One normal, authenticated restart after the old worker has returned.
-            // beforeConnect keeps exclusion unless owned-session retirement succeeds.
             recoveryReconnectNeeded=true;backend=null;inventory=new JSONObject();reconnectVerifiedRefresh();return;
           }
           refresh();
@@ -790,8 +816,8 @@ public final class MainActivity extends Activity {
   }
   private void navigate(int destination) {
     if(OPERATIONS.running())return;
-    if (screen == 1 && destination != 1) { clearCredentials();pendingImport = null;draft.changed(); }
     if(destination!=SettingsNavigation.CONNECTION)shizukuPermissionPending=false;
+    if (screen == 1 && destination != 1) { clearCredentials();pendingImport = null;draft.changed(); }
     if(destination==SettingsNavigation.CONNECTION&&screen!=SettingsNavigation.CONNECTION&&screen!=6)connectionReturnScreen=screen==0?0:2;
     navigationSession++;
     if (destination != 1) { draft.form = false;showConfirmation = false; }
@@ -885,6 +911,11 @@ public final class MainActivity extends Activity {
     return Build.VERSION.SDK_INT >= 31 && LabSupport.wirelessEligible()
         && OnDeviceAdbNativeCrypto.available();
   }
+  private String primaryConnectionLabel() {
+    if (!wirelessOnboardingAvailable()) return s(R.string.ui_connect_using_computer);
+    return OnDeviceAdbWirelessManager.hasPaired(this)
+        ? s(R.string.wireless_adb_live_connect) : s(R.string.wireless_adb_live_entry);
+  }
   private void rememberConnectionMethod(String method) {
     connectionMethod=method;
     getPreferences(0).edit().putString("connectionMethod",method).apply();
@@ -958,7 +989,7 @@ public final class MainActivity extends Activity {
     }
     add(heading,22);
     JSONArray profiles=inventory.optJSONArray("profiles");
-    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.nav_card_choose_summary)),16);add(action(backend==null?s(R.string.nav_connection):s(R.string.ui_choose_card),true,backend==null?()->navigate(SettingsNavigation.CONNECTION):this::chooseCard),20);return;}
+    if(profiles==null){add(text(backend==null?s(R.string.ui_your_esims_will_appear_here):s(R.string.nav_card_choose_summary)),16);add(action(backend==null?primaryConnectionLabel():s(R.string.ui_choose_card),true,backend==null?this::primaryConnect:this::chooseCard),20);return;}
     for(int i=0;i<profiles.length();i++){
       final int index=i;JSONObject profile=profiles.optJSONObject(i);if(profile==null)continue;
       LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setMinimumHeight(dp(96));row.setPadding(0,dp(16),0,dp(16));
@@ -978,7 +1009,9 @@ public final class MainActivity extends Activity {
   private void profileDetails(){
     JSONObject p=detailProfile;if(p==null){add(text(s(R.string.ui_refresh_the_card_and_select_a_profile)),24);return;}
     add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),16);
-    add(text(profileName(p),28,TEXT,false),28);add(text(selectedIccid),6);
+    add(text(profileName(p),28,TEXT,false),28);
+    add(action(s(R.string.ui_copy_iccid),backend!=null,this::copyIccid),8);
+    add(text(selectedIccid),6);
     boolean enabled="enabled".equalsIgnoreCase(p.optString("state"));boolean disabled="disabled".equalsIgnoreCase(p.optString("state"));
     Switch toggle=new Switch(this);toggle.setText(s(R.string.ui_use_this_esim));toggle.setTextSize(20);toggle.setTextColor(ON_TONAL);toggle.setPadding(dp(20),dp(18),dp(20),dp(18));toggle.setMinHeight(dp(80));toggle.setBackground(rounded(TONAL,24));toggle.setChecked(enabled);toggle.setContentDescription(s(R.string.ui_use_this_esim));
     toggle.setThumbTintList(android.content.res.ColorStateList.valueOf(darkTheme?0xffffdbcC:Color.WHITE));toggle.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{ACCENT,MUTED}));
@@ -1172,7 +1205,7 @@ public final class MainActivity extends Activity {
       if(rows!=null)for(int i=0;i<rows.length();i++){
         JSONObject choice=rows.optJSONObject(i);if(choice==null)continue;
         String token=choice.optString("token","");
-        choices.button(readerDescription(choice.optString("reader",""),choice.optString("description",s(R.string.ui_card)))+s(R.string.ui_eid_156)+choice.optString("eidMasked",""),false,()->{
+        choices.button(readerDescription(choice.optString("reader",""),choice.optString("description",s(R.string.ui_card)))+s(R.string.ui_eid_156)+choice.optString("eidMasked","")+" · "+choice.optString("reader",""),false,()->{
           choices.dialog.dismiss();if(backend!=service||navigationSession!=choiceSession)return;
           run(s(R.string.ui_verifying_selected_card),false,()->new JSONObject(service.selectCard(token)),selected->{
             if(backend!=service||navigationSession!=choiceSession)return;
@@ -1220,48 +1253,58 @@ public final class MainActivity extends Activity {
 
   private void connectionAccessScreen() {
     boolean wireless=wirelessOnboardingAvailable();
+    boolean paired=wireless&&OnDeviceAdbWirelessManager.hasPaired(this);
     LinearLayout summary=box();
-    summary.addView(text(s(backend!=null&&!recoveryReconnectNeeded?R.string.ui_connected:R.string.nav_choose_connection),21,TEXT,true));
-    if(backend==null)summary.addView(text(s(R.string.nav_connection_choice_help),14,MUTED,false),margin(8));
+    summary.addView(text(s(backend!=null?R.string.ui_connected:wireless?R.string.nav_authorize_phone:R.string.ui_connect_using_computer),21,TEXT,true));
+    if(backend==null)summary.addView(text(connectionSummary(),14,MUTED,false),margin(8));
     add(summary,20);
     if(!managementUnavailable().isEmpty())add(text(managementUnavailable()),20);
-    else if(backend!=null&&!recoveryReconnectNeeded){
+    else if(backend!=null){
       add(text(s(R.string.nav_connection_ready)),20);
       add(action(s(R.string.nav_view_esims),true,()->navigate(0)),24);
+    }else if(wireless){
+      add(text(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps)),20);
+      if(!paired)add(text(s(R.string.nav_authorization_scope),13,MUTED,false),14);
+      add(action(s(paired?R.string.wireless_adb_live_connect:R.string.nav_start_setup),true,
+          paired?this::primaryConnect:this::startWirelessPairing),24);
     }else{
-      LinearLayout methods=navigationGroup(20);
-      navigationItem(methods,s(R.string.nav_computer_connection),s(R.string.nav_computer_connection_summary),"connection",this::beginDirectBootstrap);
-      if(wireless)navigationItem(methods,s(R.string.nav_wireless_connection),s(R.string.nav_wireless_connection_summary),"connection",this::showWirelessConnection);
-      if(ShizukuConnection.available())navigationItem(methods,s(R.string.nav_shizuku_connection),s(R.string.nav_shizuku_connection_summary),"connection",this::chooseShizukuConnection);
-      add(text(s(R.string.nav_authorization_scope),13,MUTED,false),20);
+      add(text(s(R.string.nav_computer_required)),20);
+      add(action(s(R.string.ui_connect_using_computer),true,this::beginDirectBootstrap),24);
     }
     LinearLayout help=navigationGroup(28);
     navigationItem(help,s(R.string.ui_setup_help),"","help",this::showConnectionHelp);
-  }
-
-  private void showWirelessConnection() {
-    if(!wirelessOnboardingAvailable()||OPERATIONS.running())return;
-    shizukuPermissionPending=false;
-    boolean paired=OnDeviceAdbWirelessManager.hasPaired(this);
-    Sheet wireless=new Sheet(s(R.string.nav_wireless_connection));
-    wireless.copy(s(paired?R.string.nav_reconnect_help:R.string.nav_pairing_steps));
-    wireless.copy(s(R.string.nav_pairing_help));
-    wireless.button(s(paired?R.string.wireless_adb_live_connect:R.string.nav_start_setup),true,()->{
-      wireless.dialog.dismiss();
-      if(paired)primaryConnect();else startWirelessPairing();
-    });
-    if(paired)wireless.button(s(R.string.nav_pair_again),false,()->{wireless.dialog.dismiss();startWirelessPairing();});
-    wireless.button(s(R.string.ui_cancel),false,wireless.dialog::dismiss);wireless.show();
+    if(wireless)navigationItem(help,s(R.string.nav_other_connections),"","connection",this::showOtherConnections);
   }
 
   private void startWirelessPairing() {
     if(!wirelessOnboardingAvailable()||OPERATIONS.running())return;
-    rememberConnectionMethod("wireless");
     if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
       requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7312);
       return;
     }
     launchUserApprovedPairingFlow();
+  }
+
+  private void showConnectionHelp() {
+    Sheet help=new Sheet(s(R.string.ui_setup_help));
+    if(wirelessOnboardingAvailable()){
+      help.copy(s(R.string.nav_pairing_steps));
+      help.copy(s(R.string.nav_authorization_scope));
+      help.copy(s(R.string.nav_pairing_help));
+    }else help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
+    help.copy(s(R.string.nav_reconnect_help));
+    help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
+  }
+
+  private void showOtherConnections() {
+    Sheet other=new Sheet(s(R.string.nav_other_connections));
+    other.copy(s(R.string.nav_computer_alternative));
+    other.button(s(R.string.ui_connect_using_computer),false,()->{other.dialog.dismiss();beginDirectBootstrap();});
+    if(wirelessOnboardingAvailable()&&OnDeviceAdbWirelessManager.hasPaired(this))
+      other.button(s(R.string.nav_pair_again),false,()->{other.dialog.dismiss();startWirelessPairing();});
+    if(LabSupport.socketEligible())other.button(s(R.string.ui_use_legacy_local_companion),false,()->{other.dialog.dismiss();selectLegacyCompanion();});
+    if(ShizukuConnection.available())other.button(s(R.string.nav_shizuku_connection),false,()->{other.dialog.dismiss();chooseShizukuConnection();});
+    other.button(s(R.string.ui_cancel),false,other.dialog::dismiss);other.show();
   }
 
   private void chooseShizukuConnection() {
@@ -1303,21 +1346,6 @@ public final class MainActivity extends Activity {
       if(backend==null)status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_unavailable));
       render();
     });
-  }
-
-  private void showConnectionHelp() {
-    Sheet help=new Sheet(s(R.string.ui_setup_help));
-    help.copy(s(R.string.nav_connection_choice_help));
-    help.copy(s(R.string.nav_computer_connection_summary));
-    help.copy(s(R.string.ui_connect_this_phone_by_usb_enable_usb_debugging_and_accept_the_co));
-    if(wirelessOnboardingAvailable()){
-      help.copy(s(R.string.nav_pairing_steps));
-      help.copy(s(R.string.nav_pairing_help));
-      help.copy(s(R.string.nav_reconnect_help));
-    }
-    help.copy(s(R.string.nav_authorization_scope));
-    if(ShizukuConnection.available())help.copy(s(R.string.nav_shizuku_connection_summary));
-    help.button(s(R.string.ui_done),false,help.dialog::dismiss);help.show();
   }
 
   private void appearanceScreen() {
@@ -1366,6 +1394,7 @@ public final class MainActivity extends Activity {
   private void cardInformationScreen() {
     add(text(cardLabel(),18,TEXT,true),20);
     add(text(s(R.string.ui_eid_269) + mask(cardInfo.optString("eidMasked", inventory.optString("eidMasked", s(R.string.ui_not_checked))))), 10);
+    if(backend!=null)add(action(s(R.string.ui_copy_eid),false,this::copyEid),8);
     add(text(s(R.string.ui_profiles) + (inventory.optJSONArray("profiles") == null ? s(R.string.ui_not_checked) : inventory.optJSONArray("profiles").length())), 8);
     add(text(s(R.string.ui_storage) + (cardInfo.length() == 0 ? s(R.string.ui_not_checked) : storage())), 8);
     add(action(cardInfo.length() == 0 ? s(R.string.ui_read_card_information) : s(R.string.ui_refresh_card_information), false, () -> {

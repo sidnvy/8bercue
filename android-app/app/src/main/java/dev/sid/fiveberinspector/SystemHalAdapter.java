@@ -59,39 +59,27 @@ final class SystemHalAdapter {
   requireShell();
   if(!reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX)){ReaderDescriptor.requireWritable(reader);return connect(reader);}
   if(op==null)throw new SecurityException("Operation required");
-  int[] address=ReaderDescriptor.telephonyIndices(reader);
-  Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
-  String name="com.android.internal.telephony.ITelephony";
-  return new TelephonySecureElementTransport(asInterface(name,binder),Class.forName(name),
-   Class.forName("com.android.internal.telephony.IccLogicalChannelRequest"),address[0],address[1],new android.os.Binder(),op,id,nickname);
+  return openTelephony(reader).bindLifecycle(op,id,nickname);
  }
  static SecureElementTransport connectForDownload(String reader)throws Exception {
   requireShell();ReaderDescriptor.requireWritable(reader);
   if(!reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX))return connect(reader);
-  int[] address=ReaderDescriptor.telephonyIndices(reader);String name="com.android.internal.telephony.ITelephony";
-  Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
-  return new TelephonySecureElementTransport(asInterface(name,binder),Class.forName(name),Class.forName("com.android.internal.telephony.IccLogicalChannelRequest"),address[0],address[1],new android.os.Binder(),new DownloadSessionPolicy());
+  return openTelephony(reader).bindDownload(new DownloadSessionPolicy());
  }
  static SecureElementTransport connectForNotification(String reader,long sequence)throws Exception {
   requireShell();ReaderDescriptor.requireWritable(reader);
   if(!reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX))return connect(reader);
-  int[] address=ReaderDescriptor.telephonyIndices(reader);String name="com.android.internal.telephony.ITelephony";
-  Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
-  return new TelephonySecureElementTransport(asInterface(name,binder),Class.forName(name),Class.forName("com.android.internal.telephony.IccLogicalChannelRequest"),address[0],address[1],new android.os.Binder(),sequence);
+  return openTelephony(reader).bindNotification(sequence,false);
  }
  static SecureElementTransport connectForNotificationRemoval(String reader,long sequence)throws Exception {
   requireShell();ReaderDescriptor.requireWritable(reader);
   if(!reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX))return connect(reader);
-  int[] address=ReaderDescriptor.telephonyIndices(reader);String name="com.android.internal.telephony.ITelephony";
-  Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
-  return new TelephonySecureElementTransport(asInterface(name,binder),Class.forName(name),Class.forName("com.android.internal.telephony.IccLogicalChannelRequest"),address[0],address[1],new android.os.Binder(),sequence,true);
+  return openTelephony(reader).bindNotification(sequence,true);
  }
  static SecureElementTransport connectForNotificationMetadata(String reader)throws Exception {
   requireShell();if(!ReaderDescriptor.valid(reader))throw new SecurityException("Invalid reader");
   if(!reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX))return connect(reader);
-  int[] address=ReaderDescriptor.telephonyIndices(reader);String name="com.android.internal.telephony.ITelephony";
-  Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
-  return new TelephonySecureElementTransport(asInterface(name,binder),Class.forName(name),Class.forName("com.android.internal.telephony.IccLogicalChannelRequest"),address[0],address[1],new android.os.Binder(),true);
+  return openTelephony(reader).bindMetadata();
  }
  static SecureElementTransport connect(String reader)throws Exception {
   requireShell();
@@ -107,14 +95,7 @@ final class SystemHalAdapter {
     Object hal=api.getMethod("getService",String.class,boolean.class).invoke(null,reader.substring(ReaderDescriptor.HIDL_PREFIX.length()),false);
     return new HidlSecureElementTransport(hal,api,callback);
    }
-   if(reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX)) {
-    int[] address=ReaderDescriptor.telephonyIndices(reader);
-    Object phone=service("phone");
-    if(phone==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
-    String name="com.android.internal.telephony.ITelephony";
-    return new TelephonySecureElementTransport(asInterface(name,phone),Class.forName(name),
-     Class.forName("com.android.internal.telephony.IccLogicalChannelRequest"),address[0],address[1],new android.os.Binder());
-   }
+   if(reader.startsWith(ReaderDescriptor.TELEPHONY_PREFIX))return openTelephony(reader);
    if(reader.startsWith(ReaderDescriptor.OMAPI_PREFIX)) {
     Object binder=service("secure_element");
     if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
@@ -162,15 +143,48 @@ final class SystemHalAdapter {
    return (removable?"Removable eUICC":"Built-in eUICC")+" · "+fallback;
   }catch(Exception unavailable){return fallback;}
  }
- static java.util.List<String> telephonyReaders()throws Exception {
-  requireShell();
-  java.util.List<String> readers=new java.util.ArrayList<>();
+ private static boolean telephonyPortRequests(Class<?> api)throws Exception{
+  try{
+   Class<?> request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
+   api.getMethod("iccOpenLogicalChannel",request);api.getMethod("iccCloseLogicalChannel",request);
+   api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
+   return true;
+  }catch(ClassNotFoundException|NoSuchMethodException unsupported){return false;}
+ }
+ private static boolean telephonySubscriptionRequests(Class<?> api)throws Exception{
+  try{
+   api.getMethod("iccOpenLogicalChannel",int.class,String.class,String.class,int.class);
+   api.getMethod("iccCloseLogicalChannel",int.class,int.class);
+   api.getMethod("iccTransmitApduLogicalChannel",int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
+   return true;
+  }catch(NoSuchMethodException unsupported){return false;}
+ }
+ static TelephonySecureElementTransport openTelephony(String reader)throws Exception {
+  int[] address=ReaderDescriptor.telephonyIndices(reader);
   Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
   String name="com.android.internal.telephony.ITelephony";
-  Class<?> api=Class.forName(name),request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
-  api.getMethod("iccOpenLogicalChannel",request);api.getMethod("iccCloseLogicalChannel",request);
-  api.getMethod("iccTransmitApduLogicalChannelByPort",int.class,int.class,int.class,int.class,int.class,int.class,int.class,int.class,String.class);
-  Object phone=asInterface(name,binder);
+  Class<?> api=Class.forName(name);Object phone=asInterface(name,binder);Object token=new android.os.Binder();
+  if(telephonyPortRequests(api)){
+   Class<?> request=Class.forName("com.android.internal.telephony.IccLogicalChannelRequest");
+   return new TelephonySecureElementTransport(phone,api,request,address[0],address[1],token);
+  }
+  if(address[1]!=0)throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_READER_INVENTORY);
+  if(!telephonySubscriptionRequests(api))
+   throw new SecureElementFailure(SecureElementFailure.Reason.SYSTEM_INTERFACE_UNAVAILABLE);
+  int sub=subscriptionForSlot(phone,api,address[0]);
+  if(sub<0)throw new SecureElementFailure(SecureElementFailure.Reason.NO_CARD);
+  return new TelephonySecureElementTransport(phone,api,sub,token);
+ }
+ static java.util.List<String> telephonyReaders()throws Exception {
+  requireShell();
+  Object binder=service("phone");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
+  String name="com.android.internal.telephony.ITelephony";
+  Class<?> api=Class.forName(name);Object phone=asInterface(name,binder);
+  if(telephonyPortRequests(api))return portReaders(api,phone);
+  return subscriptionReaders(api,phone);
+ }
+ private static java.util.List<String> portReaders(Class<?> api,Object phone)throws Exception {
+  java.util.List<String> readers=new java.util.ArrayList<>();
   Object[] slots=(Object[])api.getMethod("getUiccSlotsInfo",String.class).invoke(phone,"com.android.shell");
   if(slots==null||slots.length>8)throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_READER_INVENTORY);
   for(int slot=0;slot<slots.length;slot++){
@@ -180,12 +194,43 @@ final class SystemHalAdapter {
    for(Object port:ports){
     if(!(Boolean)port.getClass().getMethod("isActive").invoke(port))continue;
     int index=(Integer)port.getClass().getMethod("getPortIndex").invoke(port);
-    String reader=ReaderDescriptor.TELEPHONY_PREFIX+slot+"."+index;ReaderDescriptor.telephonyIndices(reader);
-    if(readers.contains(reader))throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_READER_INVENTORY);
-    readers.add(reader);
+    addReader(readers,ReaderDescriptor.TELEPHONY_PREFIX+slot+"."+index);
    }
   }
   return readers;
+ }
+ private static java.util.List<String> subscriptionReaders(Class<?> api,Object phone)throws Exception {
+  if(!telephonySubscriptionRequests(api))
+   throw new SecureElementFailure(SecureElementFailure.Reason.SYSTEM_INTERFACE_UNAVAILABLE);
+  java.util.List<String> readers=new java.util.ArrayList<>();
+  Object raw=api.getMethod("getUiccSlotsInfo").invoke(phone);
+  Object[] slots=raw instanceof Object[]?(Object[])raw:raw instanceof java.util.Collection?((java.util.Collection<?>)raw).toArray():null;
+  if(slots==null||slots.length>8)throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_READER_INVENTORY);
+  for(int slot=0;slot<slots.length;slot++){
+   Object info=slots[slot];if(info==null||(Integer)info.getClass().getMethod("getCardStateInfo").invoke(info)!=2)continue;
+   if(subscriptionForSlot(phone,api,slot)<0)continue;
+   addReader(readers,ReaderDescriptor.TELEPHONY_PREFIX+slot+".0");
+  }
+  return readers;
+ }
+ private static void addReader(java.util.List<String> readers,String reader){
+  ReaderDescriptor.telephonyIndices(reader);
+  if(readers.contains(reader))throw new SecureElementFailure(SecureElementFailure.Reason.INVALID_READER_INVENTORY);
+  readers.add(reader);
+ }
+ private static int subscriptionForSlot(Object phone,Class<?> telephony,int physical)throws Exception {
+  Object raw=telephony.getMethod("getUiccSlotsInfo").invoke(phone);
+  Object[] slots=raw instanceof Object[]?(Object[])raw:raw instanceof java.util.Collection?((java.util.Collection<?>)raw).toArray():null;
+  if(slots==null||physical<0||physical>=slots.length||slots[physical]==null)return -1;
+  int logical=physical;
+  try{logical=(Integer)slots[physical].getClass().getMethod("getLogicalSlotIdx").invoke(slots[physical]);}
+  catch(NoSuchMethodException unused){}
+  if(logical<0)return -1;
+  Object binder=service("isub");if(binder==null)throw new SecureElementFailure(SecureElementFailure.Reason.NO_SERVICE);
+  String name="com.android.internal.telephony.ISub";
+  Object result=Class.forName(name).getMethod("getSubId",int.class).invoke(asInterface(name,binder),logical);
+  if(result instanceof int[]){int[] ids=(int[])result;return ids.length==0?-1:ids[0];}
+  return result instanceof Integer?(Integer)result:-1;
  }
  private SystemHalAdapter(){}
 }

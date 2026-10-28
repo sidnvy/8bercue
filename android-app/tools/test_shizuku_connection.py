@@ -129,7 +129,7 @@ public class ShizukuConnectionTest {
 '''
 }
 ui = (java_source / 'MainActivity.java').read_text()
-methods = ui[ui.index('  private void chooseShizukuConnection()'):ui.index('  private void showConnectionHelp()')]
+methods = ui[ui.index('  private void chooseShizukuConnection()'):ui.index('  private void appearanceScreen()')]
 listener = ui[ui.index('    if(request!=ShizukuConnection.PERMISSION_REQUEST'):ui.index('  private final Runnable watch')].rsplit('  });', 1)[0]
 names = sorted(set(__import__('re').findall(r'R\.string\.(\w+)', methods + listener)))
 resources = ';'.join('static final int ' + name + '=' + str(i) for i, name in enumerate(names)) + ';'

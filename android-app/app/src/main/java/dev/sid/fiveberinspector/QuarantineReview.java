@@ -53,8 +53,7 @@ final class QuarantineReview {
     }
     private static boolean preserve(Path lockPath,Properties evidence,String kind,String receiptDirectory)throws IOException {
         Path root=lockPath.toAbsolutePath().getParent();
-        if(!root.toFile().getCanonicalFile().equals(root.toFile()))
-            throw new IOException("Unsafe review directory");
+        PathSafety.requireDirectDirectory(root.toFile());
         Path marker=lockPath.resolveSibling(lockPath.getFileName()+".quarantine");
         if(!Files.exists(marker,LinkOption.NOFOLLOW_LINKS))return false;
         CardTransactionLock.validateMarker(marker);

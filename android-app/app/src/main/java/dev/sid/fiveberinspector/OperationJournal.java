@@ -20,9 +20,9 @@ public final class OperationJournal {
         if(card==null||!card.matches("[a-f0-9]{64}"))throw new IOException("Complete card identity required");
         OperationJournal old=new OperationJournal(root);
         File cards=new File(root,"cards");
-        if(Files.isSymbolicLink(cards.toPath())||!cards.getCanonicalFile().equals(cards.getAbsoluteFile()))
-            throw new IOException("Unsafe card journal directory");
+        if(Files.isSymbolicLink(cards.toPath()))throw new IOException("Unsafe card journal directory");
         Files.createDirectories(cards.toPath());
+        PathSafety.requireDirectDirectory(cards);
         Files.setPosixFilePermissions(cards.toPath(),PosixFilePermissions.fromString("rwx------"));
         OperationJournal result=new OperationJournal(new File(cards,card));
         try(FileChannel channel=FileChannel.open(root.toPath(),StandardOpenOption.READ)){channel.force(true);}
@@ -57,7 +57,9 @@ public final class OperationJournal {
     }
     public synchronized Properties readTransaction(String tx)throws IOException {
         if(tx==null||!tx.matches("[a-f0-9-]{36}"))throw new IOException("Invalid transaction identity");
-        Path path=file.toPath().getParent().resolve("history").resolve(tx+".properties");
+        Path historyDir=file.toPath().getParent().resolve("history");
+        if(Files.isSymbolicLink(historyDir))throw new IOException("Unsafe journal history");
+        Path path=historyDir.resolve(tx+".properties");
         Properties p=null;
         if(Files.exists(path,LinkOption.NOFOLLOW_LINKS))p=readRecord(path,false);
         else for(Properties prior:legacyHistory())if(tx.equals(prior.getProperty("txId")))p=prior;
@@ -77,8 +79,9 @@ public final class OperationJournal {
         }
     }
     public OperationJournal(File directory) throws IOException {
-        if(!directory.getCanonicalFile().equals(directory.getAbsoluteFile()) || Files.isSymbolicLink(directory.toPath()))
+        if(Files.isSymbolicLink(directory.toPath()))
             throw new IOException("Unsafe journal directory");
+        PathSafety.requireDirectDirectory(directory);
         Files.createDirectories(directory.toPath());
         Files.setPosixFilePermissions(directory.toPath(),PosixFilePermissions.fromString("rwx------"));
         file = new File(directory, "operation.properties");
@@ -99,7 +102,7 @@ public final class OperationJournal {
     }
     private static Properties readRecord(Path path, boolean allowMissing) throws IOException {
         Properties p = new Properties();
-        if(Files.isSymbolicLink(path)||!path.toFile().getCanonicalFile().equals(path.toFile().getAbsoluteFile()))throw new IOException("Unsafe journal record");
+        if(Files.isSymbolicLink(path))throw new IOException("Unsafe journal record");
         if (!Files.exists(path,LinkOption.NOFOLLOW_LINKS)) { if(!allowMissing)throw new IOException("Missing history record"); p.setProperty("status", "idle"); return p; }
         if (!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS) || Files.size(path)>4096)throw new IOException("Journal invalid");
         try (InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)) { p.load(in); }
@@ -429,7 +432,8 @@ public final class OperationJournal {
     private void save(Properties p) throws IOException {
         if(p.containsKey("txId")) {
             File history=new File(file.getParentFile(),"history");
-            if(Files.isSymbolicLink(history.toPath()) || !history.getCanonicalFile().equals(history.getAbsoluteFile()))throw new IOException("Unsafe journal history");
+            if(Files.isSymbolicLink(history.toPath()))throw new IOException("Unsafe journal history");
+            PathSafety.requireDirectDirectory(history);
             Files.createDirectories(history.toPath());Files.setPosixFilePermissions(history.toPath(),PosixFilePermissions.fromString("rwx------"));
             File[] records=history.listFiles((d,n)->n.endsWith(".properties"));
             File record=new File(history,p.getProperty("txId")+".properties");

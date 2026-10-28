@@ -172,6 +172,17 @@
     <string name="ui_2_run_this_on_your_computer" formatted="false">"2. 在电脑上运行命令"</string>
     <string name="ui_copy_adb_command" formatted="false">"复制 ADB 命令"</string>
     <string name="ui_command_copied" formatted="false">"命令已复制"</string>
+    <string name="ui_copy_eid" formatted="false">"复制 EID"</string>
+    <string name="ui_copy_iccid" formatted="false">"复制 ICCID"</string>
+    <string name="ui_eid_copied" formatted="false">"EID 已复制"</string>
+    <string name="ui_eid_paste_for_operator" formatted="false">"若运营商要求 eUICC EID，可粘贴到表单。界面仍显示脱敏 EID。"</string>
+    <string name="ui_eid_copy_unavailable" formatted="false">"暂无法读取 EID"</string>
+    <string name="eid_clipboard_label" formatted="false">"8bercue EID"</string>
+    <string name="ui_iccid_copied" formatted="false">"ICCID 已复制"</string>
+    <string name="ui_iccid_paste_for_operator" formatted="false">"若运营商要求此 eSIM 的 ICCID，可粘贴到表单。界面仍显示脱敏 ICCID。"</string>
+    <string name="ui_iccid_copy_unavailable" formatted="false">"暂无法读取 ICCID"</string>
+    <string name="iccid_clipboard_label" formatted="false">"8bercue ICCID"</string>
+    <string name="ui_download_stopped_before_the_server_the_card_is_unchanged" formatted="false">"下载在到达服务器前已失败，卡片未改变，可重试。"</string>
     <string name="ui_run_it_while_the_timer_is_active_your_computer_will_confirm_the" formatted="false">"请在倒计时结束前运行。电脑会确认连接，或说明失败原因。"</string>
     <string name="ui_start_connection_again" formatted="false">"重新连接"</string>
     <string name="ui_the_command_stays_the_same_after_app_updates_with_several_phones" formatted="false">"应用更新后，命令保持不变。如果连接了多台手机，请将 adb shell 换成 adb -s SERIAL shell，指定这台手机。"</string>

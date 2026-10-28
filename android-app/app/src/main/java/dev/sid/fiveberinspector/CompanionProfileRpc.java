@@ -98,6 +98,12 @@ final class CompanionProfileRpc {
             case "getCardInfo":
                 result = parse(backend.getCardInfo());
                 break;
+            case "getCardEid":
+                result = parse(backend.getCardEid());
+                break;
+            case "getProfileIccid":
+                result = parse(backend.getProfileIccid(index(request), text(request, "selectionId", 128, true)));
+                break;
             case "getOperationStatus":
                 result = parse(backend.getOperationStatus());
                 break;

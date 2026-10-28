@@ -22,5 +22,8 @@ interface IProfileService {
     // Explicit, single-use read-only review of an uncertain lifecycle operation.
     String prepareRecoveryReview() = 18;
     String confirmRecoveryReview(String opaqueToken) = 19;
+    // Full identifiers only for explicit copy; routine listProfiles stays masked.
+    String getProfileIccid(int profileIndex, String selectionId) = 20;
+    String getCardEid() = 21;
     void destroy() = 16777114;
 }

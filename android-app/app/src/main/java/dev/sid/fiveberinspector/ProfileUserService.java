@@ -110,7 +110,7 @@ public final class ProfileUserService extends IProfileService.Stub {
                 if(!inventoryFingerprint(entries).equals(inventoryFingerprint(second)))throw new ReadOnlyRecovery.Failure("RECOVERY_INVENTORY_UNSTABLE");
             }
             java.util.List<ProfileLifecycleGuard.Row> policyRows=PortableProfileLifecycle.rows(entries);
-            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.discover();
+            FiveberReaderSelector.Target finalCard=FiveberReaderSelector.verifySelectedCard(target);
             if(!target.identityHash.equals(finalCard.identityHash)||!target.reader.equals(finalCard.reader))throw new SecurityException("Card changed during inventory");
             if(previousUnconfirmed&&!isolated&&EnrolledWritePolicy.isAllowed(target.identityHash)
                     &&LifecycleObservedOutcome.proves(record.read(),policyRows)){
@@ -470,20 +470,63 @@ public final class ProfileUserService extends IProfileService.Stub {
             ServiceCaller.requireApp();
             JSONObject inventory = new JSONObject(listProfiles());
             if (inventory.has("error") || !inventory.has("profiles")) return inventory.toString();
-            // An inventory alone cannot prove the intent of a lost transaction.
-            // Never clear the execution block just because a fresh card is readable;
-            // retain an explicit unknown outcome, never retry the previous action.
-            try(ServiceCaller.ShellCall caller=ServiceCaller.asShell()) {
-            ReadOnlyRecovery.acquire();
-            try {
-            OperationJournal record = journal();
-            String status = record.statusAfterReadOnlyReconciliation();
-            boolean review = record.requiresReconciliation();
-            return new JSONObject().put("ok", true).put("status", status)
-                .put("readOnly", true).put("reviewRequired", review).put("inventory", inventory).toString();
-            }finally{CardTransactionLock.release();}
+            try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+                ReadOnlyRecovery.acquire();
+                try {
+                    OperationJournal record = journal();
+                    String status = record.statusAfterReadOnlyReconciliation();
+                    boolean review = record.requiresReconciliation();
+                    java.util.Properties current = record.read();
+                    String closed = "";
+                    if (review && OperationJournal.unstartedDownload(current)) {
+                        boolean acquired = false;
+                        try {
+                            CardTransactionLock.acquire();
+                            acquired = true;
+                            FiveberReaderSelector.Target card = FiveberReaderSelector.verifySelectedCard(FiveberReaderSelector.discover());
+                            String now = inventoryFingerprint(CardProfileInventory.listKnownCardReadOnly(card));
+                            if (card.identityHash.equals(current.getProperty("card")) && now.equals(current.getProperty("before"))) {
+                                record.closeUnstartedDownload(card.identityHash, now);
+                                status = record.statusAfterReadOnlyReconciliation();
+                                review = record.requiresReconciliation();
+                                if (!review) closed = "unstarted_download";
+                            }
+                        } catch (java.io.IOException failure) {
+                            Log.w("EightberShell", "reconcile close-unstarted refused");
+                        } finally { if (acquired) CardTransactionLock.release(); }
+                    }
+                    return new JSONObject().put("ok", true).put("status", status).put("closed", closed)
+                        .put("readOnly", true).put("reviewRequired", review).put("inventory", inventory).toString();
+                } finally { CardTransactionLock.release(); }
             }
         } catch (Throwable e) { return safeOperationError("reconcile", e); }
+    }
+    @Override public synchronized String getProfileIccid(int profileIndex, String selectionId) {
+        try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            FiveberReaderSelector.Target expected = requireSelectionCurrent();
+            CardTransactionLock.acquire();
+            try {
+                java.util.List<CardProfileInventory.Entry> entries = CardProfileInventory.listKnownCardReadOnly(expected);
+                if (profileIndex < 0 || profileIndex >= entries.size())
+                    throw new SecurityException("Invalid profile");
+                String iccid = entries.get(profileIndex).iccid;
+                if (selectionId == null || !selectionId.equals(ProfileUiIdentity.key(uiSession, expected.identityHash, iccid)))
+                    throw new SecurityException("Profile identity mismatch");
+                return new JSONObject().put("ok", true).put("iccid", iccid).toString();
+            } finally { CardTransactionLock.release(); }
+        } catch (Throwable e) { return safeOperationError("profile-iccid", e); }
+    }
+    @Override public synchronized String getCardEid() {
+        boolean acquired = false;
+        try (ServiceCaller.ShellCall caller = ServiceCaller.asShell()) {
+            ServiceCaller.requireApp();
+            ReadOnlyRecovery.acquire(); acquired = true;
+            String eid = CardCapabilities.decimalEid();
+            if (!eid.matches("\\d{32}")) throw new SecurityException("Invalid EID");
+            return new JSONObject().put("ok", true).put("eid", eid).toString();
+        } catch (Throwable e) { return safeOperationError("card-eid", e); }
+        finally { if (acquired) CardTransactionLock.release(); }
     }
     @Override public synchronized String getCardInfo() {
         boolean acquired = false;

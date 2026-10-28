@@ -87,7 +87,7 @@ final class CardProfileInventory {
   return LifecycleRefreshEntryTest.inventory;
  }
 }
-final class PhoneNativeLpac {static void listProfiles(){}}
+final class PhoneNativeLpac {static void listProfiles(FiveberReaderSelector.Target card){}}
 final class EnrolledWritePolicy {static boolean isAllowed(String c){return true;}}
 final class LabSupport {static void validateMutation(String c,ProfileLifecycleGuard.Operation o,List<ProfileLifecycleGuard.Row> r,String t){}}
 final class ShellOperationScope {static void validateMutation(String c,ProfileLifecycleGuard.Operation o,List<ProfileLifecycleGuard.Row> r,String t){}}
@@ -114,7 +114,7 @@ public class JSONObject {
 '''
 with tempfile.TemporaryDirectory() as tmp:
     dest=Path(tmp)
-    for name in ['ProfileLifecycleGuard','IntentDigests','OperationJournal','SecureElementTransport','ReaderDescriptor','SecureElementFailure','ScopedLifecycleHalBridge','PortableProfileLifecycle','LifecyclePostflight','DownloadWorkerSupervisor','LifecycleObservedOutcome','CardTransactionLock']:
+    for name in ['PathSafety','ProfileLifecycleGuard','IntentDigests','OperationJournal','SecureElementTransport','ReaderDescriptor','SecureElementFailure','ScopedLifecycleHalBridge','PortableProfileLifecycle','LifecyclePostflight','DownloadWorkerSupervisor','LifecycleObservedOutcome','CardTransactionLock']:
         s=(src/(name+'.java')).read_text()
         if name=='CardTransactionLock':s=s.replace('new File("/data/local/tmp/fiveber-lpac-lab")','new File(System.getProperty("fixture.root"))')
         if name=='PortableProfileLifecycle':s=s.replace('Thread::sleep','millis->{}').replace('25_000L,3_000L','LifecycleRefreshEntryTest.mode.equals("postflight-worker")?20L:1000L,20L')
