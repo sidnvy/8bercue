@@ -43,7 +43,7 @@ public final class CompatibilityOfflineTest {
  }
  static final class Card implements SecureElementTransport {
   int closed;byte[] eid=new byte[16];boolean denied,bad,fragmented,endless,absent,failClose;int frames;
-  Card(int identity){eid[0]=(byte)identity;}
+  Card(int identity){eid[0]=(byte)(((identity/10)%10)<<4|(identity%10));}
   public boolean isCardPresent(){return !absent;}
   public int openLogicalChannel(byte[] aid,byte p2){if(denied)throw new SecureElementFailure(SecureElementFailure.Reason.ACCESS_DENIED);return 1;}
   public byte[] transmit(byte[] cmd){

@@ -29,7 +29,8 @@ public final class CardTransactionLock {
   RandomAccessFile opened=null;
   try{
    File parent=file.getParentFile();
-   if(!parent.getCanonicalFile().equals(parent.getAbsoluteFile())||Files.isSymbolicLink(file.toPath()))throw new SecurityException("Unsafe transaction lock path");
+   PathSafety.requireDirectDirectorySecurity(parent);
+   if(Files.isSymbolicLink(file.toPath()))throw new SecurityException("Unsafe transaction lock path");
    if(!parent.isDirectory()&&!parent.mkdirs())throw new IOException("Lock directory unavailable");
    Files.setPosixFilePermissions(parent.toPath(),PosixFilePermissions.fromString("rwx------"));
    Path marker=file.toPath().resolveSibling(file.getName()+".quarantine");

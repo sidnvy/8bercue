@@ -61,7 +61,11 @@ final class ReadOnlyRecovery {
  static void beforeConnect()throws Exception{
   if(!CardTransactionLock.persistentQuarantine())return;
   if(android.os.Process.myUid()!=2000)throw new Failure("RECOVERY_IDENTITY_UNVERIFIED");
-  if(!ROOT.toFile().getCanonicalFile().equals(ROOT.toFile()))throw new Failure("RECOVERY_EVIDENCE_INVALID");
+  try {
+    PathSafety.requireDirectDirectory(ROOT.toFile());
+  } catch (IOException invalid) {
+    throw new Failure("RECOVERY_EVIDENCE_INVALID");
+  }
   CardTransactionLock.validateMarker(MARKER);
   // Serialize simultaneous ADB recovery attempts. Keep this lock file; never unlink a lock inode.
   Path guard=ROOT.resolve("read-only-recovery.lock");

@@ -13,6 +13,59 @@ import java.util.UUID;
  */
 public final class OperationJournal {
     private final File file;
+    private OperationJournal legacy;
+    private String scopedCard;
+    /** Old records stay byte-for-byte in place. Each card gets its own new current/history. */
+    public static OperationJournal forCard(File root,String card) throws IOException {
+        if(card==null||!card.matches("[a-f0-9]{64}"))throw new IOException("Complete card identity required");
+        OperationJournal old=new OperationJournal(root);
+        File cards=new File(root,"cards");
+        if(Files.isSymbolicLink(cards.toPath()))throw new IOException("Unsafe card journal directory");
+        Files.createDirectories(cards.toPath());
+        PathSafety.requireDirectDirectory(cards);
+        Files.setPosixFilePermissions(cards.toPath(),PosixFilePermissions.fromString("rwx------"));
+        OperationJournal result=new OperationJournal(new File(cards,card));
+        try(FileChannel channel=FileChannel.open(root.toPath(),StandardOpenOption.READ)){channel.force(true);}
+        try(FileChannel channel=FileChannel.open(cards.toPath(),StandardOpenOption.READ)){channel.force(true);}
+        result.legacy=old;result.scopedCard=card;return result;
+    }
+    private boolean belongs(Properties p)throws IOException {
+        if("idle".equals(p.getProperty("status")))return false;
+        if(!"2".equals(p.getProperty("schema"))) {
+            if(uncertain(p.getProperty("status")))throw new IOException("Unbound legacy uncertainty requires investigation");
+            return false;
+        }
+        return scopedCard.equals(p.getProperty("card"));
+    }
+    private java.util.List<Properties> legacyHistory()throws IOException {
+        java.util.List<Properties> result=new java.util.ArrayList<>();
+        if(legacy==null)return result;
+        legacy.checkRecoveryFiles();
+        Path history=legacy.file.toPath().getParent().resolve("history");
+        if(!Files.exists(history,LinkOption.NOFOLLOW_LINKS))return result;
+        if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))throw new IOException("Unsafe legacy history");
+        int count=0;
+        try(DirectoryStream<Path> records=Files.newDirectoryStream(history)) {
+            for(Path path:records) {
+                if(++count>512||path.getFileName().toString().endsWith(".pending"))throw new IOException("Incomplete legacy history");
+                Properties p=readRecord(path,false);
+                if(!path.getFileName().toString().equals(p.getProperty("txId")+".properties"))throw new IOException("Legacy history identity mismatch");
+                if(belongs(p))result.add(p);
+            }
+        }
+        return result;
+    }
+    public synchronized Properties readTransaction(String tx)throws IOException {
+        if(tx==null||!tx.matches("[a-f0-9-]{36}"))throw new IOException("Invalid transaction identity");
+        Path historyDir=file.toPath().getParent().resolve("history");
+        if(Files.isSymbolicLink(historyDir))throw new IOException("Unsafe journal history");
+        Path path=historyDir.resolve(tx+".properties");
+        Properties p=null;
+        if(Files.exists(path,LinkOption.NOFOLLOW_LINKS))p=readRecord(path,false);
+        else for(Properties prior:legacyHistory())if(tx.equals(prior.getProperty("txId")))p=prior;
+        if(p==null||!tx.equals(p.getProperty("txId"))||(scopedCard!=null&&!belongs(p)))throw new IOException("Missing card transaction");
+        return p;
+    }
     public static final class Binding {
         public final String operation, card, target, before, parameters;
         public Binding(String operation,String card,String target,String before,String parameters) {
@@ -26,14 +79,26 @@ public final class OperationJournal {
         }
     }
     public OperationJournal(File directory) throws IOException {
-        if(!directory.getCanonicalFile().equals(directory.getAbsoluteFile()) || Files.isSymbolicLink(directory.toPath()))
+        if(Files.isSymbolicLink(directory.toPath()))
             throw new IOException("Unsafe journal directory");
+        PathSafety.requireDirectDirectory(directory);
         Files.createDirectories(directory.toPath());
         Files.setPosixFilePermissions(directory.toPath(),PosixFilePermissions.fromString("rwx------"));
         file = new File(directory, "operation.properties");
     }
     public synchronized Properties read() throws IOException {
-        return readRecord(file.toPath(), true);
+        Properties current=readRecord(file.toPath(), true);
+        if(legacy==null)return current;
+        if(!"idle".equals(current.getProperty("status"))) {
+            if(!belongs(current))throw new IOException("Card journal binding mismatch");
+            return current;
+        }
+        Properties prior=legacy.read();
+        java.util.List<Properties> history=legacyHistory();
+        if(belongs(prior))return prior; // The current pointer wins even after a wall-clock rollback.
+        for(Properties record:history)if("idle".equals(current.getProperty("status"))
+            ||new java.math.BigInteger(record.getProperty("startedAt")).compareTo(new java.math.BigInteger(current.getProperty("startedAt")))>0)current=record;
+        return current;
     }
     private static Properties readRecord(Path path, boolean allowMissing) throws IOException {
         Properties p = new Properties();
@@ -69,11 +134,17 @@ public final class OperationJournal {
                         blocked=true; continue;
                     }
                     Properties p=readRecord(record,false);
+                    if(scopedCard!=null&&!belongs(p))throw new IOException("Card history binding mismatch");
                     if(!record.getFileName().toString().equals(p.getProperty("txId")+".properties"))
                         throw new IOException("History identity mismatch");
                     blocked |= uncertain(p.getProperty("status")) && !reviewed(p);
                 }
             }
+        }
+        if(legacy!=null) {
+            Properties prior=legacy.read();
+            if(belongs(prior))blocked|=uncertain(prior.getProperty("status"))&&!reviewed(prior);
+            for(Properties p:legacyHistory())blocked|=uncertain(p.getProperty("status"))&&!reviewed(p);
         }
         return blocked;
     }
@@ -84,7 +155,10 @@ public final class OperationJournal {
     public synchronized String statusAfterReadOnlyReconciliation() throws IOException {
         Properties current=read();
         checkRecoveryFiles();
-        return reviewed(current) ? ("download".equals(current.getProperty("operation")) ? "reviewed_abandoned" : "reviewed_observed") : current.getProperty("status", "unknown");
+        Properties resolution=validatedResolution(current);
+        return resolution==null ? current.getProperty("status", "unknown")
+            : "3".equals(resolution.getProperty("schema")) ? "verified_observed"
+            : "download".equals(current.getProperty("operation")) ? "reviewed_abandoned" : "reviewed_observed";
     }
     public synchronized String observe(String card,String snapshot) throws IOException {
         Properties p=read();
@@ -100,6 +174,7 @@ public final class OperationJournal {
     public synchronized void begin(Binding binding) throws IOException { beginInternal(binding.operation,binding); }
     private void beginInternal(String operation,Binding binding) throws IOException {
         if (operation==null || !operation.matches("switch|lifecycle|download|enable|disable|rename|delete")) throw new IOException("Invalid operation");
+        if(scopedCard!=null&&(binding==null||!scopedCard.equals(binding.card)))throw new IOException("Operation belongs to another card");
         if (requiresReconciliation()) throw new IOException("Unresolved transaction; observation alone cannot authorize writes");
         Properties p = new Properties();
         p.setProperty("operation",operation);p.setProperty("status","running");
@@ -133,6 +208,7 @@ public final class OperationJournal {
                 case "downloadSubjectCode":case "downloadReasonCode":pattern="not_reported|[0-9]{1,3}(\\.[0-9]{1,3}){1,3}";break;
                 case "downloadHttpStatus":pattern="0|[1-5][0-9]{2}";break;
                 case "downloadNativeCode":pattern="not_reported|-?[0-9]{1,4}";break;
+                case "downloadInstallCommands":pattern="not_reported|0|[1-9][0-9]{0,4}";break;
                 case "downloadWorkerStopped":case "downloadNativeStopped":pattern="true|false";break;
                 default:throw new IOException("Invalid diagnostic key");
             }
@@ -168,20 +244,24 @@ public final class OperationJournal {
             return hex.toString();
         }catch(java.security.NoSuchAlgorithmException impossible){throw new IOException(impossible);}
     }
-    private boolean reviewed(Properties original) throws IOException {
+    private boolean reviewed(Properties original) throws IOException {return validatedResolution(original)!=null;}
+    private Properties validatedResolution(Properties original) throws IOException {
         String tx=original.getProperty("txId","");
-        if(!tx.matches("[a-f0-9-]{36}"))return false;
+        if(!tx.matches("[a-f0-9-]{36}"))return null;
         Path path=resolutions().resolve(tx+".properties");
-        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS))return false;
+        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS)&&legacy!=null)path=legacy.resolutions().resolve(tx+".properties");
+        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS))return null;
         if(Files.isSymbolicLink(path)||!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS)||Files.size(path)>4096)
             throw new IOException("Invalid recovery record");
         Properties resolution=new Properties();try(InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)){resolution.load(in);}
         java.util.Set<String> keys=new java.util.HashSet<>(java.util.Arrays.asList("schema","txId","recordDigest","card","observedSnapshot","disposition","remoteOutcome","authorization","reviewedAt"));
         String operation=original.getProperty("operation","");
+        boolean exact=operation.matches("enable|disable|switch")&&"3".equals(resolution.getProperty("schema"));
+        if(exact){keys.remove("authorization");keys.add("verification");}
         boolean download="download".equals(operation)&&"1".equals(resolution.getProperty("schema"));
         boolean lifecycle=operation.matches("enable|disable|rename|switch")
             &&"2".equals(resolution.getProperty("schema"));
-        if(!resolution.stringPropertyNames().equals(keys)||!(download||lifecycle)
+        if(!resolution.stringPropertyNames().equals(keys)||!(download||lifecycle||exact)
             ||!"2".equals(original.getProperty("schema"))
             ||!(download ? original.getProperty("status","").matches("unknown|observed_unknown")
                 : original.getProperty("status","").matches("running|unknown|observed_unknown"))
@@ -190,56 +270,13 @@ public final class OperationJournal {
             ||!(download ? original.getProperty("before","").equals(resolution.getProperty("observedSnapshot"))
                 : resolution.getProperty("observedSnapshot","").matches("[a-f0-9]{64}"))
             ||!(download ? "abandoned_unknown_no_profile_delta".equals(resolution.getProperty("disposition"))
-                : "accepted_observed_lifecycle_unknown".equals(resolution.getProperty("disposition")))
+                : (exact?"verified_observed_transition":"accepted_observed_lifecycle_unknown").equals(resolution.getProperty("disposition")))
             ||!(download ? "unknown_do_not_reuse_code".equals(resolution.getProperty("remoteOutcome"))
-                : "unknown_operation_not_replayed".equals(resolution.getProperty("remoteOutcome")))
-            ||!resolution.getProperty("authorization","").matches("[a-f0-9]{64}")
+                : (exact?"original_response_unknown":"unknown_operation_not_replayed").equals(resolution.getProperty("remoteOutcome")))
+            ||!(exact?"exact_intent_and_inventory".equals(resolution.getProperty("verification")):resolution.getProperty("authorization","").matches("[a-f0-9]{64}"))
             ||!resolution.getProperty("reviewedAt","").matches("[0-9]{1,20}"))
             throw new IOException("Recovery evidence does not match original transaction");
-        return true;
-    }
-    /** Network failure before any server response. Card-touching phases stay unknown. */
-    public static boolean networkStoppedBeforeCard(Properties fields) {
-        return fields.getProperty("downloadPhase","").matches("LAUNCH|INITIATE_AUTHENTICATION")
-            && fields.getProperty("downloadFailure","").matches("TLS|DNS")
-            && "true".equals(fields.getProperty("downloadWorkerStopped"))
-            && "true".equals(fields.getProperty("downloadNativeStopped"))
-            && "0".equals(fields.getProperty("downloadHttpStatus"))
-            && "not_reported".equals(fields.getProperty("downloadServerStatus"));
-    }
-    public static boolean unstartedDownload(Properties record) {
-        return "download".equals(record.getProperty("operation"))
-            && record.getProperty("status","").matches("unknown|observed_unknown")
-            && networkStoppedBeforeCard(record);
-    }
-    /** Close a download that never reached the server once the same card's inventory still matches the pre-download snapshot. */
-    public synchronized void closeUnstartedDownload(String card, String snapshot) throws IOException {
-        checkRecoveryFiles();
-        Properties current=read();
-        if(!unstartedDownload(current) || reviewed(current)
-            || card==null || !card.equals(current.getProperty("card"))
-            || snapshot==null || !snapshot.equals(current.getProperty("before")))
-            throw new IOException("Unstarted download cannot be closed");
-        Path history=file.toPath().getParent().resolve("history");
-        if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))
-            throw new IOException("Missing original transaction history");
-        boolean found=false;int count=0;
-        try(DirectoryStream<Path> entries=Files.newDirectoryStream(history)) {
-            for(Path entry:entries) {
-                if(++count>256)throw new IOException("History exceeds review budget");
-                Properties prior=readRecord(entry,false);
-                if(!entry.getFileName().toString().equals(prior.getProperty("txId")+".properties"))
-                    throw new IOException("Interrupted history or identity mismatch");
-                if(current.getProperty("txId").equals(prior.getProperty("txId"))) {
-                    if(!prior.equals(current))throw new IOException("Current/history disagreement");
-                    found=true;
-                } else if(uncertain(prior.getProperty("status"))&&!reviewed(prior))
-                    throw new IOException("Another unresolved transaction");
-            }
-        }
-        if(!found)throw new IOException("Original history missing");
-        current.setProperty("status","not_completed");
-        save(current);
+        return resolution;
     }
     /** Caller must hold exclusive card lock, confirm worker quiescence and explicitly authorize
      * abandonment after independent same-card readback. This never declares download success
@@ -252,19 +289,7 @@ public final class OperationJournal {
             ||snapshot==null||!snapshot.matches("[a-f0-9]{64}")||!snapshot.equals(current.getProperty("before"))
             ||!recordDigest(current).equals(expectedRecordDigest)||authorization==null||!authorization.matches("[a-f0-9]{64}")
             ||reviewed(current))throw new IOException("Review is stale, ineligible or not explicitly authorized");
-        Path history=file.toPath().getParent().resolve("history");
-        if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))throw new IOException("Missing original transaction history");
-        boolean found=false;int count=0;
-        try(DirectoryStream<Path> entries=Files.newDirectoryStream(history)) {
-            for(Path entry:entries) {
-                if(++count>256)throw new IOException("History exceeds review budget");
-                Properties prior=readRecord(entry,false);
-                if(!entry.getFileName().toString().equals(prior.getProperty("txId")+".properties"))throw new IOException("Interrupted history or identity mismatch");
-                if(tx.equals(prior.getProperty("txId"))) {if(!prior.equals(current))throw new IOException("Current/history disagreement");found=true;}
-                else if(uncertain(prior.getProperty("status"))&&!reviewed(prior))throw new IOException("Another unresolved transaction");
-            }
-        }
-        if(!found)throw new IOException("Original history missing");
+        requireReviewableHistory(current);
         Files.createDirectories(resolutions());Files.setPosixFilePermissions(resolutions(),PosixFilePermissions.fromString("rwx------"));
         Properties resolution=new Properties();resolution.setProperty("schema","1");resolution.setProperty("txId",tx);
         resolution.setProperty("recordDigest",expectedRecordDigest);resolution.setProperty("card",card);resolution.setProperty("observedSnapshot",snapshot);
@@ -280,9 +305,65 @@ public final class OperationJournal {
             ||!reviewed(current))
             throw new IOException("No completed lifecycle review");
         Path path=resolutions().resolve(current.getProperty("txId")+".properties");
+        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS)&&legacy!=null)path=legacy.resolutions().resolve(current.getProperty("txId")+".properties");
         Properties resolution=new Properties();
         try(InputStream in=Files.newInputStream(path,LinkOption.NOFOLLOW_LINKS)){resolution.load(in);}
         return resolution.getProperty("observedSnapshot");
+    }
+
+    /** Read-only availability check. It grants no authority and never resolves uncertainty. */
+    public synchronized boolean canReviewObservedLifecycle(String card) throws IOException {
+        checkRecoveryFiles();
+        Properties current=read();
+        if(!"2".equals(current.getProperty("schema"))
+            ||!current.getProperty("operation","").matches("enable|disable|rename|switch")
+            ||!uncertain(current.getProperty("status"))
+            ||card==null||!card.matches("[a-f0-9]{64}")||!card.equals(current.getProperty("card")))
+            return false;
+        try { requireReviewableHistory(current); return true; }
+        catch(IOException unavailable) { return false; }
+    }
+
+    /** A separate download review must prove the exact pre-download inventory.
+     * It preserves the unknown remote/code outcome and never installs or retries anything.
+     */
+    public synchronized boolean canReviewUnchangedDownload(String card,String snapshot) throws IOException {
+        checkRecoveryFiles();Properties current=read();
+        if(!"2".equals(current.getProperty("schema"))
+            ||!"download".equals(current.getProperty("operation"))
+            ||!current.getProperty("status","").matches("unknown|observed_unknown")
+            ||card==null||!card.matches("[a-f0-9]{64}")||!card.equals(current.getProperty("card"))
+            ||snapshot==null||!snapshot.matches("[a-f0-9]{64}")||!snapshot.equals(current.getProperty("before"))
+            ||reviewed(current))return false;
+        try {requireReviewableHistory(current);return true;}
+        catch(IOException unavailable){return false;}
+    }
+
+    private void requireReviewableHistory(Properties current) throws IOException {
+        String tx=current.getProperty("txId");
+        java.util.List<Properties> records=new java.util.ArrayList<>(legacyHistory());
+        Path history=file.toPath().getParent().resolve("history");
+        if(Files.exists(history,LinkOption.NOFOLLOW_LINKS)) {
+            if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))throw new IOException("Unsafe history");
+            int count=0;
+            try(DirectoryStream<Path> entries=Files.newDirectoryStream(history)) {
+                for(Path entry:entries) {
+                    if(++count>256||entry.getFileName().toString().endsWith(".pending"))throw new IOException("Incomplete journal history");
+                    Properties prior=readRecord(entry,false);
+                    if(!entry.getFileName().toString().equals(prior.getProperty("txId")+".properties"))throw new IOException("History identity mismatch");
+                    if(scopedCard!=null&&!belongs(prior))throw new IOException("Card history binding mismatch");
+                    records.add(prior);
+                }
+            }
+        }
+        boolean found=false;
+        for(Properties prior:records) {
+            if(tx.equals(prior.getProperty("txId"))) {
+                if(!prior.equals(current))throw new IOException("Current/history disagreement");
+                found=true;
+            }else if(uncertain(prior.getProperty("status"))&&!reviewed(prior))throw new IOException("Another unresolved transaction on this card");
+        }
+        if(!found)throw new IOException("Original transaction history missing");
     }
 
     /**
@@ -303,25 +384,7 @@ public final class OperationJournal {
             ||expectedRecordDigest==null||!expectedRecordDigest.equals(recordDigest(current))
             ||authorization==null||!authorization.matches("[a-f0-9]{64}")||reviewed(current))
             throw new IOException("Lifecycle review is stale or ineligible");
-        Path history=file.toPath().getParent().resolve("history");
-        if(Files.isSymbolicLink(history)||!Files.isDirectory(history,LinkOption.NOFOLLOW_LINKS))
-            throw new IOException("Missing original transaction history");
-        boolean found=false;int count=0;
-        try(DirectoryStream<Path> entries=Files.newDirectoryStream(history)) {
-            for(Path entry:entries) {
-                if(++count>256||entry.getFileName().toString().endsWith(".pending"))
-                    throw new IOException("Incomplete journal history");
-                Properties prior=readRecord(entry,false);
-                if(!entry.getFileName().toString().equals(prior.getProperty("txId")+".properties"))
-                    throw new IOException("History identity mismatch");
-                if(tx.equals(prior.getProperty("txId"))) {
-                    if(!prior.equals(current))throw new IOException("Current/history disagreement");
-                    found=true;
-                }else if(uncertain(prior.getProperty("status"))&&!reviewed(prior))
-                    throw new IOException("Another unresolved transaction");
-            }
-        }
-        if(!found)throw new IOException("Original transaction history missing");
+        requireReviewableHistory(current);
         Files.createDirectories(resolutions());
         Files.setPosixFilePermissions(resolutions(),PosixFilePermissions.fromString("rwx------"));
         Properties resolution=new Properties();
@@ -337,6 +400,25 @@ public final class OperationJournal {
         persist(resolutions().resolve(tx+".properties").toFile(),resolution);
     }
 
+    /** Caller holds the card lock, has proved worker quiescence, and has made two
+     * stable reads plus a final complete identity/reader check. Preserve the lost
+     * response verbatim; only the exact intended state transition may unblock it.
+     */
+    public synchronized boolean verifyObservedLifecycle(String card,java.util.List<ProfileLifecycleGuard.Row> after) throws Exception {
+        checkRecoveryFiles();Properties current=read();
+        if(card==null||!card.equals(current.getProperty("card"))||reviewed(current)
+                ||!LifecycleObservedOutcome.proves(current,after))return false;
+        try {requireReviewableHistory(current);}catch(IOException incomplete){return false;}
+        Files.createDirectories(resolutions());Files.setPosixFilePermissions(resolutions(),PosixFilePermissions.fromString("rwx------"));
+        Properties proof=new Properties();proof.setProperty("schema","3");
+        proof.setProperty("txId",current.getProperty("txId"));proof.setProperty("recordDigest",recordDigest(current));
+        proof.setProperty("card",card);proof.setProperty("observedSnapshot",ProfileLifecycleGuard.fingerprint(after));
+        proof.setProperty("disposition","verified_observed_transition");proof.setProperty("remoteOutcome","original_response_unknown");
+        proof.setProperty("verification","exact_intent_and_inventory");proof.setProperty("reviewedAt",Long.toString(System.currentTimeMillis()));
+        persist(resolutions().resolve(current.getProperty("txId")+".properties").toFile(),proof);
+        return true;
+    }
+
     private static void persist(File output,Properties p) throws IOException {
         Path pending=new File(output.getParentFile(),output.getName().equals("operation.properties")?"operation.pending":output.getName()+".pending").toPath();
         if(Files.isSymbolicLink(pending)||Files.isSymbolicLink(output.toPath()))throw new IOException("Unsafe journal path");
@@ -350,7 +432,8 @@ public final class OperationJournal {
     private void save(Properties p) throws IOException {
         if(p.containsKey("txId")) {
             File history=new File(file.getParentFile(),"history");
-            if(Files.isSymbolicLink(history.toPath()) || !history.getCanonicalFile().equals(history.getAbsoluteFile()))throw new IOException("Unsafe journal history");
+            if(Files.isSymbolicLink(history.toPath()))throw new IOException("Unsafe journal history");
+            PathSafety.requireDirectDirectory(history);
             Files.createDirectories(history.toPath());Files.setPosixFilePermissions(history.toPath(),PosixFilePermissions.fromString("rwx------"));
             File[] records=history.listFiles((d,n)->n.endsWith(".properties"));
             File record=new File(history,p.getProperty("txId")+".properties");

@@ -20,6 +20,7 @@ public final class MainActivity extends Activity {
   private String selectedIccid = "", selectedProfileKey = "";
   private JSONObject detailProfile;
   private String connectionCommand = "";
+  private String connectionMethod = "unknown";
   private long connectionDeadline;
   private boolean connectionExpired;
   private TextView connectionCountdown;
@@ -61,6 +62,24 @@ public final class MainActivity extends Activity {
   private String title = "", detail = "",
                  notice = "";
   private final Handler handler = new Handler(Looper.getMainLooper());
+  private boolean shizukuPermissionPending;
+  private long shizukuPermissionUntil;
+  private final rikka.shizuku.Shizuku.OnBinderReceivedListener shizukuAvailable = () -> handler.post(() -> {
+    if(!destroyed&&resumed&&screen==SettingsNavigation.CONNECTION)render();
+  });
+  private final rikka.shizuku.Shizuku.OnBinderDeadListener shizukuUnavailable = () -> handler.post(() -> {
+    shizukuPermissionPending=false;
+    if(!destroyed&&resumed&&screen==SettingsNavigation.CONNECTION)render();
+  });
+  private final rikka.shizuku.Shizuku.OnRequestPermissionResultListener shizukuPermission = (request,grant) -> handler.post(() -> {
+    if(request!=ShizukuConnection.PERMISSION_REQUEST||!shizukuPermissionPending||destroyed)return;
+    if(grant==PackageManager.PERMISSION_GRANTED)resumeShizukuAuthorization();
+    else {
+      shizukuPermissionPending=false;
+      status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_permission_denied));
+      if(resumed)render();
+    }
+  });
   private final Runnable watch = new Runnable() {
     public void run() {
       if (destroyed || !resumed)
@@ -118,6 +137,8 @@ public final class MainActivity extends Activity {
   public void onCreate(Bundle saved) {
     super.onCreate(saved);
     title = s(R.string.ui_connect_your_card); detail = s(R.string.nav_connection_needed);
+    String previousMethod=getPreferences(0).getString("connectionMethod","unknown");
+    if(previousMethod.equals("computer")||previousMethod.equals("wireless")||previousMethod.equals("shizuku"))connectionMethod=previousMethod;
     if (Build.VERSION.SDK_INT >= 33)
       getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
           android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
@@ -129,6 +150,9 @@ public final class MainActivity extends Activity {
       connectionReturnScreen=saved.getBoolean("connectionFromHome",false)?0:2;
       computerReturnScreen=saved.getBoolean("computerFromHome",false)?0:SettingsNavigation.CONNECTION;
     }
+    rikka.shizuku.Shizuku.addBinderReceivedListenerSticky(shizukuAvailable);
+    rikka.shizuku.Shizuku.addBinderDeadListener(shizukuUnavailable);
+    rikka.shizuku.Shizuku.addRequestPermissionResultListener(shizukuPermission);
     SafeDiagnosticBundle.mark(SafeDiagnosticBundle.Step.APP_STARTED);
     if (getPreferences(0).getBoolean("pending", false))
       notice = s(R.string.ui_card_and_operation_state_need_verification_open_settings_verify);
@@ -138,6 +162,7 @@ public final class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     resumed = true;
+    resumeShizukuAuthorization();
     connectExistingCompanion();
     handler.removeCallbacks(watch);
     handler.post(watch);
@@ -255,6 +280,7 @@ public final class MainActivity extends Activity {
     }
   }
   private void beginDirectBootstrap() {
+    shizukuPermissionPending=false;
     if (!managementUnavailable().isEmpty()) {
       compatibilityFailure(CompatibilityDiagnostics.Stage.BOOTSTRAP,
           CompatibilityDiagnostics.Failure.DEVICE_UNSUPPORTED);
@@ -262,9 +288,10 @@ public final class MainActivity extends Activity {
       return;
     }
     if(OPERATIONS.running()){status(s(R.string.ui_operation_in_progress), s(R.string.ui_wait_for_verification_before_changing_connection));return;}
-    boolean recovering=recoveryReconnectNeeded&&backend!=null;
+    boolean recovering=recoveryReconnectNeeded&&CompanionBinderProvider.management()!=null;
     try {if(recovering)CompanionBinderProvider.beginManagementRecoveryBootstrap();else CompanionBinderProvider.beginManagementBootstrap();}
     catch(SecurityException active){backend=null;compatibility=new JSONObject();connectDirect();return;}
+    rememberConnectionMethod("computer");
     recoveryBootstrap=recovering;
     if(!recovering)backend=null;
     compatibility=new JSONObject();fallback=false;binderReadOnlyInventory=false;directManagement=true;companionManagement=true;
@@ -468,7 +495,8 @@ public final class MainActivity extends Activity {
           String recoveryState=r.optString("recoveryState");
           if("READ_ONLY_RECOVERED".equals(recoveryState)||"READ_ONLY_CURRENT_CARD".equals(recoveryState)){
             getPreferences(0).edit().putBoolean("pending",true).commit();
-            notice=s(R.string.recovery_view_only_summary);
+            notice=s("other_card".equals(r.optString("recoveryScope"))
+                ?R.string.recovery_other_card_summary:R.string.recovery_view_only_summary);
           }
           if (screen==3 || screen==4 || restoreDetailAfterRead) {
             JSONArray rows=inventory.optJSONArray("profiles");int found=-1;
@@ -480,6 +508,7 @@ public final class MainActivity extends Activity {
           statusPreservingOutcome(
               s(R.string.ui_card_connected), connectionNotice(r));
           render();
+          if(r.optBoolean("lifecycleObservationVerified",false))checkRecovery();
         });
   }
   private void checkRecovery() {
@@ -520,6 +549,7 @@ public final class MainActivity extends Activity {
         getPreferences(0).edit().remove("pending").commit();
       }
       if(recoveryBlocked)notice=s(R.string.recovery_view_only_summary);
+      else if(notice.equals(s(R.string.recovery_view_only_summary))||notice.equals(s(R.string.recovery_other_card_summary)))notice="";
       if (notificationReviewRequired)
         notice += (notice.isEmpty() ? "" : "\n") + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
       refresh();
@@ -665,14 +695,16 @@ public final class MainActivity extends Activity {
               || (r.optBoolean("installed", false)
                   && "installed_disabled".equals(r.optString("status")));
           boolean review = r.optBoolean("reviewRequired", !verified);
+          boolean notInstalled=op.equals("download")&&"not_completed".equals(r.optString("status"))
+              &&!r.optBoolean("reviewRequired",true)&&!r.isNull("installed")&&!r.optBoolean("installed",true);
           if (op.equals("download")) {
             verified = InstallResultPolicy.verified(r.optString("status"),
                 r.isNull("installed") ? null : r.optBoolean("installed", false),
                 r.isNull("enabled") ? null : r.optBoolean("enabled", true),
                 r.optBoolean("reviewRequired", true));
-            review = review || !verified;
+            review = !notInstalled&&(review || !verified);
           }
-          notice = verified && !review
+          notice = notInstalled?s(R.string.download_declined_before_install):verified && !review
               ? (op.equals("download")
                         ? s(R.string.ui_esim_installed_and_independently_verified_it_remains_disabled_yo)
                         : s(R.string.ui_operation_verified_by_a_fresh_card_read_review_the_updated_inven))
@@ -688,17 +720,21 @@ public final class MainActivity extends Activity {
           }
           if (r.has("notificationStatus") && verified && !review)
             notice += "\n" + UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus));
-          if (verified && !review)
+          if ((verified || notInstalled) && !review)
             getPreferences(0).edit().remove("pending").commit();
           if (r.optBoolean("restartRequired", false) || !r.optBoolean("notificationWorkerStopped", true)) {
             getPreferences(0).edit().putBoolean("pending", true).commit();
-            notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
+            if(!r.optBoolean("localSessionRestartRequired",false))
+              notice += s(R.string.ui_reconnect_the_local_service_using_your_computer_and_verify_the_c);
           }
-          recentResults.add(0, (verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
+          recentResults.add(0, cardLabel()+" · "+(notInstalled?s(R.string.download_not_installed):verified && !review ? s(R.string.ui_verified) : s(R.string.ui_needs_review)) + operationLabel(op));
           if(recentResults.size()>20)recentResults.remove(20);
           restoreDetailAfterRead=verified && !review && ProfileActionPolicy.executesDirectly(op);
           screen = restoreDetailAfterRead ? 3 : 0;
           render();
+          if(needsVerifiedSessionRestart(r,verified,review)){
+            recoveryReconnectNeeded=true;backend=null;inventory=new JSONObject();reconnectVerifiedRefresh();return;
+          }
           refresh();
           if (op.equals("download") && verified && !review) showInstalledResult();
         });
@@ -780,6 +816,7 @@ public final class MainActivity extends Activity {
   }
   private void navigate(int destination) {
     if(OPERATIONS.running())return;
+    if(destination!=SettingsNavigation.CONNECTION)shizukuPermissionPending=false;
     if (screen == 1 && destination != 1) { clearCredentials();pendingImport = null;draft.changed(); }
     if(destination==SettingsNavigation.CONNECTION&&screen!=SettingsNavigation.CONNECTION&&screen!=6)connectionReturnScreen=screen==0?0:2;
     navigationSession++;
@@ -879,9 +916,18 @@ public final class MainActivity extends Activity {
     return OnDeviceAdbWirelessManager.hasPaired(this)
         ? s(R.string.wireless_adb_live_connect) : s(R.string.wireless_adb_live_entry);
   }
+  private void rememberConnectionMethod(String method) {
+    connectionMethod=method;
+    getPreferences(0).edit().putString("connectionMethod",method).apply();
+  }
+  private boolean needsVerifiedSessionRestart(JSONObject result,boolean verified,boolean review) {
+    return result.optBoolean("localSessionRestartRequired",false)&&verified&&!review;
+  }
   private void primaryConnect() {
     if (!wirelessOnboardingAvailable()) { beginDirectBootstrap();return; }
     if (!OnDeviceAdbWirelessManager.hasPaired(this)) {showWirelessDiscoveryPreview();return;}
+    rememberConnectionMethod("wireless");
+    if(recoveryReconnectNeeded){reconnectVerifiedRefresh();return;}
     run(s(R.string.wireless_adb_live_reconnecting),false,()->{
       LocalAdbBootstrap.Result attempt=LocalAdbBootstrap.start(this);
       return new JSONObject().put("ready",attempt.ready)
@@ -893,6 +939,36 @@ public final class MainActivity extends Activity {
                                 s(R.string.wireless_adb_attach_pending));
       } else status(s(R.string.wireless_adb_live_unavailable),
                   r.optString("description",s(R.string.wireless_adb_live_unavailable)));
+    });
+  }
+
+  private void reconnectVerifiedRefresh() {
+    if(destroyed||!resumed||OPERATIONS.running())return;
+    boolean useShizuku="shizuku".equals(connectionMethod)&&ShizukuConnection.permitted();
+    boolean useWireless="wireless".equals(connectionMethod)&&wirelessOnboardingAvailable()
+        &&OnDeviceAdbWirelessManager.hasPaired(this);
+    if(!useShizuku&&!useWireless){
+      recoveryReconnectNeeded=true;screen=SettingsNavigation.CONNECTION;
+      statusPreservingOutcome(s(R.string.nav_reconnect_title),s(R.string.nav_reconnect_using_selected_method));render();return;
+    }
+    run(s(useShizuku?R.string.nav_shizuku_connecting:R.string.wireless_adb_live_reconnecting),false,()->{
+      if(useShizuku){
+        boolean ready=false;
+        try {
+          if(CompanionBinderProvider.management()!=null)CompanionBinderProvider.beginManagementRecoveryBootstrap();
+          else CompanionBinderProvider.beginManagementBootstrap();
+          ready=ShizukuConnection.connect(getApplicationContext());
+        }catch(Exception unavailable){/* Keep the existing quarantine; never request permission automatically. */}
+        return new JSONObject().put("ready",ready);
+      }
+      LocalAdbBootstrap.Result attempt=LocalAdbBootstrap.restartAfterVerifiedRefresh(this);
+      return new JSONObject().put("ready",attempt.ready);
+    },result->{
+      if(result.optBoolean("ready")){backend=null;compatibility=new JSONObject();connectDirect();}
+      else {
+        recoveryReconnectNeeded=true;screen=SettingsNavigation.CONNECTION;
+        statusPreservingOutcome(s(R.string.ui_connection_not_completed),s(R.string.nav_reconnect_using_selected_method));render();
+      }
     });
   }
 
@@ -948,7 +1024,9 @@ public final class MainActivity extends Activity {
     Button rename=action(s(R.string.ui_rename),false,()->{if(detailCurrent()){screen=4;navigationSession++;render();}});availability(rename,canEdit&&p.optBoolean("canRename",false));add(rename,28);
     Button delete=action(s(R.string.ui_delete_esim_166),false,()->{if(detailCurrent())prepare("delete",selectedProfile,"");});delete.setTextColor(ERROR);availability(delete,canEdit&&disabled&&p.optBoolean("canDelete",false));add(delete,12);
     if(enabled)add(text(s(R.string.ui_turn_off_this_esim_before_deleting_it),12,MUTED,false),4);
-    if(!canEdit)add(text(s(getPreferences(0).getBoolean("pending",false)?R.string.recovery_view_only_summary:R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
+    if(!canEdit)add(text(s(getPreferences(0).getBoolean("pending",false)
+        ?"other_card".equals(inventory.optString("recoveryScope"))?R.string.recovery_other_card_summary:R.string.recovery_view_only_summary
+        :R.string.ui_changes_are_unavailable_until_this_card_and_its_recovery_state_a),13,MUTED,false),12);
     add(text(s(R.string.ui_about_this_esim),16,TEXT,true),28);detailFact(s(R.string.ui_operator),p.optString("provider",p.optString("name",s(R.string.ui_not_reported))));detailFact("ICCID",selectedIccid);detailFact(s(R.string.ui_card),cardLabel());
     add(text(s(R.string.ui_card_state_only_network_service_has_not_been_checked),12,MUTED,false),20);
   }
@@ -956,12 +1034,15 @@ public final class MainActivity extends Activity {
   private void renameScreen(){if(detailProfile==null)return;add(text(cardLabel()+s(R.string.ui_eid_156)+inventory.optString("eidMasked",s(R.string.ui_not_reported)),12,MUTED,false),18);add(text(profileName(detailProfile)+" · "+selectedIccid),22);EditText name=input(s(R.string.ui_nickname),false);name.setText(detailProfile.optString("nickname",""));add(name,22);add(text(s(R.string.ui_leave_blank_to_use_the_operator_name),12,MUTED,false),10);add(action(s(R.string.ui_save),true,()->{if(!detailCurrent())return;String value=name.getText().toString().trim();if(value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>64||value.matches("(?s).*[\\p{Cntrl}].*")){name.setError(s(R.string.ui_use_at_most_64_utf_8_bytes_without_control_characters));return;}hideKeyboard();prepare("rename",selectedProfile,value);}),28);add(action(s(R.string.ui_cancel),false,()->{screen=3;navigationSession++;render();}),8);}
   private void recordsScreen(){
     add(text(s(R.string.ui_operation_results),22,TEXT,false),24);
+    add(text(cardLabel(),13,MUTED,false),12);
     add(text(s(R.string.ui_this_session_s_results_are_shown_here_durable_safety_records_rem)),12);
     for(String value:recentResults)add(text(value,16,TEXT,false),18);
     if(recentResults.isEmpty())add(text(s(R.string.ui_no_operations_in_this_app_session)),24);
     if(getPreferences(0).getBoolean("pending",false)){
       add(text(s(R.string.recovery_record_summary)),20);
       if(recoveryReviewEligible)add(action(s(R.string.recovery_review_button),false,this::reviewUnknownLifecycle),12);
+      else if(inventory.has("profiles"))add(text(s("other_card".equals(inventory.optString("recoveryScope"))
+          ?R.string.recovery_review_original_card:R.string.recovery_review_unavailable)),12);
     }
     if(notificationCleanupAvailable){
       add(text(UiMessages.known(MainActivity.this,NotificationPresentation.message(notificationStatus))),20);
@@ -1222,7 +1303,49 @@ public final class MainActivity extends Activity {
     if(wirelessOnboardingAvailable()&&OnDeviceAdbWirelessManager.hasPaired(this))
       other.button(s(R.string.nav_pair_again),false,()->{other.dialog.dismiss();startWirelessPairing();});
     if(LabSupport.socketEligible())other.button(s(R.string.ui_use_legacy_local_companion),false,()->{other.dialog.dismiss();selectLegacyCompanion();});
+    if(ShizukuConnection.available())other.button(s(R.string.nav_shizuku_connection),false,()->{other.dialog.dismiss();chooseShizukuConnection();});
     other.button(s(R.string.ui_cancel),false,other.dialog::dismiss);other.show();
+  }
+
+  private void chooseShizukuConnection() {
+    if(destroyed||!resumed||OPERATIONS.running()||(backend!=null&&!recoveryReconnectNeeded)||!ShizukuConnection.available())return;
+    if(shizukuPermissionPending&&android.os.SystemClock.elapsedRealtime()<shizukuPermissionUntil)return;
+    if(ShizukuConnection.permitted()){startShizukuBootstrap();return;}
+    shizukuPermissionPending=true;
+    shizukuPermissionUntil=android.os.SystemClock.elapsedRealtime()+120000;
+    try {rikka.shizuku.Shizuku.requestPermission(ShizukuConnection.PERMISSION_REQUEST);}
+    catch(RuntimeException unavailable){
+      shizukuPermissionPending=false;
+      status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_unavailable));render();
+    }
+  }
+
+  private void resumeShizukuAuthorization() {
+    if(!shizukuPermissionPending||destroyed)return;
+    if(android.os.SystemClock.elapsedRealtime()>=shizukuPermissionUntil){shizukuPermissionPending=false;return;}
+    if(!resumed||OPERATIONS.running()||(backend!=null&&!recoveryReconnectNeeded)||!ShizukuConnection.permitted())return;
+    shizukuPermissionPending=false;startShizukuBootstrap();
+  }
+
+  private void startShizukuBootstrap() {
+    if(destroyed||!resumed||OPERATIONS.running()||(backend!=null&&!recoveryReconnectNeeded)||!ShizukuConnection.permitted())return;
+    rememberConnectionMethod("shizuku");
+    if(recoveryReconnectNeeded){reconnectVerifiedRefresh();return;}
+    try {CompanionBinderProvider.beginManagementBootstrap();}
+    catch(SecurityException existing){connectDirect();return;}
+    compatibility=new JSONObject();fallback=false;binderReadOnlyInventory=false;directManagement=true;companionManagement=true;
+    navigationSession++;clearDetailSelection();
+    CompatibilityDiagnostics.started(CompatibilityDiagnostics.Transport.ADB_COMPANION);
+    run(s(R.string.nav_shizuku_connecting),false,()->{
+      boolean ready;
+      try {ready=ShizukuConnection.connect(getApplicationContext());}
+      catch(Exception unavailable){ready=false;}
+      return new JSONObject().put("ready",ready);
+    },result->{
+      if(result.optBoolean("ready"))connectDirect();
+      if(backend==null)status(s(R.string.ui_connection_not_completed),s(R.string.nav_shizuku_unavailable));
+      render();
+    });
   }
 
   private void appearanceScreen() {
@@ -1953,6 +2076,10 @@ public final class MainActivity extends Activity {
     if (installResultDialog != null) installResultDialog.dismiss();
     if (activeSheet != null) activeSheet.dismiss();
     destroyed = true;
+    shizukuPermissionPending=false;
+    rikka.shizuku.Shizuku.removeBinderReceivedListener(shizukuAvailable);
+    rikka.shizuku.Shizuku.removeBinderDeadListener(shizukuUnavailable);
+    rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuPermission);
     handler.removeCallbacks(watch);
     releaseWhenIdle();
     super.onDestroy();

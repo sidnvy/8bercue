@@ -7,7 +7,8 @@ final class NotificationJournal {
   private final File directory;
   NotificationJournal(File directory) throws IOException {
     this.directory=directory;
-    if(!directory.getCanonicalFile().equals(directory.getAbsoluteFile())||(!directory.isDirectory()&&!directory.mkdirs()))throw new IOException("Notification journal unavailable");
+    PathSafety.requireDirectDirectory(directory);
+    if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("Notification journal unavailable");
     Files.setPosixFilePermissions(directory.toPath(),java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
   }
   synchronized List<Properties> records() throws IOException {

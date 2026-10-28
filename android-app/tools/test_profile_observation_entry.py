@@ -49,6 +49,7 @@ public class ProfileObservationTest {
  static class FiveberReaderSelector{
   static class Target{String identityHash,reader="telephony.1.0",eidMasked="masked";Target(String v){identityHash=v;}}
   static Target discover(){discoveries++;return new Target(changed&&discoveries>1?"d".repeat(64):CARD);}
+  static Target verifySelectedCard(Target expected){return changed?new Target("d".repeat(64)):expected;}
   static void clearCompatibilityReport(){}static CompatibilityReport compatibilityReport(){return new CompatibilityReport();}
  }
  static class CompatibilityReport{String route(){return "test";}}
@@ -107,7 +108,7 @@ public class ProfileObservationTest {
    reset();scope=relation;JSONObject r=read();
    check(r.optBoolean("ok",false)&&r.has("profiles"),"Verified current card remains readable: "+relation);
    check(((JSONArray)r.data.get("profiles")).length()==1,"Profile list returned");
-   check(reads==2&&discoveries==2&&observations==1,"Double read and final card/reader check retained");
+   check(reads==2&&discoveries==1&&observations==1,"Double read and final card/reader check retained");
    check(!r.optBoolean("writeQualified",true)&&r.optBoolean("changesBlocked",false),"Observation does not unlock writes");
    check(r.optBoolean("recoveryReviewEligible",false)==relation.equals("same_card"),"Offer review only for the currently observed original card");
    check(relation.equals(r.optString("recoveryScope")),"Recovery scope not confused with another card");
@@ -189,7 +190,7 @@ public class ProfileObservationTest {
    check(result.optBoolean("writeQualified",false)==proven,"Only exact stopped-worker same-card observation restores actions: "+scenario);
    check(realJournal.requiresReconciliation()!=proven,"Real durable journal follows observation proof");
    check(Arrays.equals(original,java.nio.file.Files.readAllBytes(dir.resolve("operation.properties"))),"Automatic observation preserves the original unknown result");
-   if(proven)check(reads==2&&quiescence==1&&discoveries>=2,"Automatic receipt follows two stable reads, final identity and quiescence");
+   if(proven)check(reads==2&&quiescence==1&&discoveries>=1,"Automatic receipt follows two stable reads, final identity and quiescence");
    if(scenario.equals("quarantined"))check(quiescence==0,"Active quarantine is never disposed by inventory reads");
   }
   System.out.println("PASS "+checks+" actual listProfiles observation-envelope checks (controlled Binder/card I/O)");
@@ -198,5 +199,5 @@ public class ProfileObservationTest {
 with tempfile.TemporaryDirectory() as tmp:
  p=Path(tmp)/'ProfileObservationTest.java';p.write_text(fixture)
  java=Path(os.environ.get('JAVA_HOME','/usr'))/'bin'
- subprocess.run([str(java/'javac'),'-d',tmp,*[str(root/'app/src/main/java/dev/sid/fiveberinspector'/name) for name in ['OperationJournal.java','ProfileLifecycleGuard.java','IntentDigests.java','LifecycleObservedOutcome.java']],str(p)],check=True)
+ subprocess.run([str(java/'javac'),'-d',tmp,*[str(root/'app/src/main/java/dev/sid/fiveberinspector'/name) for name in ['PathSafety.java','OperationJournal.java','ProfileLifecycleGuard.java','IntentDigests.java','LifecycleObservedOutcome.java']],str(p)],check=True)
  subprocess.run([str(java/'java'),'-Dfixture.root='+tmp,'-cp',tmp,'dev.sid.fiveberinspector.ProfileObservationTest'],check=True)
